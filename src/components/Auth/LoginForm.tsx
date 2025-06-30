@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { LogIn, Mail, Eye, EyeOff } from 'lucide-react';
+import { LogIn, Mail } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import toast from 'react-hot-toast';
 
@@ -77,7 +77,7 @@ const LoginForm: React.FC = () => {
 
           <div className="text-center">
             <p className="text-sm text-gray-600">
-              <strong>Development Mode:</strong> No password required
+              <strong>Standard Password:</strong> <code className="bg-gray-100 px-2 py-1 rounded">admin123</code>
             </p>
             <p className="text-xs text-gray-500 mt-2">
               Contact admin if you need to be added to the system

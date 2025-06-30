@@ -84,8 +84,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       setLoading(true);
       
-      // For development: use a default password for all users
-      const defaultPassword = 'dev123456';
+      // Use admin123 as the standard password for all users
+      const standardPassword = 'admin123';
       
       // First, check if employee exists in Firestore
       const employeesQuery = query(
@@ -95,12 +95,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const employeeSnapshot = await getDocs(employeesQuery);
       
       if (employeeSnapshot.empty) {
-        throw new Error('Employee not found. Please contact admin to add your account.');
+        throw new Error('Employee not found. Please contact admin to add your account or run the setup first.');
       }
       
       try {
         // Try to sign in with Firebase Auth
-        await signInWithEmailAndPassword(auth, email, defaultPassword);
+        await signInWithEmailAndPassword(auth, email, standardPassword);
       } catch (authError: any) {
         if (authError.code === 'auth/user-not-found') {
           throw new Error('Account not set up in authentication system. Please contact admin.');

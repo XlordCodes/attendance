@@ -27,8 +27,8 @@ class EmployeeService {
       const qrCode = await QRCode.toDataURL(qrCodeData);
 
       // Create Firebase Auth user
-      const defaultPassword = 'dev123456'; // Development password
-      const userCredential = await createUserWithEmailAndPassword(auth, employeeData.email, defaultPassword);
+      const standardPassword = 'admin123'; // Standard password for all users
+      const userCredential = await createUserWithEmailAndPassword(auth, employeeData.email, standardPassword);
       const userId = userCredential.user.uid;
 
       // Create employee document in Firestore
@@ -195,45 +195,6 @@ class EmployeeService {
       return qrCode;
     } catch (error) {
       console.error('Error regenerating QR code:', error);
-      throw error;
-    }
-  }
-
-  // Helper method to create initial admin users
-  async createInitialAdmins(): Promise<void> {
-    try {
-      const admins = [
-        {
-          employeeId: 'ADMIN001',
-          name: 'System Administrator',
-          email: 'admin@aintrix.com',
-          role: 'admin' as const,
-          department: 'Administration',
-          isActive: true,
-          password: 'admin123' // This won't be stored, just for reference
-        },
-        {
-          employeeId: 'EMP001',
-          name: 'John Doe',
-          email: 'john.doe@aintrix.com',
-          role: 'employee' as const,
-          department: 'Engineering',
-          isActive: true,
-          password: 'emp123' // This won't be stored, just for reference
-        }
-      ];
-
-      for (const adminData of admins) {
-        const existingEmployee = await this.getEmployeeByEmail(adminData.email);
-        if (!existingEmployee) {
-          await this.createEmployee(adminData);
-          console.log(`Created ${adminData.role}: ${adminData.email}`);
-        } else {
-          console.log(`${adminData.role} already exists: ${adminData.email}`);
-        }
-      }
-    } catch (error) {
-      console.error('Error creating initial admins:', error);
       throw error;
     }
   }

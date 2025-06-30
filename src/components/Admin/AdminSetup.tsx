@@ -211,10 +211,10 @@ const AdminSetup: React.FC = () => {
           <div className="mt-8 p-4 bg-yellow-50 rounded-lg">
             <h3 className="font-semibold text-yellow-800 mb-2">📋 Instructions:</h3>
             <ul className="text-sm text-yellow-700 space-y-1">
-              <li>1. Run the initial setup to create default admin and employee accounts</li>
-              <li>2. Users can login with their email address (no password required in development)</li>
-              <li>3. All new users are created with a default password: <code className="bg-yellow-200 px-1 rounded">dev123456</code></li>
-              <li>4. Firebase Authentication and Firestore must be properly configured</li>
+              <li>1. <strong>First:</strong> Add admin emails to the <code className="bg-yellow-200 px-1 rounded">admins</code> collection in Firebase Firestore</li>
+              <li>2. Run the initial setup to create accounts from your Firebase admins collection</li>
+              <li>3. Users can login with their email address and password: <code className="bg-yellow-200 px-1 rounded">admin123</code></li>
+              <li>4. The system automatically creates admin accounts from your Firebase admins collection</li>
               <li>5. Admin users have access to employee management and kiosk features</li>
             </ul>
           </div>
