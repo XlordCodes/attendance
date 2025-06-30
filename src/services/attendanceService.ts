@@ -1,9 +1,63 @@
 import { AttendanceRecord, BreakTime, GeolocationData } from '../types';
-import { format } from 'date-fns';
+import { format, subDays } from 'date-fns';
 
 // Mock data storage for demo
 let mockAttendanceRecords: AttendanceRecord[] = [];
 let mockNotifications: any[] = [];
+
+// Initialize with sample data
+const initializeSampleData = () => {
+  if (mockAttendanceRecords.length === 0) {
+    const sampleEmployees = [
+      { id: 'emp001', name: 'John Doe' },
+      { id: 'emp002', name: 'Jane Smith' },
+      { id: 'emp003', name: 'Bob Johnson' },
+      { id: 'admin001', name: 'Admin User' },
+    ];
+
+    // Generate sample data for the past 30 days
+    for (let i = 0; i < 30; i++) {
+      const date = subDays(new Date(), i);
+      const dateString = format(date, 'yyyy-MM-dd');
+      
+      sampleEmployees.forEach((emp) => {
+        // Skip some days to simulate absences (90% attendance rate)
+        if (Math.random() > 0.1) {
+          const clockInHour = 8 + Math.random() * 2; // 8-10 AM
+          const clockInMinute = Math.random() * 60;
+          const clockIn = new Date(date);
+          clockIn.setHours(Math.floor(clockInHour), Math.floor(clockInMinute), 0, 0);
+          
+          const workHours = 8 + Math.random() * 2; // 8-10 hours
+          const clockOut = new Date(clockIn);
+          clockOut.setHours(clockOut.getHours() + Math.floor(workHours), clockOut.getMinutes() + ((workHours % 1) * 60), 0, 0);
+          
+          const overtime = Math.max(0, workHours - 8);
+          const status = clockInHour > 9.25 ? 'late' : 'present';
+          
+          mockAttendanceRecords.push({
+            id: `att_${emp.id}_${i}`,
+            employeeId: emp.id,
+            employeeName: emp.name,
+            date: dateString,
+            clockIn,
+            clockOut,
+            lunchStart: undefined,
+            lunchEnd: undefined,
+            breakTimes: [],
+            location: undefined,
+            isWFH: Math.random() > 0.8, // 20% WFH
+            earlyLogoutReason: overtime === 0 && Math.random() > 0.9 ? 'Personal work' : undefined,
+            overtime: Math.round(overtime * 100) / 100,
+            status,
+            totalHours: Math.round(workHours * 100) / 100,
+            createdAt: clockIn,
+          });
+        }
+      });
+    }
+  }
+};
 
 class AttendanceService {
   async clockIn(employeeId: string, location?: GeolocationData, isWFH: boolean = false) {
@@ -182,6 +236,67 @@ class AttendanceService {
       .slice(0, limit);
   }
 
+  async getAllAttendanceRecords(startDate?: string, endDate?: string): Promise<AttendanceRecord[]> {
+    let records = [...mockAttendanceRecords];
+    
+    if (startDate) {
+      records = records.filter(record => record.date >= startDate);
+    }
+    
+    if (endDate) {
+      records = records.filter(record => record.date <= endDate);
+    }
+    
+    return records.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  }
+
+  async getAttendanceStats(employeeId?: string, days: number = 30): Promise<{
+    totalDays: number;
+    presentDays: number;
+    lateDays: number;
+    absentDays: number;
+    attendancePercentage: number;
+    averageHours: number;
+    totalHours: number;
+    overtimeHours: number;
+  }> {
+    const endDate = new Date();
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - days);
+    
+    let records = mockAttendanceRecords;
+    
+    if (employeeId) {
+      records = records.filter(record => record.employeeId === employeeId);
+    }
+    
+    records = records.filter(record => {
+      const recordDate = new Date(record.date);
+      return recordDate >= startDate && recordDate <= endDate;
+    });
+    
+    const presentDays = records.filter(r => r.status === 'present').length;
+    const lateDays = records.filter(r => r.status === 'late').length;
+    const absentDays = records.filter(r => r.status === 'absent').length;
+    const totalHours = records.reduce((sum, r) => sum + r.totalHours, 0);
+    const overtimeHours = records.reduce((sum, r) => sum + r.overtime, 0);
+    
+    const workingDays = presentDays + lateDays;
+    const attendancePercentage = days > 0 ? ((workingDays / days) * 100) : 0;
+    const averageHours = workingDays > 0 ? (totalHours / workingDays) : 0;
+    
+    return {
+      totalDays: days,
+      presentDays,
+      lateDays,
+      absentDays,
+      attendancePercentage: Math.round(attendancePercentage * 100) / 100,
+      averageHours: Math.round(averageHours * 100) / 100,
+      totalHours: Math.round(totalHours * 100) / 100,
+      overtimeHours: Math.round(overtimeHours * 100) / 100,
+    };
+  }
+
   private determineStatus(clockInTime: Date): 'present' | 'late' {
     const hour = clockInTime.getHours();
     const minute = clockInTime.getMinutes();
@@ -193,5 +308,8 @@ class AttendanceService {
     return 'present';
   }
 }
+
+// Initialize sample data on load
+initializeSampleData();
 
 export const attendanceService = new AttendanceService();

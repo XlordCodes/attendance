@@ -1,10 +1,8 @@
-import React from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { 
   Home, 
   Clock, 
   Users, 
-  BarChart3, 
   Settings, 
   Bell,
   Calendar,
@@ -20,7 +18,7 @@ const Sidebar: React.FC = () => {
   const employeeNavItems = [
     { to: '/dashboard', icon: Home, label: 'Dashboard' },
     { to: '/clock', icon: Clock, label: 'Clock In/Out' },
-    { to: '/attendance', icon: Calendar, label: 'My Attendance' },
+    { to: '/attendance-logs', icon: Calendar, label: 'My Attendance' },
     { to: '/qr-code', icon: QrCode, label: 'QR Code' },
   ];
 
@@ -28,7 +26,6 @@ const Sidebar: React.FC = () => {
     { to: '/dashboard', icon: Home, label: 'Dashboard' },
     { to: '/employees', icon: Users, label: 'Employees' },
     { to: '/attendance-logs', icon: Calendar, label: 'Attendance Logs' },
-    { to: '/reports', icon: BarChart3, label: 'Reports' },
     { to: '/notifications', icon: Bell, label: 'Notifications' },
     { to: '/kiosk', icon: Monitor, label: 'Kiosk Mode' },
     { to: '/settings', icon: Settings, label: 'Settings' },

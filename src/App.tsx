@@ -1,4 +1,3 @@
-import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import { AuthProvider, useAuth } from './hooks/useAuth';
@@ -11,6 +10,7 @@ import QRCodeDisplay from './components/Employee/QRCodeDisplay';
 import EmployeeManagement from './components/Admin/EmployeeManagement';
 import KioskMode from './components/Admin/KioskMode';
 import AdminSetup from './components/Admin/AdminSetup';
+import AttendanceLogs from './components/Attendance/AttendanceLogs';
 
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user, loading } = useAuth();
@@ -69,6 +69,11 @@ const AppContent: React.FC = () => {
       <Route path="/qr-code" element={
         <ProtectedRoute>
           <QRCodeDisplay />
+        </ProtectedRoute>
+      } />
+      <Route path="/attendance-logs" element={
+        <ProtectedRoute>
+          <AttendanceLogs />
         </ProtectedRoute>
       } />
       
