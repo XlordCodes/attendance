@@ -7,7 +7,13 @@ import {
   Search, 
   ChevronLeft,
   ChevronRight,
-  FileSpreadsheet
+  FileSpreadsheet,
+  Download,
+  Filter,
+  BarChart3,
+  CheckCircle,
+  XCircle,
+  AlertCircle
 } from 'lucide-react';
 import { attendanceService } from '../../services/attendanceService';
 import { employeeService } from '../../services/employeeService';
@@ -208,78 +214,132 @@ const AttendanceLogs: React.FC = () => {
     overallStats.avgAttendance = overallStats.avgAttendance / overallStats.totalEmployees;
   }
 
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case 'present':
+        return <span className="badge badge-success inline-flex items-center space-x-1">
+          <CheckCircle className="w-3 h-3" />
+          <span>Present</span>
+        </span>;
+      case 'late':
+        return <span className="badge badge-warning inline-flex items-center space-x-1">
+          <AlertCircle className="w-3 h-3" />
+          <span>Late</span>
+        </span>;
+      case 'absent':
+        return <span className="badge badge-error inline-flex items-center space-x-1">
+          <XCircle className="w-3 h-3" />
+          <span>Absent</span>
+        </span>;
+      default:
+        return <span className="badge badge-gray">Unknown</span>;
+    }
+  };
+
   return (
-    <div className="p-6 space-y-6">
+    <div className="max-w-7xl mx-auto space-y-8">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Attendance Logs</h1>
-          <p className="text-gray-600 mt-1">
-            Comprehensive attendance tracking and reporting
+          <h1 className="font-outfit text-3xl font-bold text-gray-900 mb-2">
+            Attendance Logs
+          </h1>
+          <p className="font-inter text-gray-600">
+            Comprehensive attendance tracking and reporting system
           </p>
         </div>
         
-        <button
-          onClick={handleExportToExcel}
-          className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
-        >
-          <FileSpreadsheet className="w-4 h-4" />
-          Export to Excel
-        </button>
+        <div className="flex items-center space-x-4">
+          <button
+            onClick={loadAttendanceData}
+            disabled={loading}
+            className="btn-secondary inline-flex items-center space-x-2"
+          >
+            <BarChart3 className="w-4 h-4" />
+            <span>Refresh</span>
+          </button>
+          
+          <button
+            onClick={handleExportToExcel}
+            className="btn-primary inline-flex items-center space-x-2"
+          >
+            <Download className="w-4 h-4" />
+            <span>Export Report</span>
+          </button>
+        </div>
       </div>
 
       {/* Overall Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <div className="bg-white rounded-lg p-6 border border-gray-200">
-          <div className="flex items-center">
-            <Users className="w-8 h-8 text-blue-600" />
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Total Employees</p>
-              <p className="text-2xl font-bold text-gray-900">{overallStats.totalEmployees}</p>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="card-modern p-6 hover:shadow-soft-lg transition-all duration-300">
+          <div className="flex items-center justify-between mb-4">
+            <div className="p-3 bg-blue-50 rounded-xl">
+              <Users className="w-6 h-6 text-blue-600" />
             </div>
+            <span className="font-space text-xs text-gray-500 font-medium">TOTAL</span>
+          </div>
+          <div className="space-y-1">
+            <p className="font-inter text-sm font-medium text-gray-600">Employees</p>
+            <p className="font-space text-2xl font-bold text-gray-900">
+              {overallStats.totalEmployees}
+            </p>
           </div>
         </div>
 
-        <div className="bg-white rounded-lg p-6 border border-gray-200">
-          <div className="flex items-center">
-            <TrendingUp className="w-8 h-8 text-green-600" />
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Avg Attendance</p>
-              <p className="text-2xl font-bold text-gray-900">
-                {overallStats.avgAttendance.toFixed(1)}%
-              </p>
+        <div className="card-modern p-6 hover:shadow-soft-lg transition-all duration-300">
+          <div className="flex items-center justify-between mb-4">
+            <div className="p-3 bg-green-50 rounded-xl">
+              <TrendingUp className="w-6 h-6 text-green-600" />
             </div>
+            <span className="font-space text-xs text-gray-500 font-medium">AVERAGE</span>
+          </div>
+          <div className="space-y-1">
+            <p className="font-inter text-sm font-medium text-gray-600">Attendance</p>
+            <p className="font-space text-2xl font-bold text-gray-900">
+              {overallStats.avgAttendance.toFixed(1)}%
+            </p>
           </div>
         </div>
 
-        <div className="bg-white rounded-lg p-6 border border-gray-200">
-          <div className="flex items-center">
-            <Clock className="w-8 h-8 text-purple-600" />
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Total Hours</p>
-              <p className="text-2xl font-bold text-gray-900">
-                {overallStats.totalHours.toFixed(1)}h
-              </p>
+        <div className="card-modern p-6 hover:shadow-soft-lg transition-all duration-300">
+          <div className="flex items-center justify-between mb-4">
+            <div className="p-3 bg-primary-50 rounded-xl">
+              <Clock className="w-6 h-6 text-primary-600" />
             </div>
+            <span className="font-space text-xs text-gray-500 font-medium">TOTAL</span>
+          </div>
+          <div className="space-y-1">
+            <p className="font-inter text-sm font-medium text-gray-600">Hours</p>
+            <p className="font-space text-2xl font-bold text-gray-900">
+              {overallStats.totalHours.toFixed(1)}h
+            </p>
           </div>
         </div>
 
-        <div className="bg-white rounded-lg p-6 border border-gray-200">
-          <div className="flex items-center">
-            <Calendar className="w-8 h-8 text-orange-600" />
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Overtime Hours</p>
-              <p className="text-2xl font-bold text-gray-900">
-                {overallStats.totalOvertimeHours.toFixed(1)}h
-              </p>
+        <div className="card-modern p-6 hover:shadow-soft-lg transition-all duration-300">
+          <div className="flex items-center justify-between mb-4">
+            <div className="p-3 bg-accent-50 rounded-xl">
+              <Calendar className="w-6 h-6 text-accent-600" />
             </div>
+            <span className="font-space text-xs text-gray-500 font-medium">OVERTIME</span>
+          </div>
+          <div className="space-y-1">
+            <p className="font-inter text-sm font-medium text-gray-600">Hours</p>
+            <p className="font-space text-2xl font-bold text-gray-900">
+              {overallStats.totalOvertimeHours.toFixed(1)}h
+            </p>
           </div>
         </div>
       </div>
 
       {/* Filters */}
-      <div className="bg-white rounded-lg p-6 border border-gray-200">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="card-modern p-6">
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="font-outfit text-lg font-semibold text-gray-900">Filters & Search</h2>
+          <Filter className="w-5 h-5 text-gray-400" />
+        </div>
+        
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           {/* Search */}
           <div className="relative">
             <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
@@ -288,7 +348,7 @@ const AttendanceLogs: React.FC = () => {
               placeholder="Search employees..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10 w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
+              className="input-modern pl-10 w-full font-inter"
             />
           </div>
 
@@ -296,7 +356,7 @@ const AttendanceLogs: React.FC = () => {
           <select
             value={selectedEmployee}
             onChange={(e) => setSelectedEmployee(e.target.value)}
-            className="rounded-lg border border-gray-300 px-3 py-2 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
+            className="input-modern w-full font-inter"
           >
             <option value="all">All Employees</option>
             {employees.map((employee) => (
@@ -307,137 +367,141 @@ const AttendanceLogs: React.FC = () => {
           </select>
 
           {/* Month Navigation */}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center space-x-2">
             <button
               onClick={() => setSelectedMonth(subMonths(selectedMonth, 1))}
-              className="p-2 rounded-lg border border-gray-300 hover:bg-gray-50"
+              className="btn-secondary p-2 rounded-lg"
             >
               <ChevronLeft className="w-4 h-4" />
             </button>
-            <span className="text-sm font-medium px-3 py-2 bg-gray-50 rounded-lg">
-              {format(selectedMonth, 'MMMM yyyy')}
-            </span>
+            <div className="flex-1 text-center">
+              <span className="font-inter text-sm font-semibold text-gray-700 bg-gray-50 px-3 py-2 rounded-lg">
+                {format(selectedMonth, 'MMMM yyyy')}
+              </span>
+            </div>
             <button
               onClick={() => setSelectedMonth(addMonths(selectedMonth, 1))}
-              className="p-2 rounded-lg border border-gray-300 hover:bg-gray-50"
+              className="btn-secondary p-2 rounded-lg"
             >
               <ChevronRight className="w-4 h-4" />
             </button>
           </div>
 
-          {/* Refresh Button */}
+          {/* Export Button */}
           <button
-            onClick={loadAttendanceData}
-            disabled={loading}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
+            onClick={handleExportToExcel}
+            className="btn-secondary inline-flex items-center justify-center space-x-2"
           >
-            {loading ? 'Loading...' : 'Refresh'}
+            <FileSpreadsheet className="w-4 h-4" />
+            <span>Export Excel</span>
           </button>
         </div>
       </div>
 
       {/* Attendance Table */}
-      <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+      <div className="card-modern overflow-hidden">
+        <div className="px-6 py-4 border-b border-gray-200">
+          <h3 className="font-outfit text-lg font-semibold text-gray-900">
+            Employee Attendance Summary
+          </h3>
+        </div>
+        
         <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
+          <table className="table-modern">
+            <thead>
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Employee
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Attendance %
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Present Days
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Late Days
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Total Hours
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Avg Hours
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Overtime
-                </th>
+                <th className="table-header font-inter">Employee</th>
+                <th className="table-header font-inter">Attendance</th>
+                <th className="table-header font-inter">Present</th>
+                <th className="table-header font-inter">Late</th>
+                <th className="table-header font-inter">Total Hours</th>
+                <th className="table-header font-inter">Avg Hours</th>
+                <th className="table-header font-inter">Overtime</th>
               </tr>
             </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
+            <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={7} className="px-6 py-4 text-center text-gray-500">
-                    Loading attendance data...
+                  <td colSpan={7} className="table-cell text-center py-12">
+                    <div className="flex flex-col items-center space-y-3">
+                      <div className="w-8 h-8 bg-primary-100 rounded-lg flex items-center justify-center animate-pulse">
+                        <BarChart3 className="w-5 h-5 text-primary-600" />
+                      </div>
+                      <p className="font-inter text-gray-600">Loading attendance data...</p>
+                    </div>
                   </td>
                 </tr>
               ) : filteredData.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-6 py-4 text-center text-gray-500">
-                    No attendance data found
+                  <td colSpan={7} className="table-cell text-center py-12">
+                    <div className="flex flex-col items-center space-y-3">
+                      <div className="w-8 h-8 bg-gray-100 rounded-lg flex items-center justify-center">
+                        <Users className="w-5 h-5 text-gray-400" />
+                      </div>
+                      <p className="font-inter text-gray-600">No attendance data found</p>
+                    </div>
                   </td>
                 </tr>
               ) : (
                 filteredData.map(({ employee, stats }) => (
-                  <tr key={employee.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center">
-                        <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
-                          <span className="text-blue-600 font-medium text-sm">
-                            {employee.name.charAt(0)}
+                  <tr key={employee.id} className="table-row">
+                    <td className="table-cell">
+                      <div className="flex items-center space-x-3">
+                        <div className="w-10 h-10 bg-gradient-to-br from-primary-500 to-accent-500 rounded-xl flex items-center justify-center shadow-soft">
+                          <span className="font-outfit font-bold text-white text-sm">
+                            {employee.name.charAt(0).toUpperCase()}
                           </span>
                         </div>
-                        <div className="ml-4">
-                          <div className="text-sm font-medium text-gray-900">
+                        <div>
+                          <div className="font-inter font-semibold text-gray-900">
                             {employee.name}
                           </div>
-                          <div className="text-sm text-gray-500">
+                          <div className="font-inter text-sm text-gray-500">
                             {employee.employeeId} • {employee.department}
                           </div>
                         </div>
                       </div>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center">
-                        <div className="flex-1 bg-gray-200 rounded-full h-2 mr-2">
-                          <div
-                            className={`h-2 rounded-full ${
-                              stats.attendancePercentage >= 90
-                                ? 'bg-green-500'
-                                : stats.attendancePercentage >= 75
-                                ? 'bg-yellow-500'
-                                : 'bg-red-500'
-                            }`}
-                            style={{ width: `${Math.min(stats.attendancePercentage, 100)}%` }}
-                          ></div>
+                    <td className="table-cell">
+                      <div className="flex items-center space-x-3">
+                        <div className="flex-1">
+                          <div className="progress-bar">
+                            <div
+                              className="progress-fill"
+                              style={{ width: `${Math.min(stats.attendancePercentage, 100)}%` }}
+                            ></div>
+                          </div>
                         </div>
-                        <span className="text-sm font-medium text-gray-900">
+                        <span className="font-space text-sm font-bold text-gray-900">
                           {stats.attendancePercentage.toFixed(1)}%
                         </span>
                       </div>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">
+                    <td className="table-cell">
+                      <span className="badge badge-success font-space font-bold">
                         {stats.presentDays}
                       </span>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-yellow-100 text-yellow-800">
+                    <td className="table-cell">
+                      <span className="badge badge-warning font-space font-bold">
                         {stats.lateDays}
                       </span>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {stats.totalHours.toFixed(1)}h
+                    <td className="table-cell">
+                      <span className="font-space font-bold text-gray-900">
+                        {stats.totalHours.toFixed(1)}h
+                      </span>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {stats.averageHours.toFixed(1)}h
+                    <td className="table-cell">
+                      <span className="font-space font-bold text-gray-900">
+                        {stats.averageHours.toFixed(1)}h
+                      </span>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                    <td className="table-cell">
+                      <span className={`badge font-space font-bold ${
                         stats.overtimeHours > 0 
-                          ? 'bg-purple-100 text-purple-800' 
-                          : 'bg-gray-100 text-gray-800'
+                          ? 'badge-primary' 
+                          : 'badge-gray'
                       }`}>
                         {stats.overtimeHours.toFixed(1)}h
                       </span>

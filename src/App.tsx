@@ -3,7 +3,6 @@ import { Toaster } from 'react-hot-toast';
 import { AuthProvider, useAuth } from './hooks/useAuth';
 import LoginForm from './components/Auth/LoginForm';
 import Sidebar from './components/Layout/Sidebar';
-import Header from './components/Layout/Header';
 import EmployeeDashboard from './components/Dashboard/EmployeeDashboard';
 import ClockInOut from './components/Employee/ClockInOut';
 import QRCodeDisplay from './components/Employee/QRCodeDisplay';
@@ -11,6 +10,7 @@ import EmployeeManagement from './components/Admin/EmployeeManagement';
 import KioskMode from './components/Admin/KioskMode';
 import AdminSetup from './components/Admin/AdminSetup';
 import AttendanceLogs from './components/Attendance/AttendanceLogs';
+import AttendancePage from './components/Attendance/AttendancePage';
 
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user, loading } = useAuth();
@@ -18,7 +18,15 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600"></div>
+        <div className="flex flex-col items-center space-y-4">
+          <div className="w-12 h-12 bg-gray-900 rounded-lg flex items-center justify-center animate-pulse">
+            <div className="w-6 h-6 bg-white rounded opacity-80"></div>
+          </div>
+          <div className="text-center">
+            <h3 className="font-semibold text-gray-900 mb-1">Loading AINTRIX</h3>
+            <p className="text-sm text-gray-500">Please wait...</p>
+          </div>
+        </div>
       </div>
     );
   }
@@ -30,12 +38,11 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
   return (
     <div className="flex h-screen bg-gray-50">
       <Sidebar />
-      <div className="flex-1 flex flex-col overflow-hidden">
-        <Header />
-        <main className="flex-1 overflow-auto">
+      <main className="flex-1 overflow-auto bg-gray-50">
+        <div className="p-8 h-full">
           {children}
-        </main>
-      </div>
+        </div>
+      </main>
     </div>
   );
 };
@@ -73,7 +80,7 @@ const AppContent: React.FC = () => {
       } />
       <Route path="/attendance-logs" element={
         <ProtectedRoute>
-          <AttendanceLogs />
+          {employee?.role === 'admin' ? <AttendanceLogs /> : <AttendancePage />}
         </ProtectedRoute>
       } />
       
@@ -114,8 +121,23 @@ function App() {
             toastOptions={{
               duration: 4000,
               style: {
-                background: '#363636',
-                color: '#fff',
+                background: '#1f2937',
+                color: '#ffffff',
+                fontFamily: 'Inter, system-ui, sans-serif',
+                fontWeight: '500',
+                borderRadius: '8px',
+                boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
+                border: '1px solid #374151',
+              },
+              success: {
+                style: {
+                  background: '#059669',
+                },
+              },
+              error: {
+                style: {
+                  background: '#dc2626',
+                },
               },
             }}
           />
