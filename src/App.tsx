@@ -1,9 +1,11 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import { AuthProvider, useAuth } from './hooks/useAuth';
-import LoginForm from './components/Auth/LoginForm';
+import UnifiedLoginPage from './components/Auth/UnifiedLoginPage';
 import Sidebar from './components/Layout/Sidebar';
 import EmployeeDashboard from './components/Dashboard/EmployeeDashboard';
+import AdminDashboardNew from './components/Dashboard/AdminDashboardNew';
+import KioskDashboard from './components/Kiosk/KioskDashboard';
 import ClockInOut from './components/Employee/ClockInOut';
 import QRCodeDisplay from './components/Employee/QRCodeDisplay';
 import EmployeeManagement from './components/Admin/EmployeeManagement';
@@ -13,7 +15,7 @@ import AttendanceLogs from './components/Attendance/AttendanceLogs';
 import AttendancePage from './components/Attendance/AttendancePage';
 
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { user, loading } = useAuth();
+  const { user, employee, loading } = useAuth();
 
   if (loading) {
     return (
@@ -31,8 +33,13 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
     );
   }
 
-  if (!user) {
-    return <LoginForm />;
+  if (!user || !employee) {
+    return <UnifiedLoginPage />;
+  }
+
+  // Handle different user roles/modes
+  if (employee.role === 'kiosk') {
+    return <KioskDashboard />;
   }
 
   return (
@@ -55,7 +62,7 @@ const AppContent: React.FC = () => {
     return (
       <Routes>
         <Route path="/setup" element={<AdminSetup />} />
-        <Route path="*" element={<LoginForm />} />
+        <Route path="*" element={<UnifiedLoginPage />} />
       </Routes>
     );
   }
@@ -65,7 +72,7 @@ const AppContent: React.FC = () => {
       <Route path="/" element={<Navigate to="/dashboard" replace />} />
       <Route path="/dashboard" element={
         <ProtectedRoute>
-          <EmployeeDashboard />
+          {employee?.role === 'admin' ? <AdminDashboardNew /> : <EmployeeDashboard />}
         </ProtectedRoute>
       } />
       <Route path="/clock" element={

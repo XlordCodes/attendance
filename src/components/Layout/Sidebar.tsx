@@ -43,7 +43,6 @@ const Sidebar: React.FC = () => {
     { to: '/dashboard', icon: Home, label: 'Dashboard' },
     { to: '/employees', icon: Users, label: 'Employees' },
     { to: '/attendance-logs', icon: Calendar, label: 'Attendance Logs' },
-    { to: '/notifications', icon: Bell, label: 'Notifications' },
     { to: '/kiosk', icon: Monitor, label: 'Kiosk Mode' },
     { to: '/settings', icon: Settings, label: 'Settings' },
   ];
@@ -125,11 +124,13 @@ const Sidebar: React.FC = () => {
             </div>
           </div>
           
-          {/* Notifications */}
+          {/* Notifications - Single notification icon */}
           <div className="flex items-center space-x-2">
             <button className="relative p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-md">
               <Bell className="w-4 h-4" />
-              <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full text-xs"></span>
+              <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full text-xs flex items-center justify-center">
+                <span className="w-1.5 h-1.5 bg-white rounded-full"></span>
+              </span>
             </button>
           </div>
         </div>
