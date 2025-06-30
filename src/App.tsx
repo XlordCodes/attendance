@@ -10,6 +10,7 @@ import ClockInOut from './components/Employee/ClockInOut';
 import QRCodeDisplay from './components/Employee/QRCodeDisplay';
 import EmployeeManagement from './components/Admin/EmployeeManagement';
 import KioskMode from './components/Admin/KioskMode';
+import AdminSetup from './components/Admin/AdminSetup';
 
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user, loading } = useAuth();
@@ -42,8 +43,14 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
 const AppContent: React.FC = () => {
   const { user, employee } = useAuth();
 
+  // If there's no user, show login form
   if (!user) {
-    return <LoginForm />;
+    return (
+      <Routes>
+        <Route path="/setup" element={<AdminSetup />} />
+        <Route path="*" element={<LoginForm />} />
+      </Routes>
+    );
   }
 
   return (
@@ -76,6 +83,11 @@ const AppContent: React.FC = () => {
           <Route path="/kiosk" element={
             <ProtectedRoute>
               <KioskMode />
+            </ProtectedRoute>
+          } />
+          <Route path="/setup" element={
+            <ProtectedRoute>
+              <AdminSetup />
             </ProtectedRoute>
           } />
         </>

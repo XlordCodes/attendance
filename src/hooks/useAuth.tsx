@@ -1,12 +1,15 @@
 import { useState, useEffect, createContext, useContext } from 'react';
-import { auth, db } from '../firebase/config';
+import { signInWithEmailAndPassword, signOut, onAuthStateChanged, User } from 'firebase/auth';
+import { doc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
+import { auth, db } from '../services/firebaseConfig';
 import { Employee } from '../types';
+import toast from 'react-hot-toast';
 
 interface AuthContextType {
-  user: any | null;
+  user: User | null;
   employee: Employee | null;
   loading: boolean;
-  login: (employeeId: string, password: string) => Promise<void>;
+  login: (email: string) => Promise<void>;
   logout: () => Promise<void>;
 }
 
@@ -21,57 +24,110 @@ export const useAuth = () => {
 };
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [user, setUser] = useState<any | null>(null);
+  const [user, setUser] = useState<User | null>(null);
   const [employee, setEmployee] = useState<Employee | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Mock auth state change for demo
-    const unsubscribe = auth.onAuthStateChanged(async (user: any) => {
-      if (user) {
-        // Mock employee data for demo
-        const mockEmployee: Employee = {
-          id: user.uid,
-          employeeId: user.uid === 'emp001' ? 'EMP001' : 'ADMIN001',
-          name: user.uid === 'emp001' ? 'John Doe' : 'Admin User',
-          email: user.email,
-          password: '',
-          role: user.uid === 'emp001' ? 'employee' : 'admin',
-          department: user.uid === 'emp001' ? 'Engineering' : 'Administration',
-          isActive: true,
-          createdAt: new Date(),
-          qrCode: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=='
-        };
-        setEmployee(mockEmployee);
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      setLoading(true);
+      
+      if (firebaseUser) {
+        try {
+          // Try to get employee data from Firestore
+          const employeeDoc = await getDoc(doc(db, 'employees', firebaseUser.uid));
+          
+          if (employeeDoc.exists()) {
+            const employeeData = employeeDoc.data() as Omit<Employee, 'id'>;
+            setEmployee({
+              id: firebaseUser.uid,
+              ...employeeData,
+            });
+          } else {
+            // If employee document doesn't exist, try to find by email
+            const employeesQuery = query(
+              collection(db, 'employees'),
+              where('email', '==', firebaseUser.email)
+            );
+            const employeeSnapshot = await getDocs(employeesQuery);
+            
+            if (!employeeSnapshot.empty) {
+              const employeeDoc = employeeSnapshot.docs[0];
+              const employeeData = employeeDoc.data() as Omit<Employee, 'id'>;
+              setEmployee({
+                id: employeeDoc.id,
+                ...employeeData,
+              });
+            } else {
+              // Employee not found in database
+              toast.error('Employee record not found. Please contact admin.');
+              await signOut(auth);
+            }
+          }
+        } catch (error) {
+          console.error('Error fetching employee data:', error);
+          toast.error('Error loading employee data');
+          await signOut(auth);
+        }
       } else {
         setEmployee(null);
       }
-      setUser(user);
+      
+      setUser(firebaseUser);
       setLoading(false);
     });
-
-    // For demo, simulate initial load
-    setTimeout(() => {
-      setLoading(false);
-    }, 1000);
 
     return unsubscribe;
   }, []);
 
-  const login = async (employeeId: string, password: string) => {
+  const login = async (email: string) => {
     try {
-      const email = `${employeeId}@company.com`;
-      const result = await auth.signInWithEmailAndPassword(email, password);
-      setUser(result.user);
-    } catch (error) {
-      throw new Error('Invalid credentials. Please check your Employee ID and password.');
+      setLoading(true);
+      
+      // For development: use a default password for all users
+      const defaultPassword = 'dev123456';
+      
+      // First, check if employee exists in Firestore
+      const employeesQuery = query(
+        collection(db, 'employees'),
+        where('email', '==', email)
+      );
+      const employeeSnapshot = await getDocs(employeesQuery);
+      
+      if (employeeSnapshot.empty) {
+        throw new Error('Employee not found. Please contact admin to add your account.');
+      }
+      
+      try {
+        // Try to sign in with Firebase Auth
+        await signInWithEmailAndPassword(auth, email, defaultPassword);
+      } catch (authError: any) {
+        if (authError.code === 'auth/user-not-found') {
+          throw new Error('Account not set up in authentication system. Please contact admin.');
+        } else if (authError.code === 'auth/wrong-password') {
+          throw new Error('Authentication error. Please contact admin.');
+        } else {
+          throw authError;
+        }
+      }
+      
+    } catch (error: any) {
+      throw new Error(error.message || 'Login failed. Please try again.');
+    } finally {
+      setLoading(false);
     }
   };
 
   const logout = async () => {
-    await auth.signOut();
-    setUser(null);
-    setEmployee(null);
+    try {
+      await signOut(auth);
+      setUser(null);
+      setEmployee(null);
+      toast.success('Logged out successfully');
+    } catch (error) {
+      console.error('Logout error:', error);
+      toast.error('Error during logout');
+    }
   };
 
   const value = {
