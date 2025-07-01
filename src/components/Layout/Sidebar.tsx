@@ -1,7 +1,6 @@
 import { NavLink, useLocation } from 'react-router-dom';
 import { 
   Home, 
-  Clock, 
   Users, 
   Settings, 
   Calendar,
@@ -50,7 +49,6 @@ const Sidebar: React.FC = () => {
 
   const employeeNavItems = [
     { to: '/dashboard', icon: Home, label: 'Dashboard' },
-    { to: '/clock', icon: Clock, label: 'Clock In/Out' },
     { to: '/attendance-logs', icon: Calendar, label: 'My Attendance' },
     { to: '/qr-code', icon: QrCode, label: 'QR Code' },
   ];
