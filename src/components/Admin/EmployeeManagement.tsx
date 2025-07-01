@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Search, Edit, Trash2, UserCheck, UserX } from 'lucide-react';
-import { employeeService } from '../../services/employeeService';
+import { Plus, Search, Edit, UserCheck, UserX } from 'lucide-react';
+import { userService } from '../../services/userService';
 import { Employee } from '../../types';
 import toast from 'react-hot-toast';
 
@@ -17,8 +17,8 @@ const EmployeeManagement: React.FC = () => {
 
   const loadEmployees = async () => {
     try {
-      const employeeList = await employeeService.getAllEmployees();
-      setEmployees(employeeList);
+      const userList = await userService.getAllUsers();
+      setEmployees(userList);
     } catch (error) {
       toast.error('Failed to load employees');
     } finally {
@@ -28,13 +28,13 @@ const EmployeeManagement: React.FC = () => {
 
   const filteredEmployees = employees.filter(employee =>
     employee.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    employee.employeeId.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (employee.employeeId && employee.employeeId.toLowerCase().includes(searchTerm.toLowerCase())) ||
     employee.department.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   const toggleEmployeeStatus = async (employee: Employee) => {
     try {
-      await employeeService.updateEmployee(employee.id, {
+      await userService.updateUser(employee.id, {
         isActive: !employee.isActive
       });
       await loadEmployees();
@@ -216,11 +216,11 @@ const EmployeeModal: React.FC<{
     try {
       if (employee) {
         // Update existing employee
-        await employeeService.updateEmployee(employee.id, formData);
+        await userService.updateUser(employee.id, formData);
         toast.success('Employee updated successfully');
       } else {
         // Create new employee
-        await employeeService.createEmployee(formData);
+        await userService.createUser(formData);
         toast.success('Employee created successfully');
       }
       onSave();

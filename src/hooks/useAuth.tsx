@@ -9,7 +9,7 @@ interface AuthContextType {
   user: User | null;
   employee: Employee | null;
   loading: boolean;
-  login: (email: string, password?: string, role?: string) => Promise<void>;
+  login: (email: string, password: string, role?: string) => Promise<unknown>;
   logout: () => Promise<void>;
 }
 
@@ -30,46 +30,58 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      console.log('🔄 Auth state changed:', firebaseUser?.email || 'signed out');
       setLoading(true);
       
       if (firebaseUser) {
         try {
-          // Try to get employee data from Firestore
-          const employeeDoc = await getDoc(doc(db, 'employees', firebaseUser.uid));
+          console.log('👤 Fetching user data for UID:', firebaseUser.uid);
           
-          if (employeeDoc.exists()) {
-            const employeeData = employeeDoc.data() as Omit<Employee, 'id'>;
-            setEmployee({
+          // Try to get user data from Firestore users collection by UID first
+          const userDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
+          
+          if (userDoc.exists()) {
+            const userData = userDoc.data() as Omit<Employee, 'id'>;
+            const employeeData = {
               id: firebaseUser.uid,
-              ...employeeData,
-            });
+              ...userData,
+            };
+            
+            console.log('✅ User data loaded from Firestore:', employeeData);
+            setEmployee(employeeData);
           } else {
-            // If employee document doesn't exist, try to find by email
-            const employeesQuery = query(
-              collection(db, 'employees'),
+            console.log('⚠️ No user document found by UID, trying email lookup...');
+            
+            // Fallback: Try to find by email in users collection
+            const usersQuery = query(
+              collection(db, 'users'),
               where('email', '==', firebaseUser.email)
             );
-            const employeeSnapshot = await getDocs(employeesQuery);
+            const usersSnapshot = await getDocs(usersQuery);
             
-            if (!employeeSnapshot.empty) {
-              const employeeDoc = employeeSnapshot.docs[0];
-              const employeeData = employeeDoc.data() as Omit<Employee, 'id'>;
-              setEmployee({
-                id: employeeDoc.id,
-                ...employeeData,
-              });
+            if (!usersSnapshot.empty) {
+              const userDocByEmail = usersSnapshot.docs[0];
+              const userData = userDocByEmail.data() as Omit<Employee, 'id'>;
+              const employeeData = {
+                id: userDocByEmail.id,
+                ...userData,
+              };
+              
+              console.log('✅ User data found by email:', employeeData);
+              setEmployee(employeeData);
             } else {
-              // Employee not found in database
-              toast.error('Employee record not found. Please contact admin.');
+              console.error('❌ User record not found in Firestore');
+              toast.error('User record not found. Please contact admin.');
               await signOut(auth);
             }
           }
         } catch (error) {
-          console.error('Error fetching employee data:', error);
-          toast.error('Error loading employee data');
+          console.error('❌ Error fetching user data:', error);
+          toast.error('Error loading user data');
           await signOut(auth);
         }
       } else {
+        console.log('👋 User signed out');
         setEmployee(null);
       }
       
@@ -80,59 +92,90 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return unsubscribe;
   }, []);
 
-  const login = async (email: string, password?: string, role?: string) => {
+  const login = async (email: string, password: string, role?: string) => {
     try {
       setLoading(true);
       
-      // Determine correct password based on email
-      let loginPassword = password;
-      if (!loginPassword) {
-        // For test accounts use admin123, for others use email as password
-        loginPassword = email.includes('@aintrix.com') ? 'admin123' : email;
-      }
+      console.log('🔐 Starting login process for:', email, 'Role:', role);
       
-      // Check role-specific authentication
-      if (role) {
-        const employeesQuery = query(
-          collection(db, 'employees'),
-          where('email', '==', email),
-          where('role', '==', role)
-        );
-        const employeeSnapshot = await getDocs(employeesQuery);
-        
-        if (employeeSnapshot.empty) {
-          throw new Error(`No ${role} account found with this email. Please check your credentials.`);
-        }
-      } else {
-        // Default behavior - check if employee exists
-        const employeesQuery = query(
-          collection(db, 'employees'),
-          where('email', '==', email)
-        );
-        const employeeSnapshot = await getDocs(employeesQuery);
-        
-        if (employeeSnapshot.empty) {
-          throw new Error('Employee not found. Please contact admin to add your account or run the setup first.');
-        }
-      }
-      
+      // Step 1: First authenticate with Firebase Auth
       try {
-        // Try to sign in with Firebase Auth
-        await signInWithEmailAndPassword(auth, email, loginPassword);
-      } catch (authError: any) {
-        if (authError.code === 'auth/user-not-found') {
-          throw new Error('Account not set up in authentication system. Please contact admin.');
-        } else if (authError.code === 'auth/wrong-password') {
-          throw new Error('Invalid password. Please try again.');
-        } else if (authError.code === 'auth/invalid-email') {
-          throw new Error('Invalid email format.');
+        const userCredential = await signInWithEmailAndPassword(auth, email, password);
+        console.log('✅ Firebase Auth successful for:', email);
+        
+        // Step 2: Check if user exists in Firestore users collection
+        const userDoc = await getDoc(doc(db, 'users', userCredential.user.uid));
+        
+        if (userDoc.exists()) {
+          const userData = userDoc.data();
+          console.log('✅ User found in Firestore:', userData);
+          
+          // Step 3: Check role if specified
+          if (role && userData.role && userData.role.toLowerCase() !== role.toLowerCase()) {
+            // If specific role requested but user doesn't have that role
+            if (role === 'admin' && userData.role.toLowerCase() !== 'admin') {
+              throw new Error('Access denied. Admin privileges required.');
+            }
+            // Note: Admin users can access employee portal, so we don't restrict that
+          }
+          
+          return userCredential;
+          
         } else {
-          throw authError;
+          console.log('⚠️ No user document found in Firestore, trying email lookup...');
+          
+          // Fallback: Try to find by email in users collection
+          const usersQuery = query(
+            collection(db, 'users'),
+            where('email', '==', email)
+          );
+          const usersSnapshot = await getDocs(usersQuery);
+          
+          if (usersSnapshot.empty) {
+            throw new Error('User profile not found in database. Please contact admin to set up your profile.');
+          }
+          
+          const userDocByEmail = usersSnapshot.docs[0];
+          const userData = userDocByEmail.data();
+          console.log('✅ User found by email:', userData);
+          
+          // Check role if specified
+          if (role && userData.role && userData.role.toLowerCase() !== role.toLowerCase()) {
+            if (role === 'admin' && userData.role.toLowerCase() !== 'admin') {
+              throw new Error('Access denied. Admin privileges required.');
+            }
+          }
+          
+          return userCredential;
         }
-      }
+        } catch (authError: unknown) {
+          console.error('❌ Firebase Auth error:', authError);
+          
+          if (authError instanceof Error) {
+            const errorCode = (authError as { code?: string }).code;
+            
+            if (errorCode === 'auth/user-not-found') {
+              throw new Error('Account not found. Please check your email address.');
+            } else if (errorCode === 'auth/wrong-password') {
+              throw new Error('Invalid password. Please check your credentials.');
+            } else if (errorCode === 'auth/invalid-email') {
+              throw new Error('Invalid email format.');
+            } else if (errorCode === 'auth/too-many-requests') {
+              throw new Error('Too many failed login attempts. Please try again later.');
+            } else if (errorCode === 'auth/user-disabled') {
+              throw new Error('This account has been disabled. Please contact admin.');
+            } else {
+              throw new Error(`Authentication failed: ${authError.message}`);
+            }
+          } else {
+            throw new Error('Authentication failed. Please try again.');
+          }
+        }
       
-    } catch (error: any) {
-      throw new Error(error.message || 'Login failed. Please try again.');
+    } catch (error: unknown) {
+      console.error('❌ Login error:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Login failed. Please try again.';
+      throw new Error(errorMessage);
     } finally {
       setLoading(false);
     }

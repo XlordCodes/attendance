@@ -93,20 +93,22 @@ const Sidebar: React.FC = () => {
   };
 
   const employeeNavItems = [
-    { to: '/dashboard', icon: Home, label: 'Dashboard' },
+    { to: '/employee-dashboard', icon: Home, label: 'Employee Dashboard' },
+    { to: '/clock', icon: Play, label: 'Clock In/Out' },
     { to: '/attendance-logs', icon: Calendar, label: 'My Attendance' },
   ];
 
   const adminNavItems = [
-    { to: '/dashboard', icon: Home, label: 'Dashboard' },
-    { to: '/employees', icon: Users, label: 'Employees' },
-    { to: '/attendance-logs', icon: Calendar, label: 'Attendance Logs' },
+    { to: '/admin-dashboard', icon: Home, label: 'Admin Dashboard' },
+    { to: '/employees', icon: Users, label: 'Manage Employees' },
+    { to: '/admin-attendance', icon: Calendar, label: 'All Attendance' },
     { to: '/assign-meeting', icon: CalendarPlus, label: 'Assign Meeting' },
     { to: '/kiosk', icon: Monitor, label: 'Kiosk Mode' },
-    { to: '/settings', icon: Settings, label: 'Settings' },
+    { to: '/setup', icon: Settings, label: 'Setup' },
   ];
 
-  const navItems = employee?.role === 'admin' ? adminNavItems : employeeNavItems;
+  // For admin users, show both admin and employee sections
+  const isAdmin = employee?.role?.toLowerCase() === 'admin';
 
   return (
     <div 
@@ -140,34 +142,100 @@ const Sidebar: React.FC = () => {
         </div>
       </div>
 
-      {/* Navigation - Moved to top */}
+      {/* Navigation */}
       <nav className="px-2 py-3 space-y-1 border-b border-gray-200">
-        {navItems.map((item) => {
-          const Icon = item.icon;
-          const isActive = location.pathname === item.to;
-          
-          return (
-            <NavLink
-              key={item.to}
-              to={item.to}
-              className={`flex items-center px-3 py-3 text-sm font-medium rounded-lg transition-all duration-200 ${
-                isActive
-                  ? 'bg-gray-900 text-white'
-                  : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
-              } ${!isExpanded ? 'justify-center h-10 w-10' : 'h-10'}`}
-              title={!isExpanded ? item.label : undefined}
-            >
-              <Icon className="w-4 h-4 flex-shrink-0" />
-              {isExpanded && (
-                <span className="ml-2 whitespace-nowrap transition-opacity duration-300">{item.label}</span>
-              )}
-            </NavLink>
-          );
-        })}
+        {isAdmin ? (
+          <>
+            {/* Admin Section */}
+            {isExpanded && (
+              <div className="px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                Admin Panel
+              </div>
+            )}
+            {adminNavItems.map((item) => {
+              const Icon = item.icon;
+              const isActive = location.pathname === item.to;
+              
+              return (
+                <NavLink
+                  key={item.to}
+                  to={item.to}
+                  className={`flex items-center px-3 py-3 text-sm font-medium rounded-lg transition-all duration-200 ${
+                    isActive
+                      ? 'bg-gray-900 text-white'
+                      : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+                  } ${!isExpanded ? 'justify-center h-10 w-10' : 'h-10'}`}
+                  title={!isExpanded ? item.label : undefined}
+                >
+                  <Icon className="w-4 h-4 flex-shrink-0" />
+                  {isExpanded && (
+                    <span className="ml-2 whitespace-nowrap transition-opacity duration-300">{item.label}</span>
+                  )}
+                </NavLink>
+              );
+            })}
+            
+            {/* Employee Section for Admin */}
+            {isExpanded && (
+              <div className="px-3 py-2 pt-4 text-xs font-semibold text-gray-500 uppercase tracking-wide border-t border-gray-100 mt-3">
+                Employee Features
+              </div>
+            )}
+            {!isExpanded && <div className="border-t border-gray-200 my-2"></div>}
+            {employeeNavItems.map((item) => {
+              const Icon = item.icon;
+              const isActive = location.pathname === item.to;
+              
+              return (
+                <NavLink
+                  key={item.to}
+                  to={item.to}
+                  className={`flex items-center px-3 py-3 text-sm font-medium rounded-lg transition-all duration-200 ${
+                    isActive
+                      ? 'bg-blue-600 text-white'
+                      : 'text-gray-600 hover:bg-blue-50 hover:text-blue-700'
+                  } ${!isExpanded ? 'justify-center h-10 w-10' : 'h-10'}`}
+                  title={!isExpanded ? item.label : undefined}
+                >
+                  <Icon className="w-4 h-4 flex-shrink-0" />
+                  {isExpanded && (
+                    <span className="ml-2 whitespace-nowrap transition-opacity duration-300">{item.label}</span>
+                  )}
+                </NavLink>
+              );
+            })}
+          </>
+        ) : (
+          // Regular employee navigation
+          <>
+            {employeeNavItems.map((item) => {
+              const Icon = item.icon;
+              const isActive = location.pathname === item.to;
+              
+              return (
+                <NavLink
+                  key={item.to}
+                  to={item.to}
+                  className={`flex items-center px-3 py-3 text-sm font-medium rounded-lg transition-all duration-200 ${
+                    isActive
+                      ? 'bg-gray-900 text-white'
+                      : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+                  } ${!isExpanded ? 'justify-center h-10 w-10' : 'h-10'}`}
+                  title={!isExpanded ? item.label : undefined}
+                >
+                  <Icon className="w-4 h-4 flex-shrink-0" />
+                  {isExpanded && (
+                    <span className="ml-2 whitespace-nowrap transition-opacity duration-300">{item.label}</span>
+                  )}
+                </NavLink>
+              );
+            })}
+          </>
+        )}
       </nav>
 
-      {/* Quick Actions - Updated (Only for employees) */}
-      {employee?.role !== 'admin' && (
+      {/* Quick Actions - Only for regular employees */}
+      {!isAdmin && (
         <div className="px-3 py-3 border-b border-gray-200 flex-shrink-0">
           <div className="space-y-2">
             {/* Take Break and AFK */}

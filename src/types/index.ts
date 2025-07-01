@@ -1,6 +1,6 @@
 export interface Employee {
   id: string;
-  employeeId: string;
+  employeeId?: string;
   name: string;
   email: string;
   password: string;
@@ -14,9 +14,13 @@ export interface Employee {
 }
 
 export interface AttendanceRecord {
-  id: string;
-  employeeId: string;
-  employeeName: string;
+  id?: string;
+  userId: string;
+  userName: string;
+  userEmail: string;
+  employeeId?: string; // For backward compatibility
+  employeeName?: string; // For backward compatibility
+  department: string;
   date: string;
   clockIn?: Date;
   clockOut?: Date;
@@ -26,17 +30,19 @@ export interface AttendanceRecord {
   location?: GeolocationData;
   earlyLogoutReason?: string;
   overtime: number;
-  status: 'present' | 'absent' | 'late' | 'partial';
+  status: 'present' | 'absent' | 'late' | 'partial' | 'half-day';
   totalHours: number;
   totalBreakHours?: number;
   createdAt: Date;
+  updatedAt?: Date;
 }
 
 export interface BreakTime {
-  id: string;
+  id?: string;
   start: Date;
   end?: Date;
-  reason: string;
+  reason?: string;
+  type?: 'break' | 'lunch';
   duration?: number;
 }
 

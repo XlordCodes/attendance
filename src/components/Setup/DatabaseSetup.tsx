@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { setupEmployeeDatabase } from '../../utils/setupEmployeeDatabase';
+import { setupAdminKioskUsers } from '../../utils/setupAdminKiosk';
 import toast from 'react-hot-toast';
 
 const DatabaseSetup: React.FC = () => {
@@ -11,12 +11,12 @@ const DatabaseSetup: React.FC = () => {
     
     setLoading(true);
     try {
-      await setupEmployeeDatabase();
+      await setupAdminKioskUsers();
       setCompleted(true);
-      toast.success('Employee database setup completed successfully!');
+      toast.success('Admin and Kiosk accounts setup completed successfully!');
     } catch (error) {
       console.error('Setup error:', error);
-      toast.error('Error setting up employee database. Check console for details.');
+      toast.error('Error setting up admin and kiosk accounts. Check console for details.');
     } finally {
       setLoading(false);
     }
@@ -29,8 +29,9 @@ const DatabaseSetup: React.FC = () => {
       {!completed ? (
         <div className="space-y-4">
           <p className="text-gray-600 text-sm">
-            Click the button below to set up all employee accounts in the database.
-            This will create accounts for all provided email addresses with password = email.
+            Click the button below to set up admin and kiosk accounts:
+            <br />• admin@aintrix.com / admin123
+            <br />• kiosk@aintrix.com / admin123
           </p>
           
           <button
@@ -38,7 +39,7 @@ const DatabaseSetup: React.FC = () => {
             disabled={loading}
             className="w-full bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {loading ? 'Setting up employees...' : 'Setup Employee Database'}
+            {loading ? 'Setting up accounts...' : 'Setup Admin & Kiosk Accounts'}
           </button>
         </div>
       ) : (
@@ -46,36 +47,17 @@ const DatabaseSetup: React.FC = () => {
           <div className="p-4 bg-green-100 rounded-lg">
             <h3 className="font-medium text-green-900 mb-2">✅ Setup Completed!</h3>
             <p className="text-green-800 text-sm mb-2">
-              All employee accounts have been created successfully.
+              Admin and Kiosk accounts have been created successfully.
             </p>
-            <div className="text-green-800 text-sm space-y-1">
-              <p><strong>Test Accounts:</strong></p>
-              <p>• employee@aintrix.com / admin123</p>
+            <div className="text-green-700 text-xs space-y-1">
               <p>• admin@aintrix.com / admin123</p>
               <p>• kiosk@aintrix.com / admin123</p>
-              <br />
-              <p><strong>Production Admin:</strong></p>
-              <p>• kailash.s2376@gmail.com / kailash.s2376@gmail.com</p>
             </div>
           </div>
           
-          <div className="p-4 bg-blue-100 rounded-lg">
-            <h4 className="font-medium text-blue-900 mb-2">Employee Accounts Created:</h4>
-            <div className="text-blue-800 text-xs space-y-1">
-              <p>• shanmugapriyagangadurai@gmail.com</p>
-              <p>• eamathew2909@gmail.com</p>
-              <p>• Ayishasiddiqua3112@gmail.com</p>
-              <p>• sannyj16@gmail.com</p>
-              <p>• bsnabii67@gmail.com</p>
-              <p>• jeevarithik24@gmail.com</p>
-              <p>• yousuf38152006@gmail.com</p>
-              <p>• siddharth.ks1566@gmail.com</p>
-              <p>• afiyaa1805@gmail.com</p>
-              <p>• jazim0014@gmail.com</p>
-              <p>• raj234996@gmail.com</p>
-              <p>• masfar391@gmail.com</p>
-            </div>
-          </div>
+          <p className="text-sm text-gray-600">
+            You can now login with these credentials. Employees can be added through the admin panel.
+          </p>
         </div>
       )}
     </div>

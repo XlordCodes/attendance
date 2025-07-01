@@ -2,10 +2,10 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { Toaster } from 'react-hot-toast';
 import { AuthProvider, useAuth } from './hooks/useAuth';
 import UnifiedLoginPage from './components/Auth/UnifiedLoginPage';
+import AuthTester from './components/Auth/AuthTester';
 import Sidebar from './components/Layout/Sidebar';
 import EmployeeDashboard from './components/Dashboard/EmployeeDashboard';
 import AdminDashboardNew from './components/Dashboard/AdminDashboardNew';
-import KioskDashboard from './components/Kiosk/KioskDashboard';
 import ClockInOut from './components/Employee/ClockInOut';
 import EmployeeManagement from './components/Admin/EmployeeManagement';
 import KioskMode from './components/Admin/KioskMode';
@@ -38,11 +38,7 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
     return <UnifiedLoginPage />;
   }
 
-  // Handle different user roles/modes
-  if (employee.role === 'kiosk') {
-    return <KioskDashboard />;
-  }
-
+  // Regular authentication - no special kiosk handling needed
   return (
     <div className="flex h-screen bg-gray-50 overflow-hidden">
       <Sidebar />
@@ -64,6 +60,7 @@ const AppContent: React.FC = () => {
       <Routes>
         <Route path="/setup" element={<AdminSetup />} />
         <Route path="/db-setup" element={<SetupPage />} />
+        <Route path="/test-auth" element={<AuthTester />} />
         <Route path="*" element={<UnifiedLoginPage />} />
       </Routes>
     );
@@ -74,7 +71,15 @@ const AppContent: React.FC = () => {
       <Route path="/" element={<Navigate to="/dashboard" replace />} />
       <Route path="/dashboard" element={
         <ProtectedRoute>
-          {employee?.role === 'admin' ? <AdminDashboardNew /> : <EmployeeDashboard />}
+          {/* Default dashboard based on role, but admins can access both */}
+          {employee?.role?.toLowerCase() === 'admin' ? <AdminDashboardNew /> : <EmployeeDashboard />}
+        </ProtectedRoute>
+      } />
+      
+      {/* Employee features - accessible by all users */}
+      <Route path="/employee-dashboard" element={
+        <ProtectedRoute>
+          <EmployeeDashboard />
         </ProtectedRoute>
       } />
       <Route path="/clock" element={
@@ -84,13 +89,23 @@ const AppContent: React.FC = () => {
       } />
       <Route path="/attendance-logs" element={
         <ProtectedRoute>
-          {employee?.role === 'admin' ? <AttendanceLogs /> : <AttendancePage />}
+          <AttendancePage />
         </ProtectedRoute>
       } />
       
-      {/* Admin Routes */}
-      {employee?.role === 'admin' && (
+      {/* Admin-only Routes */}
+      {employee?.role?.toLowerCase() === 'admin' && (
         <>
+          <Route path="/admin-dashboard" element={
+            <ProtectedRoute>
+              <AdminDashboardNew />
+            </ProtectedRoute>
+          } />
+          <Route path="/admin-attendance" element={
+            <ProtectedRoute>
+              <AttendanceLogs />
+            </ProtectedRoute>
+          } />
           <Route path="/employees" element={
             <ProtectedRoute>
               <EmployeeManagement />

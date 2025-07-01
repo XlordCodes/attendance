@@ -1,41 +1,37 @@
 import React, { useState } from 'react';
-import { useAuth } from '../../hooks/useAuth_new';
+import { useAuth } from '../../hooks/useAuth';
+import toast from 'react-hot-toast';
 
-type LoginType = 'admin' | 'kiosk' | 'employee';
+type LoginType = 'admin' | 'employee';
 
 const UnifiedLogin: React.FC = () => {
-  const { loginAdmin, loginKiosk, loginEmployee, loading } = useAuth();
+  const { login, loading } = useAuth();
   const [loginType, setLoginType] = useState<LoginType>('employee');
   const [formData, setFormData] = useState({
     email: '',
-    password: '',
-    kioskId: '',
-    qrToken: ''
+    password: ''
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    if (!formData.email.trim()) {
+      toast.error('Please enter your email');
+      return;
+    }
+
+    if (!formData.password.trim()) {
+      toast.error('Please enter your password');
+      return;
+    }
+
     try {
-      switch (loginType) {
-        case 'admin':
-          await loginAdmin(formData.email, formData.password);
-          break;
-        
-        case 'kiosk':
-          await loginKiosk(formData.kioskId, formData.password);
-          break;
-        
-        case 'employee':
-          if (!formData.qrToken) {
-            throw new Error('QR code is required for employee login');
-          }
-          
-          await loginEmployee(formData.email, formData.password, formData.qrToken);
-          break;
-      }
-    } catch (error: any) {
+      await login(formData.email, formData.password, loginType);
+      toast.success(`Welcome to ${loginType === 'admin' ? 'Admin Panel' : 'Employee Portal'}`);
+    } catch (error: unknown) {
       console.error('Login error:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Login failed. Please check your credentials.';
+      toast.error(errorMessage);
     }
   };
 
@@ -82,40 +78,6 @@ const UnifiedLogin: React.FC = () => {
           </>
         );
 
-      case 'kiosk':
-        return (
-          <>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Kiosk ID
-              </label>
-              <input
-                type="text"
-                name="kioskId"
-                value={formData.kioskId}
-                onChange={handleInputChange}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-black focus:border-black"
-                placeholder="KIOSK001"
-                required
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Kiosk Password
-              </label>
-              <input
-                type="password"
-                name="password"
-                value={formData.password}
-                onChange={handleInputChange}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-black focus:border-black"
-                placeholder="••••••••"
-                required
-              />
-            </div>
-          </>
-        );
-
       case 'employee':
         return (
           <>
@@ -144,20 +106,6 @@ const UnifiedLogin: React.FC = () => {
                 onChange={handleInputChange}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-black focus:border-black"
                 placeholder="••••••••"
-                required
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                QR Code Token
-              </label>
-              <input
-                type="text"
-                name="qrToken"
-                value={formData.qrToken}
-                onChange={handleInputChange}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-black focus:border-black"
-                placeholder="Scan QR code or enter token"
                 required
               />
             </div>
@@ -199,17 +147,6 @@ const UnifiedLogin: React.FC = () => {
           >
             🔑 Admin
           </button>
-          <button
-            type="button"
-            onClick={() => setLoginType('kiosk')}
-            className={`flex-1 flex items-center justify-center px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-              loginType === 'kiosk'
-                ? 'bg-white text-black shadow-sm'
-                : 'text-gray-500 hover:text-gray-700'
-            }`}
-          >
-            🖥️ Kiosk
-          </button>
         </div>
 
         {/* Login Form */}
@@ -228,10 +165,27 @@ const UnifiedLogin: React.FC = () => {
         {/* Footer */}
         <div className="text-center">
           <p className="text-xs text-gray-500">
-            {loginType === 'employee' && 'Location permission required for employee login'}
-            {loginType === 'admin' && 'Administrator access only'}
-            {loginType === 'kiosk' && 'Kiosk mode for public terminals'}
+            {loginType === 'employee' && 'Employee portal access'}
+            {loginType === 'admin' && 'Administrator access - can access both admin and employee panels'}
           </p>
+          
+          {/* Debug button - remove in production */}
+          <div className="mt-4 pt-4 border-t">
+            <button
+              type="button"
+              onClick={() => {
+                // Use actual emails from Firebase console
+                setFormData({
+                  email: loginType === 'admin' ? 'yousuf38152006@gmail.com' : 
+                         'kailash.s2376@gmail.com',
+                  password: '' // User will need to enter their actual password
+                });
+              }}
+              className="text-xs text-blue-600 hover:text-blue-800 underline"
+            >
+              Fill test email ({loginType === 'admin' ? 'yousuf38152006@gmail.com' : 'kailash.s2376@gmail.com'})
+            </button>
+          </div>
         </div>
       </div>
     </div>

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Clock, Calendar, TrendingUp, CheckCircle, AlertCircle, Activity, Bell, MapPin, X } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
-import { attendanceService } from '../../services/attendanceService';
+import { attendanceService } from '../../services/attendanceService_new';
 import { meetingService } from '../../services/meetingService';
 import { notificationService } from '../../services/notificationService';
 import { AttendanceRecord, GeolocationData, Meeting, Notification } from '../../types';
@@ -64,14 +64,14 @@ const EmployeeDashboard: React.FC = () => {
 
     setLoading(true);
     try {
-      const record = await attendanceService.clockIn(
+      const record = await attendanceService.startAttendance(
         employee.id,
         location || undefined
       );
       setTodayRecord(record);
-      toast.success('Clocked in successfully!');
+      toast.success('Started attendance successfully!');
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Clock in failed');
+      toast.error(error instanceof Error ? error.message : 'Failed to start attendance');
     } finally {
       setLoading(false);
     }
@@ -98,13 +98,13 @@ const EmployeeDashboard: React.FC = () => {
 
     setLoading(true);
     try {
-      const record = await attendanceService.clockOut(employee.id, reason);
+      const record = await attendanceService.endAttendance(employee.id, reason);
       setTodayRecord(record);
       setShowEarlyLogoutModal(false);
       setEarlyLogoutReason('');
-      toast.success('Clocked out successfully!');
+      toast.success('Ended attendance successfully!');
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Clock out failed');
+      toast.error(error instanceof Error ? error.message : 'Failed to end attendance');
     } finally {
       setLoading(false);
     }
@@ -137,7 +137,7 @@ const EmployeeDashboard: React.FC = () => {
     
     try {
       console.log('Loading weekly stats for employee:', employee.id);
-      const records = await attendanceService.getAttendanceHistory(employee.id, 7);
+      const records = await attendanceService.getUserAttendanceHistory(employee.id, 7);
       console.log('Weekly attendance records:', records);
       
       const weekStart = startOfWeek(new Date());
