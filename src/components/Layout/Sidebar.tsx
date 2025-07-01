@@ -35,6 +35,19 @@ const Sidebar: React.FC = () => {
     setIsExpanded(!isExpanded);
   };
 
+  const handleBreakRequest = () => {
+    const breakTime = prompt('How many minutes for break?');
+    if (breakTime && !isNaN(Number(breakTime))) {
+      console.log(`Break requested for ${breakTime} minutes`);
+      // TODO: Implement break logic
+    }
+  };
+
+  const handleAFK = () => {
+    console.log('AFK mode activated');
+    // TODO: Implement AFK logic
+  };
+
   const employeeNavItems = [
     { to: '/dashboard', icon: Home, label: 'Dashboard' },
     { to: '/clock', icon: Clock, label: 'Clock In/Out' },
@@ -84,9 +97,6 @@ const Sidebar: React.FC = () => {
 
       {/* Navigation - Moved to top */}
       <nav className="px-2 py-3 space-y-1 border-b border-gray-200">
-        {isExpanded && (
-          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2 px-2">Navigation</p>
-        )}
         {navItems.map((item) => {
           const Icon = item.icon;
           const isActive = location.pathname === item.to;
@@ -111,59 +121,41 @@ const Sidebar: React.FC = () => {
         })}
       </nav>
 
-      {/* Date & Time - Reorganized */}
-      {isExpanded && (
-        <div className="px-3 py-2 border-b border-gray-200 flex-shrink-0">
-          <div className="text-center py-2 bg-gray-50 rounded-md">
-            <p className="text-xs font-semibold text-gray-900">
-              {new Date().toLocaleDateString('en-US', { 
-                weekday: 'short', 
-                month: 'short', 
-                day: 'numeric' 
-              })}
-            </p>
-            <p className="text-xs text-gray-500 mt-0.5">
-              {new Date().toLocaleTimeString('en-US', { 
-                hour: '2-digit', 
-                minute: '2-digit' 
-              })}
-            </p>
-          </div>
-        </div>
-      )}
-
-      {/* Quick Actions - Moved down */}
+      {/* Quick Actions - Updated */}
       <div className="px-3 py-3 border-b border-gray-200 flex-shrink-0">
-        {isExpanded && (
-          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Quick Actions</p>
-        )}
         <div className="space-y-2">
-          {/* Clock In/Out - Wide */}
-          <button className={`w-full flex items-center p-2 bg-green-50 hover:bg-green-100 rounded-md transition-colors ${!isExpanded ? 'justify-center' : 'justify-start'}`}>
-            <Clock className="w-4 h-4 text-green-600 flex-shrink-0" />
-            {isExpanded && (
-              <span className="ml-2 text-xs text-gray-700 font-medium whitespace-nowrap">Clock In/Out</span>
-            )}
-          </button>
-          
           {/* Take Break and AFK */}
           {isExpanded ? (
             <div className="grid grid-cols-2 gap-1.5">
-              <button className="flex flex-col items-center p-2 bg-yellow-50 hover:bg-yellow-100 rounded-md transition-colors">
+              <button 
+                onClick={handleBreakRequest}
+                className="flex flex-col items-center p-2 bg-yellow-50 hover:bg-yellow-100 rounded-md transition-colors"
+              >
                 <Coffee className="w-3 h-3 mb-1 text-yellow-600" />
                 <span className="text-xs text-gray-700 font-medium">Break</span>
               </button>
-              <button className="flex flex-col items-center p-2 bg-red-50 hover:bg-red-100 rounded-md transition-colors">
+              <button 
+                onClick={handleAFK}
+                className="flex flex-col items-center p-2 bg-red-50 hover:bg-red-100 rounded-md transition-colors"
+              >
                 <UserX className="w-3 h-3 mb-1 text-red-600" />
                 <span className="text-xs text-gray-700 font-medium">AFK</span>
               </button>
             </div>
           ) : (
             <div className="space-y-1.5">
-              <button className="w-full flex items-center justify-center p-2 bg-yellow-50 hover:bg-yellow-100 rounded-md transition-colors" title="Take Break">
+              <button 
+                onClick={handleBreakRequest}
+                className="w-full flex items-center justify-center p-2 bg-yellow-50 hover:bg-yellow-100 rounded-md transition-colors" 
+                title="Take Break"
+              >
                 <Coffee className="w-3 h-3 text-yellow-600" />
               </button>
-              <button className="w-full flex items-center justify-center p-2 bg-red-50 hover:bg-red-100 rounded-md transition-colors" title="AFK">
+              <button 
+                onClick={handleAFK}
+                className="w-full flex items-center justify-center p-2 bg-red-50 hover:bg-red-100 rounded-md transition-colors" 
+                title="AFK"
+              >
                 <UserX className="w-3 h-3 text-red-600" />
               </button>
             </div>
@@ -216,9 +208,28 @@ const Sidebar: React.FC = () => {
             </button>
           </div>
         )}
+
+        {/* Date & Time - Moved to bottom */}
+        {isExpanded && (
+          <div className="text-center py-2 mt-3 bg-gray-50 rounded-md">
+            <p className="text-xs font-semibold text-gray-900">
+              {new Date().toLocaleDateString('en-US', { 
+                weekday: 'short', 
+                month: 'short', 
+                day: 'numeric' 
+              })}
+            </p>
+            <p className="text-xs text-gray-500 mt-0.5">
+              {new Date().toLocaleTimeString('en-US', { 
+                hour: '2-digit', 
+                minute: '2-digit' 
+              })}
+            </p>
+          </div>
+        )}
         
         {isExpanded && (
-          <p className="text-xs text-gray-500 text-center mt-3">
+          <p className="text-xs text-gray-500 text-center mt-2">
             v1.0.0 • AINTRIX Global
           </p>
         )}

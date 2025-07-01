@@ -4,15 +4,10 @@ import {
   TrendingUp, 
   Clock, 
   Download,
-  Settings,
   Search,
-  ChevronRight,
   CheckCircle,
   AlertCircle,
   XCircle,
-  UserPlus,
-  FileText,
-  BarChart3,
   Bell
 } from 'lucide-react';
 import { format } from 'date-fns';
@@ -98,13 +93,6 @@ const AdminDashboardNew: React.FC = () => {
         return <Clock className="w-4 h-4 text-gray-600" />;
     }
   };
-
-  const quickActions = [
-    { icon: UserPlus, label: 'Add Employee', color: 'text-green-600', bg: 'bg-green-100' },
-    { icon: FileText, label: 'Generate Report', color: 'text-blue-600', bg: 'bg-blue-100' },
-    { icon: Settings, label: 'System Settings', color: 'text-gray-600', bg: 'bg-gray-100' },
-    { icon: BarChart3, label: 'Analytics', color: 'text-purple-600', bg: 'bg-purple-100' }
-  ];
 
   return (
     <div className="max-w-7xl mx-auto space-y-6">
@@ -240,33 +228,9 @@ const AdminDashboardNew: React.FC = () => {
       </div>
 
       {/* Main Content Grid */}
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-        {/* Quick Actions */}
-        <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-6">
-          <h3 className="text-lg font-bold text-gray-900 mb-4">Quick Actions</h3>
-          <div className="space-y-3">
-            {quickActions.map((action, index) => {
-              const Icon = action.icon;
-              return (
-                <button
-                  key={index}
-                  className="w-full flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:border-gray-300 hover:shadow-sm transition-all"
-                >
-                  <div className="flex items-center space-x-3">
-                    <div className={`p-2 ${action.bg} rounded-md`}>
-                      <Icon className={`w-4 h-4 ${action.color}`} />
-                    </div>
-                    <span className="font-medium text-gray-900">{action.label}</span>
-                  </div>
-                  <ChevronRight className="w-4 h-4 text-gray-400" />
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
+      <div className="grid grid-cols-1 gap-6">
         {/* Recent Activity */}
-        <div className="xl:col-span-2 bg-white rounded-lg border border-gray-200 shadow-sm p-6">
+        <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-6">
           <div className="flex items-center justify-between mb-6">
             <h3 className="text-lg font-bold text-gray-900">Recent Activity</h3>
             <button className="text-sm text-gray-500 hover:text-gray-700">View All</button>

@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
-import { Clock, Calendar, MapPin, Coffee, TrendingUp, CheckCircle, AlertCircle, Activity, Bell } from 'lucide-react';
+import { Clock, Calendar, TrendingUp, CheckCircle, AlertCircle, Activity, Bell, MapPin } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { attendanceService } from '../../services/attendanceService';
-import { AttendanceRecord } from '../../types';
-import { format, startOfWeek, endOfWeek, isToday } from 'date-fns';
+import { AttendanceRecord, GeolocationData } from '../../types';
+import { format, startOfWeek, endOfWeek } from 'date-fns';
+import toast from 'react-hot-toast';
 
 const EmployeeDashboard: React.FC = () => {
   const { employee } = useAuth();
@@ -15,6 +16,11 @@ const EmployeeDashboard: React.FC = () => {
     overtimeHours: 0,
   });
   const [currentTime, setCurrentTime] = useState(new Date());
+  const [loading, setLoading] = useState(false);
+  const [location, setLocation] = useState<GeolocationData | null>(null);
+  const [isWFH, setIsWFH] = useState(false);
+  const [earlyLogoutReason, setEarlyLogoutReason] = useState('');
+  const [showEarlyLogoutModal, setShowEarlyLogoutModal] = useState(false);
 
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
@@ -25,8 +31,87 @@ const EmployeeDashboard: React.FC = () => {
     if (employee) {
       loadTodayRecord();
       loadWeeklyStats();
+      getCurrentLocation();
     }
   }, [employee]);
+
+  const getCurrentLocation = () => {
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          setLocation({
+            latitude: position.coords.latitude,
+            longitude: position.coords.longitude,
+            accuracy: position.coords.accuracy,
+            timestamp: new Date(),
+          });
+        },
+        (error) => {
+          console.error('Error getting location:', error);
+        }
+      );
+    }
+  };
+
+  const handleClockIn = async () => {
+    if (!employee) return;
+
+    setLoading(true);
+    try {
+      const record = await attendanceService.clockIn(
+        employee.id,
+        location || undefined,
+        isWFH
+      );
+      setTodayRecord(record);
+      toast.success('Clocked in successfully!');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Clock in failed');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleClockOut = async () => {
+    if (!employee || !todayRecord) return;
+
+    const now = new Date();
+    const clockInTime = todayRecord.clockIn!;
+    const hoursWorked = (now.getTime() - clockInTime.getTime()) / (1000 * 60 * 60);
+
+    // Check if leaving early (before 6 PM or less than 8 hours)
+    if (now.getHours() < 18 || hoursWorked < 8) {
+      setShowEarlyLogoutModal(true);
+      return;
+    }
+
+    await performClockOut();
+  };
+
+  const performClockOut = async (reason?: string) => {
+    if (!employee) return;
+
+    setLoading(true);
+    try {
+      const record = await attendanceService.clockOut(employee.id, reason);
+      setTodayRecord(record);
+      setShowEarlyLogoutModal(false);
+      setEarlyLogoutReason('');
+      toast.success('Clocked out successfully!');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Clock out failed');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const isClockInDisabled = () => {
+    return !!(todayRecord?.clockIn && !todayRecord?.clockOut);
+  };
+
+  const isClockOutDisabled = () => {
+    return !todayRecord?.clockIn || !!todayRecord?.clockOut;
+  };
 
   const loadTodayRecord = async () => {
     if (!employee) return;
@@ -298,44 +383,88 @@ const EmployeeDashboard: React.FC = () => {
 
         {/* Quick Actions & Recent Activity */}
         <div className="space-y-6">
-          {/* Quick Actions */}
+          {/* Clock In/Out Section */}
           <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-6">
-            <h3 className="text-lg font-bold text-gray-900 mb-4">Quick Actions</h3>
+            <h3 className="text-lg font-bold text-gray-900 mb-6">Clock In/Out</h3>
+            
+            {/* Large Time Display */}
+            <div className="text-center mb-6">
+              <div className="text-3xl font-mono font-bold text-gray-900 mb-2">
+                {format(currentTime, 'HH:mm:ss')}
+              </div>
+              <div className="text-sm text-gray-600">
+                {format(currentTime, 'EEEE, MMMM d')}
+              </div>
+            </div>
+
+            {/* Location Status */}
+            <div className="mb-6 p-3 bg-gray-50 rounded-lg">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-2">
+                  {location ? (
+                    <>
+                      <MapPin className="w-4 h-4 text-green-600" />
+                      <span className="text-xs text-gray-700">Location detected</span>
+                    </>
+                  ) : (
+                    <>
+                      <AlertCircle className="w-4 h-4 text-amber-600" />
+                      <span className="text-xs text-gray-700">Location not available</span>
+                    </>
+                  )}
+                </div>
+                
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="checkbox"
+                    id="wfh"
+                    checked={isWFH}
+                    onChange={(e) => setIsWFH(e.target.checked)}
+                    className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                  />
+                  <label htmlFor="wfh" className="text-xs text-gray-700">
+                    WFH
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            {/* Current Status */}
+            {todayRecord && (
+              <div className="mb-6 p-3 bg-blue-50 rounded-lg">
+                <h4 className="font-medium text-blue-900 mb-2 text-sm">Today's Status</h4>
+                <div className="space-y-1 text-xs text-blue-800">
+                  {todayRecord.clockIn && (
+                    <p>Clock In: {format(todayRecord.clockIn, 'HH:mm:ss')}</p>
+                  )}
+                  {todayRecord.clockOut && (
+                    <p>Clock Out: {format(todayRecord.clockOut, 'HH:mm:ss')}</p>
+                  )}
+                  {todayRecord.clockIn && !todayRecord.clockOut && (
+                    <p>Working Time: {Math.floor((currentTime.getTime() - todayRecord.clockIn.getTime()) / (1000 * 60 * 60))}h {Math.floor(((currentTime.getTime() - todayRecord.clockIn.getTime()) % (1000 * 60 * 60)) / (1000 * 60))}m</p>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Clock In/Out Buttons */}
             <div className="space-y-3">
-              <button className="w-full text-left p-4 border border-gray-200 rounded-lg hover:border-gray-300 hover:shadow-sm transition-all">
-                <div className="flex items-center space-x-3">
-                  <div className="p-2 bg-green-100 rounded-md">
-                    <Clock className="w-4 h-4 text-green-600" />
-                  </div>
-                  <div>
-                    <div className="font-semibold text-gray-900 text-sm">Clock In/Out</div>
-                    <div className="text-xs text-gray-600">Mark your attendance</div>
-                  </div>
-                </div>
+              <button
+                onClick={handleClockIn}
+                disabled={loading || isClockInDisabled()}
+                className="w-full bg-green-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-green-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center justify-center space-x-2"
+              >
+                <Clock className="w-4 h-4" />
+                <span>Clock In</span>
               </button>
-              
-              <button className="w-full text-left p-4 border border-gray-200 rounded-lg hover:border-gray-300 hover:shadow-sm transition-all">
-                <div className="flex items-center space-x-3">
-                  <div className="p-2 bg-yellow-100 rounded-md">
-                    <Coffee className="w-4 h-4 text-yellow-600" />
-                  </div>
-                  <div>
-                    <div className="font-semibold text-gray-900 text-sm">Break Time</div>
-                    <div className="text-xs text-gray-600">Start/end your break</div>
-                  </div>
-                </div>
-              </button>
-              
-              <button className="w-full text-left p-4 border border-gray-200 rounded-lg hover:border-gray-300 hover:shadow-sm transition-all">
-                <div className="flex items-center space-x-3">
-                  <div className="p-2 bg-blue-100 rounded-md">
-                    <MapPin className="w-4 h-4 text-blue-600" />
-                  </div>
-                  <div>
-                    <div className="font-semibold text-gray-900 text-sm">Work From Home</div>
-                    <div className="text-xs text-gray-600">Request WFH approval</div>
-                  </div>
-                </div>
+
+              <button
+                onClick={handleClockOut}
+                disabled={loading || isClockOutDisabled()}
+                className="w-full bg-red-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-red-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center justify-center space-x-2"
+              >
+                <Clock className="w-4 h-4" />
+                <span>Clock Out</span>
               </button>
             </div>
           </div>
@@ -435,6 +564,42 @@ const EmployeeDashboard: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Early Logout Modal */}
+      {showEarlyLogoutModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-96">
+            <h3 className="text-lg font-medium text-gray-900 mb-4">
+              Early Logout Reason
+            </h3>
+            <p className="text-sm text-gray-600 mb-4">
+              You're leaving before your standard work hours. Please provide a reason:
+            </p>
+            <textarea
+              value={earlyLogoutReason}
+              onChange={(e) => setEarlyLogoutReason(e.target.value)}
+              placeholder="Enter reason for early logout..."
+              className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              rows={3}
+            />
+            <div className="flex space-x-3 mt-4">
+              <button
+                onClick={() => setShowEarlyLogoutModal(false)}
+                className="flex-1 px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => performClockOut(earlyLogoutReason)}
+                disabled={!earlyLogoutReason.trim()}
+                className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:bg-gray-300"
+              >
+                Clock Out
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
