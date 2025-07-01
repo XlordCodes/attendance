@@ -6,7 +6,9 @@ export interface Employee {
   password: string;
   role: 'employee' | 'admin' | 'kiosk';
   department: string;
+  position: string;
   isActive: boolean;
+  joinDate?: string;
   createdAt: Date;
   lastLogin?: Date;
 }
@@ -26,6 +28,7 @@ export interface AttendanceRecord {
   overtime: number;
   status: 'present' | 'absent' | 'late' | 'partial';
   totalHours: number;
+  totalBreakHours?: number;
   createdAt: Date;
 }
 
@@ -63,4 +66,16 @@ export interface DailyStats {
   absent: number;
   late: number;
   overtime: number;
+}
+
+export interface Meeting {
+  id: string;
+  title: string;
+  description?: string;
+  date: string;
+  time: string;
+  assignedEmployees: string[];
+  createdBy: string;
+  createdAt: Date;
+  status: 'scheduled' | 'completed' | 'cancelled';
 }

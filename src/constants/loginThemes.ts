@@ -71,7 +71,6 @@ export const modeFeatures = {
   employee: [
     'Personal attendance tracking',
     'Time off requests',
-    'QR code generation',
     'Mobile-friendly interface'
   ]
 };

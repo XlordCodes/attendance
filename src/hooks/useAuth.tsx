@@ -84,8 +84,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       setLoading(true);
       
-      // Use provided password or default
-      const loginPassword = password || 'admin123';
+      // Determine correct password based on email
+      let loginPassword = password;
+      if (!loginPassword) {
+        // For test accounts use admin123, for others use email as password
+        loginPassword = email.includes('@aintrix.com') ? 'admin123' : email;
+      }
       
       // Check role-specific authentication
       if (role) {

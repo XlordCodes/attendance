@@ -2,13 +2,17 @@ import { useState, useEffect } from 'react';
 import { Clock, Calendar, TrendingUp, CheckCircle, AlertCircle, Activity, Bell, MapPin, X } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { attendanceService } from '../../services/attendanceService';
-import { AttendanceRecord, GeolocationData } from '../../types';
-import { format, startOfWeek, endOfWeek } from 'date-fns';
+import { meetingService } from '../../services/meetingService';
+import { notificationService } from '../../services/notificationService';
+import { AttendanceRecord, GeolocationData, Meeting, Notification } from '../../types';
+import { format, startOfWeek, endOfWeek, parseISO, isToday, isFuture } from 'date-fns';
 import toast from 'react-hot-toast';
 
 const EmployeeDashboard: React.FC = () => {
   const { employee } = useAuth();
   const [todayRecord, setTodayRecord] = useState<AttendanceRecord | null>(null);
+  const [meetings, setMeetings] = useState<Meeting[]>([]);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
   const [weeklyStats, setWeeklyStats] = useState({
     totalHours: 0,
     daysPresent: 0,
@@ -31,6 +35,8 @@ const EmployeeDashboard: React.FC = () => {
     if (employee) {
       loadTodayRecord();
       loadWeeklyStats();
+      loadMeetings();
+      loadNotifications();
       getCurrentLocation();
     }
   }, [employee]);
@@ -116,10 +122,13 @@ const EmployeeDashboard: React.FC = () => {
     if (!employee) return;
     
     try {
+      console.log('Loading today record for employee:', employee.id);
       const record = await attendanceService.getTodayAttendance(employee.id);
+      console.log('Today record loaded:', record);
       setTodayRecord(record);
     } catch (error) {
       console.error('Error loading today record:', error);
+      toast.error('Failed to load today\'s attendance record');
     }
   };
 
@@ -127,7 +136,10 @@ const EmployeeDashboard: React.FC = () => {
     if (!employee) return;
     
     try {
+      console.log('Loading weekly stats for employee:', employee.id);
       const records = await attendanceService.getAttendanceHistory(employee.id, 7);
+      console.log('Weekly attendance records:', records);
+      
       const weekStart = startOfWeek(new Date());
       const weekEnd = endOfWeek(new Date());
       
@@ -135,6 +147,7 @@ const EmployeeDashboard: React.FC = () => {
         const recordDate = new Date(record.date);
         return recordDate >= weekStart && recordDate <= weekEnd;
       });
+      console.log('Filtered weekly records:', weeklyRecords);
 
       const stats = weeklyRecords.reduce(
         (acc, record) => ({
@@ -145,12 +158,46 @@ const EmployeeDashboard: React.FC = () => {
         { totalHours: 0, daysPresent: 0, overtimeHours: 0 }
       );
 
-      setWeeklyStats({
+      const finalStats = {
         ...stats,
         averageHours: stats.daysPresent > 0 ? stats.totalHours / stats.daysPresent : 0,
-      });
+      };
+      
+      console.log('Weekly stats calculated:', finalStats);
+      setWeeklyStats(finalStats);
     } catch (error) {
       console.error('Error loading weekly stats:', error);
+      toast.error('Failed to load weekly statistics');
+    }
+  };
+
+  const loadMeetings = async () => {
+    if (!employee) return;
+    
+    try {
+      const employeeMeetings = await meetingService.getMeetingsForEmployee(employee.id);
+      // Filter to show upcoming meetings only
+      const upcomingMeetings = employeeMeetings.filter(meeting => {
+        const meetingDate = parseISO(meeting.date);
+        return isFuture(meetingDate) || isToday(meetingDate);
+      });
+      setMeetings(upcomingMeetings);
+    } catch (error) {
+      console.error('Error loading meetings:', error);
+    }
+  };
+
+  const loadNotifications = async () => {
+    if (!employee) return;
+    
+    try {
+      console.log('Loading notifications for employee:', employee.id);
+      const employeeNotifications = await notificationService.getNotificationsForEmployee(employee.id, 10);
+      console.log('Notifications loaded:', employeeNotifications);
+      setNotifications(employeeNotifications);
+    } catch (error) {
+      console.error('Error loading notifications:', error);
+      // Don't show error toast for notifications as it's not critical
     }
   };
 
@@ -184,27 +231,27 @@ const EmployeeDashboard: React.FC = () => {
   return (
     <div className="max-w-7xl mx-auto space-y-6">
       {/* Welcome Header */}
-      <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-6">
+      <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-4">
         <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-4">
-            <div className="w-16 h-16 bg-gray-900 rounded-lg flex items-center justify-center">
-              <span className="text-white font-bold text-1xl">
+          <div className="flex items-center space-x-3">
+            <div className="w-12 h-12 bg-gray-900 rounded-lg flex items-center justify-center">
+              <span className="text-white font-semibold text-lg">
                 {employee?.name?.charAt(0).toUpperCase()}
               </span>
             </div>
             <div>
-              <h1 className="text-3xl font-bold text-gray-900">
-                Welcome back, {employee?.name?.split(' ')[0]}!
+              <h1 className="text-xl font-semibold text-gray-900">
+                Welcome back, {employee?.name?.split(' ')[0]}
               </h1>
-              <p className="text-lg text-gray-600 capitalize flex items-center space-x-2 mt-1">
+              <p className="text-sm text-gray-600 flex items-center space-x-2 mt-0.5">
                 <span>{employee?.role}</span>
                 <span>•</span>
                 <span className="flex items-center">
-                  <div className="w-3 h-3 bg-green-500 rounded-full mr-2"></div>
+                  <div className="w-2 h-2 bg-green-500 rounded-full mr-1"></div>
                   Online
                 </span>
                 <span>•</span>
-                <span>{format(currentTime, 'EEEE, MMMM d, yyyy')}</span>
+                <span>{format(currentTime, 'MMM d, yyyy')}</span>
               </p>
             </div>
           </div>
@@ -213,12 +260,14 @@ const EmployeeDashboard: React.FC = () => {
           <div className="flex items-center space-x-3">
             <button 
               onClick={() => setShowNotifications(!showNotifications)}
-              className="relative p-3 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+              className="relative p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
             >
-              <Bell className="w-6 h-6" />
-              <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full text-xs flex items-center justify-center">
-                <span className="w-2 h-2 bg-white rounded-full"></span>
-              </span>
+              <Bell className="w-5 h-5" />
+              {notifications.filter(n => !n.isRead).length > 0 && (
+                <span className="absolute -top-0.5 -right-0.5 w-3 h-3 bg-red-500 rounded-full text-xs flex items-center justify-center">
+                  <span className="w-1.5 h-1.5 bg-white rounded-full"></span>
+                </span>
+              )}
             </button>
           </div>
         </div>
@@ -459,35 +508,35 @@ const EmployeeDashboard: React.FC = () => {
           </div>
 
           {/* Recent Activity */}
-          <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-6">
-            <h3 className="text-lg font-bold text-gray-900 mb-4">Recent Activity</h3>
-            <div className="space-y-4">
-              <div className="flex items-start space-x-3">
-                <div className="w-2 h-2 bg-green-500 rounded-full mt-2"></div>
+          <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-4 sm:p-5 lg:p-6">
+            <h3 className="text-base sm:text-lg font-bold text-gray-900 mb-3 sm:mb-4">Recent Activity</h3>
+            <div className="space-y-3">
+              <div className="flex items-start space-x-2 sm:space-x-3">
+                <div className="w-1.5 h-1.5 sm:w-2 sm:h-2 bg-green-500 rounded-full mt-1.5 sm:mt-2"></div>
                 <div className="flex-1">
-                  <p className="text-sm text-gray-900">Clocked in on time</p>
-                  <p className="text-xs text-gray-500">Today at 9:00 AM</p>
+                  <p className="text-xs sm:text-sm text-gray-900">Clocked in on time</p>
+                  <p className="text-xs text-gray-500">Today at {todayRecord?.clockIn ? format(todayRecord.clockIn, 'h:mm a') : '9:00 AM'}</p>
                 </div>
               </div>
-              <div className="flex items-start space-x-3">
-                <div className="w-2 h-2 bg-blue-500 rounded-full mt-2"></div>
+              <div className="flex items-start space-x-2 sm:space-x-3">
+                <div className="w-1.5 h-1.5 sm:w-2 sm:h-2 bg-blue-500 rounded-full mt-1.5 sm:mt-2"></div>
                 <div className="flex-1">
-                  <p className="text-sm text-gray-900">Completed 8.2 hours</p>
-                  <p className="text-xs text-gray-500">Yesterday</p>
+                  <p className="text-xs sm:text-sm text-gray-900">Working for {getWorkingHoursToday().toFixed(1)} hours</p>
+                  <p className="text-xs text-gray-500">Current session</p>
                 </div>
               </div>
-              <div className="flex items-start space-x-3">
-                <div className="w-2 h-2 bg-purple-500 rounded-full mt-2"></div>
+              <div className="flex items-start space-x-2 sm:space-x-3">
+                <div className="w-1.5 h-1.5 sm:w-2 sm:h-2 bg-purple-500 rounded-full mt-1.5 sm:mt-2"></div>
                 <div className="flex-1">
-                  <p className="text-sm text-gray-900">Training completed</p>
-                  <p className="text-xs text-gray-500">2 days ago</p>
+                  <p className="text-xs sm:text-sm text-gray-900">Week progress: {weeklyStats.totalHours.toFixed(1)}h</p>
+                  <p className="text-xs text-gray-500">Out of 40h target</p>
                 </div>
               </div>
-              <div className="flex items-start space-x-3">
-                <div className="w-2 h-2 bg-yellow-500 rounded-full mt-2"></div>
+              <div className="flex items-start space-x-2 sm:space-x-3">
+                <div className="w-1.5 h-1.5 sm:w-2 sm:h-2 bg-yellow-500 rounded-full mt-1.5 sm:mt-2"></div>
                 <div className="flex-1">
-                  <p className="text-sm text-gray-900">Break time: 1.2 hours</p>
-                  <p className="text-xs text-gray-500">3 days ago</p>
+                  <p className="text-xs sm:text-sm text-gray-900">Attendance: {weeklyStats.daysPresent} days this week</p>
+                  <p className="text-xs text-gray-500">{5 - weeklyStats.daysPresent} days remaining</p>
                 </div>
               </div>
             </div>
@@ -498,30 +547,44 @@ const EmployeeDashboard: React.FC = () => {
       {/* Additional Information Row */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Upcoming Events */}
-        <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-6">
-          <h3 className="text-lg font-bold text-gray-900 mb-4">Upcoming Events</h3>
-          <div className="space-y-4">
-            <div className="flex items-center space-x-3 p-3 bg-gray-50 rounded-md">
-              <div className="w-3 h-12 bg-blue-500 rounded-md"></div>
-              <div className="flex-1">
-                <p className="font-medium text-gray-900 text-sm">Team Meeting</p>
-                <p className="text-xs text-gray-500">Tomorrow, 10:00 AM - 11:00 AM</p>
-              </div>
-            </div>
-            <div className="flex items-center space-x-3 p-3 bg-gray-50 rounded-md">
-              <div className="w-3 h-12 bg-green-500 rounded-md"></div>
-              <div className="flex-1">
-                <p className="font-medium text-gray-900 text-sm">Project Review</p>
-                <p className="text-xs text-gray-500">Friday, 2:00 PM - 3:00 PM</p>
-              </div>
-            </div>
-            <div className="flex items-center space-x-3 p-3 bg-gray-50 rounded-md">
-              <div className="w-3 h-12 bg-purple-500 rounded-md"></div>
-              <div className="flex-1">
-                <p className="font-medium text-gray-900 text-sm">Training Session</p>
-                <p className="text-xs text-gray-500">Next Monday, 9:00 AM - 12:00 PM</p>
-              </div>
-            </div>
+        <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-4 sm:p-5 lg:p-6">
+          <h3 className="text-base sm:text-lg font-bold text-gray-900 mb-3 sm:mb-4">Upcoming Events</h3>
+          <div className="space-y-3">
+            {meetings.length > 0 ? (
+              meetings.slice(0, 3).map((meeting) => (
+                <div key={meeting.id} className="flex items-center space-x-2 sm:space-x-3 p-2 sm:p-3 bg-gray-50 rounded-md">
+                  <div className="w-2 sm:w-3 h-8 sm:h-10 bg-blue-500 rounded-sm"></div>
+                  <div className="flex-1">
+                    <p className="font-medium text-gray-900 text-xs sm:text-sm">{meeting.title}</p>
+                    <p className="text-xs text-gray-500">{format(new Date(meeting.date), 'MMM d')} at {meeting.time}</p>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <>
+                <div className="flex items-center space-x-2 sm:space-x-3 p-2 sm:p-3 bg-gray-50 rounded-md">
+                  <div className="w-2 sm:w-3 h-8 sm:h-10 bg-blue-500 rounded-sm"></div>
+                  <div className="flex-1">
+                    <p className="font-medium text-gray-900 text-xs sm:text-sm">Team Meeting</p>
+                    <p className="text-xs text-gray-500">Weekly sync-up</p>
+                  </div>
+                </div>
+                <div className="flex items-center space-x-2 sm:space-x-3 p-2 sm:p-3 bg-gray-50 rounded-md">
+                  <div className="w-2 sm:w-3 h-8 sm:h-10 bg-green-500 rounded-sm"></div>
+                  <div className="flex-1">
+                    <p className="font-medium text-gray-900 text-xs sm:text-sm">Project Review</p>
+                    <p className="text-xs text-gray-500">Monthly evaluation</p>
+                  </div>
+                </div>
+                <div className="flex items-center space-x-2 sm:space-x-3 p-2 sm:p-3 bg-gray-50 rounded-md">
+                  <div className="w-2 sm:w-3 h-8 sm:h-10 bg-purple-500 rounded-sm"></div>
+                  <div className="flex-1">
+                    <p className="font-medium text-gray-900 text-xs sm:text-sm">Training Session</p>
+                    <p className="text-xs text-gray-500">Skill development</p>
+                  </div>
+                </div>
+              </>
+            )}
           </div>
         </div>
 
@@ -602,35 +665,31 @@ const EmployeeDashboard: React.FC = () => {
               <X className="w-4 h-4" />
             </button>
           </div>
-          <div className="p-4 space-y-3">
-            <div className="flex items-start space-x-3">
-              <div className="w-2 h-2 bg-blue-500 rounded-full mt-2"></div>
-              <div className="flex-1">
-                <p className="text-sm text-gray-900">Weekly report is ready</p>
-                <p className="text-xs text-gray-500">1 hour ago</p>
+          <div className="p-4 space-y-3 max-h-96 overflow-y-auto">
+            {notifications.length > 0 ? (
+              notifications.map((notification) => (
+                <div key={notification.id} className="flex items-start space-x-3">
+                  <div className={`w-2 h-2 rounded-full mt-2 ${
+                    notification.priority === 'high' ? 'bg-red-500' :
+                    notification.priority === 'medium' ? 'bg-yellow-500' : 'bg-blue-500'
+                  }`}></div>
+                  <div className="flex-1">
+                    <p className={`text-sm ${notification.isRead ? 'text-gray-600' : 'text-gray-900 font-medium'}`}>
+                      {notification.title}
+                    </p>
+                    <p className="text-xs text-gray-500 mt-1">{notification.message}</p>
+                    <p className="text-xs text-gray-400 mt-1">
+                      {format(notification.createdAt, 'MMM d, h:mm a')}
+                    </p>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="text-center py-4 text-gray-500">
+                <Bell className="w-8 h-8 mx-auto mb-2 text-gray-300" />
+                <p className="text-sm">No notifications</p>
               </div>
-            </div>
-            <div className="flex items-start space-x-3">
-              <div className="w-2 h-2 bg-green-500 rounded-full mt-2"></div>
-              <div className="flex-1">
-                <p className="text-sm text-gray-900">Attendance record updated</p>
-                <p className="text-xs text-gray-500">Today at 9:00 AM</p>
-              </div>
-            </div>
-            <div className="flex items-start space-x-3">
-              <div className="w-2 h-2 bg-yellow-500 rounded-full mt-2"></div>
-              <div className="flex-1">
-                <p className="text-sm text-gray-900">Remember to take breaks</p>
-                <p className="text-xs text-gray-500">Yesterday</p>
-              </div>
-            </div>
-            <div className="flex items-start space-x-3">
-              <div className="w-2 h-2 bg-purple-500 rounded-full mt-2"></div>
-              <div className="flex-1">
-                <p className="text-sm text-gray-900">Team meeting scheduled</p>
-                <p className="text-xs text-gray-500">2 days ago</p>
-              </div>
-            </div>
+            )}
           </div>
         </div>
       )}

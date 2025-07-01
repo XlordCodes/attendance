@@ -7,7 +7,8 @@
     "dev": "vite",
     "build": "vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "setup-help": "node setup-helper.js"
   },
   "dependencies": {
     "date-fns": "^2.30.0",

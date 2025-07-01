@@ -12,6 +12,8 @@ import {
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { useAuth } from '../../hooks/useAuth';
+import { employeeService } from '../../services/employeeService';
+import { attendanceService } from '../../services/attendanceService';
 
 interface AdminStats {
   totalEmployees: number;
@@ -34,50 +36,79 @@ const AdminDashboardNew: React.FC = () => {
   const { employee } = useAuth();
   const [currentTime, setCurrentTime] = useState(new Date());
   const [searchTerm, setSearchTerm] = useState('');
-  const [adminStats] = useState<AdminStats>({
-    totalEmployees: 25,
-    presentToday: 22,
-    totalHoursToday: 176,
-    avgAttendanceRate: 88.5,
-    lateEmployees: 3,
-    absentEmployees: 3
+  const [adminStats, setAdminStats] = useState<AdminStats>({
+    totalEmployees: 0,
+    presentToday: 0,
+    totalHoursToday: 0,
+    avgAttendanceRate: 0,
+    lateEmployees: 0,
+    absentEmployees: 0
   });
-
-  const [recentActivity] = useState<RecentActivity[]>([
-    {
-      id: '1',
-      type: 'clock-in',
-      employee: 'John Doe',
-      time: new Date(Date.now() - 15 * 60 * 1000),
-      message: 'Clocked in on time'
-    },
-    {
-      id: '2',
-      type: 'late',
-      employee: 'Jane Smith',
-      time: new Date(Date.now() - 30 * 60 * 1000),
-      message: 'Arrived 15 minutes late'
-    },
-    {
-      id: '3',
-      type: 'clock-out',
-      employee: 'Mike Johnson',
-      time: new Date(Date.now() - 45 * 60 * 1000),
-      message: 'Completed 8.5 hours'
-    },
-    {
-      id: '4',
-      type: 'absent',
-      employee: 'Sarah Wilson',
-      time: new Date(Date.now() - 60 * 60 * 1000),
-      message: 'Marked absent for today'
-    }
-  ]);
+  const [recentActivity, setRecentActivity] = useState<RecentActivity[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => clearInterval(timer);
   }, []);
+
+  useEffect(() => {
+    loadDashboardData();
+  }, []);
+
+  const loadDashboardData = async () => {
+    try {
+      setLoading(true);
+      
+      // Get all employees
+      const employees = await employeeService.getAllEmployees();
+      const totalEmployees = employees.length;
+      
+      // Get today's attendance data
+      const today = format(new Date(), 'yyyy-MM-dd');
+      const todayRecords = await attendanceService.getAllAttendanceRecords(today, today);
+      
+      const presentToday = todayRecords.filter(r => r.status === 'present').length;
+      const lateEmployees = todayRecords.filter(r => r.status === 'late').length;
+      const absentEmployees = totalEmployees - todayRecords.length;
+      const totalHoursToday = todayRecords.reduce((sum, r) => sum + (r.totalHours || 0), 0);
+      
+      // Get 30-day attendance rate
+      const stats = await attendanceService.getAttendanceStats(undefined, 30);
+      
+      setAdminStats({
+        totalEmployees,
+        presentToday,
+        totalHoursToday: Math.round(totalHoursToday * 100) / 100,
+        avgAttendanceRate: stats.attendancePercentage,
+        lateEmployees,
+        absentEmployees
+      });
+      
+      // Generate recent activity from today's records
+      const activities: RecentActivity[] = todayRecords
+        .filter(record => record.clockIn) // Ensure clockIn exists
+        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+        .slice(0, 5)
+        .map(record => ({
+          id: record.id,
+          type: record.clockOut ? 'clock-out' : (record.status === 'late' ? 'late' : 'clock-in'),
+          employee: record.employeeName,
+          time: record.clockOut || record.clockIn!,
+          message: record.clockOut 
+            ? `Completed ${record.totalHours?.toFixed(1)} hours`
+            : record.status === 'late' 
+              ? `Arrived late at ${format(record.clockIn!, 'HH:mm')}`
+              : 'Clocked in on time'
+        }));
+      
+      setRecentActivity(activities);
+    } catch (error) {
+      console.error('Error loading dashboard data:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const getActivityIcon = (type: string) => {
     switch (type) {
@@ -124,11 +155,17 @@ const AdminDashboardNew: React.FC = () => {
           
           {/* Notifications */}
           <div className="flex items-center space-x-3">
-            <button className="relative p-3 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors">
+            <button 
+              onClick={loadDashboardData}
+              className="relative p-3 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+              title="Refresh data"
+            >
               <Bell className="w-6 h-6" />
-              <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full text-xs flex items-center justify-center">
-                <span className="w-2 h-2 bg-white rounded-full"></span>
-              </span>
+              {recentActivity.length > 0 && (
+                <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full text-xs flex items-center justify-center">
+                  <span className="w-2 h-2 bg-white rounded-full"></span>
+                </span>
+              )}
             </button>
           </div>
         </div>
@@ -164,167 +201,203 @@ const AdminDashboardNew: React.FC = () => {
         </div>
       </div>
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-6">
-          <div className="flex items-center justify-between mb-4">
-            <div className="p-3 bg-blue-100 rounded-md">
-              <Users className="w-6 h-6 text-blue-600" />
-            </div>
-            <span className="text-xs text-gray-500 font-medium">TOTAL</span>
-          </div>
-          <div className="space-y-1">
-            <p className="text-sm font-medium text-gray-600">Total Employees</p>
-            <p className="text-2xl font-bold text-gray-900">{adminStats.totalEmployees}</p>
-            <p className="text-xs text-gray-500">Active workforce</p>
-          </div>
+      {loading ? (
+        <div className="flex items-center justify-center py-12">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
         </div>
-
-        <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-6">
-          <div className="flex items-center justify-between mb-4">
-            <div className="p-3 bg-green-100 rounded-md">
-              <CheckCircle className="w-6 h-6 text-green-600" />
-            </div>
-            <span className="text-xs text-gray-500 font-medium">TODAY</span>
-          </div>
-          <div className="space-y-1">
-            <p className="text-sm font-medium text-gray-600">Present Today</p>
-            <p className="text-2xl font-bold text-gray-900">{adminStats.presentToday}</p>
-            <p className="text-xs text-gray-500">
-              {((adminStats.presentToday / adminStats.totalEmployees) * 100).toFixed(0)}% attendance
-            </p>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-6">
-          <div className="flex items-center justify-between mb-4">
-            <div className="p-3 bg-purple-100 rounded-md">
-              <Clock className="w-6 h-6 text-purple-600" />
-            </div>
-            <span className="text-xs text-gray-500 font-medium">HOURS</span>
-          </div>
-          <div className="space-y-1">
-            <p className="text-sm font-medium text-gray-600">Total Hours Today</p>
-            <p className="text-2xl font-bold text-gray-900">{adminStats.totalHoursToday}h</p>
-            <p className="text-xs text-gray-500">
-              Avg: {(adminStats.totalHoursToday / adminStats.presentToday).toFixed(1)}h per employee
-            </p>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-6">
-          <div className="flex items-center justify-between mb-4">
-            <div className="p-3 bg-yellow-100 rounded-md">
-              <TrendingUp className="w-6 h-6 text-yellow-600" />
-            </div>
-            <span className="text-xs text-gray-500 font-medium">RATE</span>
-          </div>
-          <div className="space-y-1">
-            <p className="text-sm font-medium text-gray-600">Avg Attendance</p>
-            <p className="text-2xl font-bold text-gray-900">{adminStats.avgAttendanceRate}%</p>
-            <p className="text-xs text-gray-500">Last 30 days</p>
-          </div>
-        </div>
-      </div>
-
-      {/* Main Content Grid */}
-      <div className="grid grid-cols-1 gap-6">
-        {/* Recent Activity */}
-        <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-6">
-          <div className="flex items-center justify-between mb-6">
-            <h3 className="text-lg font-bold text-gray-900">Recent Activity</h3>
-            <button className="text-sm text-gray-500 hover:text-gray-700">View All</button>
-          </div>
-          
-          <div className="space-y-4">
-            {recentActivity.map((activity) => (
-              <div key={activity.id} className="flex items-start space-x-3 p-3 bg-gray-50 rounded-md">
-                <div className="mt-1">
-                  {getActivityIcon(activity.type)}
+      ) : (
+        <>
+          {/* Stats Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-6">
+              <div className="flex items-center justify-between mb-4">
+                <div className="p-3 bg-blue-100 rounded-md">
+                  <Users className="w-6 h-6 text-blue-600" />
                 </div>
-                <div className="flex-1">
-                  <div className="flex items-center justify-between">
-                    <p className="font-medium text-gray-900">{activity.employee}</p>
-                    <span className="text-xs text-gray-500">
-                      {format(activity.time, 'HH:mm')}
-                    </span>
+                <span className="text-xs text-gray-500 font-medium">TOTAL</span>
+              </div>
+              <div className="space-y-1">
+                <p className="text-sm font-medium text-gray-600">Total Employees</p>
+                <p className="text-2xl font-bold text-gray-900">{adminStats.totalEmployees}</p>
+                <p className="text-xs text-gray-500">Active workforce</p>
+              </div>
+            </div>
+
+            <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-6">
+              <div className="flex items-center justify-between mb-4">
+                <div className="p-3 bg-green-100 rounded-md">
+                  <CheckCircle className="w-6 h-6 text-green-600" />
+                </div>
+                <span className="text-xs text-gray-500 font-medium">TODAY</span>
+              </div>
+              <div className="space-y-1">
+                <p className="text-sm font-medium text-gray-600">Present Today</p>
+                <p className="text-2xl font-bold text-gray-900">{adminStats.presentToday}</p>
+                <p className="text-xs text-gray-500">
+                  {adminStats.totalEmployees > 0 
+                    ? ((adminStats.presentToday / adminStats.totalEmployees) * 100).toFixed(0)
+                    : 0}% attendance
+                </p>
+              </div>
+            </div>
+
+            <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-6">
+              <div className="flex items-center justify-between mb-4">
+                <div className="p-3 bg-purple-100 rounded-md">
+                  <Clock className="w-6 h-6 text-purple-600" />
+                </div>
+                <span className="text-xs text-gray-500 font-medium">HOURS</span>
+              </div>
+              <div className="space-y-1">
+                <p className="text-sm font-medium text-gray-600">Total Hours Today</p>
+                <p className="text-2xl font-bold text-gray-900">{adminStats.totalHoursToday}h</p>
+                <p className="text-xs text-gray-500">
+                  {adminStats.presentToday > 0
+                    ? `Avg: ${(adminStats.totalHoursToday / adminStats.presentToday).toFixed(1)}h per employee`
+                    : 'No data available'}
+                </p>
+              </div>
+            </div>
+
+            <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-6">
+              <div className="flex items-center justify-between mb-4">
+                <div className="p-3 bg-yellow-100 rounded-md">
+                  <TrendingUp className="w-6 h-6 text-yellow-600" />
+                </div>
+                <span className="text-xs text-gray-500 font-medium">RATE</span>
+              </div>
+              <div className="space-y-1">
+                <p className="text-sm font-medium text-gray-600">Avg Attendance</p>
+                <p className="text-2xl font-bold text-gray-900">{adminStats.avgAttendanceRate}%</p>
+                <p className="text-xs text-gray-500">Last 30 days</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Main Content Grid */}
+          <div className="grid grid-cols-1 gap-6">
+            {/* Recent Activity */}
+            <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-6">
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-lg font-bold text-gray-900">Recent Activity</h3>
+                <button 
+                  onClick={loadDashboardData}
+                  className="text-sm text-gray-500 hover:text-gray-700"
+                >
+                  Refresh
+                </button>
+              </div>
+              
+              <div className="space-y-4">
+                {recentActivity.length === 0 ? (
+                  <div className="text-center py-8 text-gray-500">
+                    <Clock className="w-12 h-12 mx-auto mb-4 text-gray-300" />
+                    <p>No recent activity today</p>
                   </div>
-                  <p className="text-sm text-gray-600">{activity.message}</p>
+                ) : (
+                  recentActivity.map((activity) => (
+                    <div key={activity.id} className="flex items-start space-x-3 p-3 bg-gray-50 rounded-md">
+                      <div className="mt-1">
+                        {getActivityIcon(activity.type)}
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex items-center justify-between">
+                          <p className="font-medium text-gray-900">{activity.employee}</p>
+                          <span className="text-xs text-gray-500">
+                            {format(activity.time, 'HH:mm')}
+                          </span>
+                        </div>
+                        <p className="text-sm text-gray-600">{activity.message}</p>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Employee Status Overview */}
+          <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-6">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-lg font-bold text-gray-900">Employee Status Overview</h3>
+              <div className="flex items-center space-x-4 text-sm">
+                <div className="flex items-center space-x-2">
+                  <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+                  <span className="text-gray-600">Present ({adminStats.presentToday})</span>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <div className="w-3 h-3 bg-yellow-500 rounded-full"></div>
+                  <span className="text-gray-600">Late ({adminStats.lateEmployees})</span>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <div className="w-3 h-3 bg-red-500 rounded-full"></div>
+                  <span className="text-gray-600">Absent ({adminStats.absentEmployees})</span>
                 </div>
               </div>
-            ))}
-          </div>
-        </div>
-      </div>
+            </div>
 
-      {/* Employee Status Overview */}
-      <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-6">
-        <div className="flex items-center justify-between mb-6">
-          <h3 className="text-lg font-bold text-gray-900">Employee Status Overview</h3>
-          <div className="flex items-center space-x-4 text-sm">
-            <div className="flex items-center space-x-2">
-              <div className="w-3 h-3 bg-green-500 rounded-full"></div>
-              <span className="text-gray-600">Present ({adminStats.presentToday})</span>
-            </div>
-            <div className="flex items-center space-x-2">
-              <div className="w-3 h-3 bg-yellow-500 rounded-full"></div>
-              <span className="text-gray-600">Late ({adminStats.lateEmployees})</span>
-            </div>
-            <div className="flex items-center space-x-2">
-              <div className="w-3 h-3 bg-red-500 rounded-full"></div>
-              <span className="text-gray-600">Absent ({adminStats.absentEmployees})</span>
-            </div>
-          </div>
-        </div>
+            {/* Progress Bars */}
+            <div className="space-y-4">
+              <div>
+                <div className="flex justify-between text-sm mb-2">
+                  <span className="text-gray-600">Present Employees</span>
+                  <span className="font-medium text-gray-900">
+                    {adminStats.presentToday} / {adminStats.totalEmployees}
+                  </span>
+                </div>
+                <div className="w-full bg-gray-200 rounded-full h-2">
+                  <div 
+                    className="bg-green-500 h-2 rounded-full transition-all duration-300" 
+                    style={{ 
+                      width: adminStats.totalEmployees > 0 
+                        ? `${(adminStats.presentToday / adminStats.totalEmployees) * 100}%` 
+                        : '0%' 
+                    }}
+                  ></div>
+                </div>
+              </div>
 
-        {/* Progress Bars */}
-        <div className="space-y-4">
-          <div>
-            <div className="flex justify-between text-sm mb-2">
-              <span className="text-gray-600">Present Employees</span>
-              <span className="font-medium text-gray-900">
-                {adminStats.presentToday} / {adminStats.totalEmployees}
-              </span>
-            </div>
-            <div className="w-full bg-gray-200 rounded-full h-2">
-              <div 
-                className="bg-green-500 h-2 rounded-full transition-all duration-300" 
-                style={{ width: `${(adminStats.presentToday / adminStats.totalEmployees) * 100}%` }}
-              ></div>
-            </div>
-          </div>
+              <div>
+                <div className="flex justify-between text-sm mb-2">
+                  <span className="text-gray-600">Late Arrivals</span>
+                  <span className="font-medium text-gray-900">
+                    {adminStats.lateEmployees} / {adminStats.totalEmployees}
+                  </span>
+                </div>
+                <div className="w-full bg-gray-200 rounded-full h-2">
+                  <div 
+                    className="bg-yellow-500 h-2 rounded-full transition-all duration-300" 
+                    style={{ 
+                      width: adminStats.totalEmployees > 0 
+                        ? `${(adminStats.lateEmployees / adminStats.totalEmployees) * 100}%` 
+                        : '0%' 
+                    }}
+                  ></div>
+                </div>
+              </div>
 
-          <div>
-            <div className="flex justify-between text-sm mb-2">
-              <span className="text-gray-600">Late Arrivals</span>
-              <span className="font-medium text-gray-900">
-                {adminStats.lateEmployees} / {adminStats.totalEmployees}
-              </span>
-            </div>
-            <div className="w-full bg-gray-200 rounded-full h-2">
-              <div 
-                className="bg-yellow-500 h-2 rounded-full transition-all duration-300" 
-                style={{ width: `${(adminStats.lateEmployees / adminStats.totalEmployees) * 100}%` }}
-              ></div>
-            </div>
-          </div>
-
-          <div>
-            <div className="flex justify-between text-sm mb-2">
-              <span className="text-gray-600">Absent Today</span>
-              <span className="font-medium text-gray-900">
-                {adminStats.absentEmployees} / {adminStats.totalEmployees}
-              </span>
-            </div>
-            <div className="w-full bg-gray-200 rounded-full h-2">
-              <div 
-                className="bg-red-500 h-2 rounded-full transition-all duration-300" 
-                style={{ width: `${(adminStats.absentEmployees / adminStats.totalEmployees) * 100}%` }}
-              ></div>
+              <div>
+                <div className="flex justify-between text-sm mb-2">
+                  <span className="text-gray-600">Absent Today</span>
+                  <span className="font-medium text-gray-900">
+                    {adminStats.absentEmployees} / {adminStats.totalEmployees}
+                  </span>
+                </div>
+                <div className="w-full bg-gray-200 rounded-full h-2">
+                  <div 
+                    className="bg-red-500 h-2 rounded-full transition-all duration-300" 
+                    style={{ 
+                      width: adminStats.totalEmployees > 0 
+                        ? `${(adminStats.absentEmployees / adminStats.totalEmployees) * 100}%` 
+                        : '0%' 
+                    }}
+                  ></div>
+                </div>
+              </div>
             </div>
           </div>
-        </div>
-      </div>
+        </>
+      )}
     </div>
   );
 };

@@ -8,82 +8,24 @@ import {
   deleteDoc, 
   query, 
   where,
-  orderBy 
+  orderBy
 } from 'firebase/firestore';
 import { createUserWithEmailAndPassword, signOut } from 'firebase/auth';
 import { db, auth } from './firebaseConfig';
 import { Employee } from '../types';
 
-// Mock data for testing
-let mockEmployees: Employee[] = [];
-
-// Initialize with sample employees
-const initializeSampleEmployees = () => {
-  if (mockEmployees.length === 0) {
-    mockEmployees = [
-      {
-        id: 'emp001',
-        employeeId: 'EMP001',
-        name: 'John Doe',
-        email: 'john.doe@company.com',
-        password: 'password123',
-        role: 'employee',
-        department: 'Engineering',
-        isActive: true,
-        createdAt: new Date('2024-01-01'),
-      },
-      {
-        id: 'emp002',
-        employeeId: 'EMP002',
-        name: 'Jane Smith',
-        email: 'jane.smith@company.com',
-        password: 'password123',
-        role: 'employee',
-        department: 'Marketing',
-        isActive: true,
-        createdAt: new Date('2024-01-02'),
-      },
-      {
-        id: 'emp003',
-        employeeId: 'EMP003',
-        name: 'Bob Johnson',
-        email: 'bob.johnson@company.com',
-        password: 'password123',
-        role: 'employee',
-        department: 'Sales',
-        isActive: true,
-        createdAt: new Date('2024-01-03'),
-      },
-      {
-        id: 'admin001',
-        employeeId: 'ADM001',
-        name: 'Admin User',
-        email: 'admin@company.com',
-        password: 'admin123',
-        role: 'admin',
-        department: 'IT',
-        isActive: true,
-        createdAt: new Date('2024-01-01'),
-      },
-    ];
-  }
-};
-
-// Initialize sample data
-initializeSampleEmployees();
-
 class EmployeeService {
   async createEmployee(employeeData: Omit<Employee, 'id' | 'createdAt'>): Promise<Employee> {
     try {
-      // Create Firebase Auth user
-      const standardPassword = 'admin123'; // Standard password for all users
-      const userCredential = await createUserWithEmailAndPassword(auth, employeeData.email, standardPassword);
+      // Create Firebase Auth user with email as password
+      const userCredential = await createUserWithEmailAndPassword(auth, employeeData.email, employeeData.email);
       const userId = userCredential.user.uid;
 
       // Create employee document in Firestore
       const employee: Employee = {
         id: userId,
         ...employeeData,
+        password: employeeData.email, // Password is same as email
         createdAt: new Date(),
       };
 
@@ -169,11 +111,10 @@ class EmployeeService {
         } as Employee;
       }
       
-      // Fallback to mock data
-      return mockEmployees.find(emp => emp.employeeId === employeeId) || null;
+      return null;
     } catch (error) {
-      console.error('Error getting employee by ID from Firebase, using mock data:', error);
-      return mockEmployees.find(emp => emp.employeeId === employeeId) || null;
+      console.error('Error getting employee by ID:', error);
+      throw error;
     }
   }
 

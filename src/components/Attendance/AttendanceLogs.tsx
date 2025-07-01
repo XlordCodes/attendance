@@ -123,7 +123,6 @@ const AttendanceLogs: React.FC = () => {
           'Clock In': '',
           'Clock Out': '',
           'Status': '',
-          'WFH': '',
           'Reason': '',
         });
 
@@ -147,7 +146,6 @@ const AttendanceLogs: React.FC = () => {
             'Clock In': record.clockIn ? format(record.clockIn, 'HH:mm:ss') : '',
             'Clock Out': record.clockOut ? format(record.clockOut, 'HH:mm:ss') : '',
             'Status': record.status,
-            'WFH': record.isWFH ? 'Yes' : 'No',
             'Reason': record.earlyLogoutReason || '',
           });
         });
@@ -261,7 +259,7 @@ const AttendanceLogs: React.FC = () => {
           
           <button
             onClick={handleExportToExcel}
-            className="btn-primary inline-flex items-center space-x-2"
+            className="bg-gray-900 text-white py-2 px-4 rounded-lg hover:bg-gray-800 transition-colors inline-flex items-center space-x-2"
           >
             <Download className="w-4 h-4" />
             <span>Export Report</span>
@@ -386,15 +384,6 @@ const AttendanceLogs: React.FC = () => {
               <ChevronRight className="w-4 h-4" />
             </button>
           </div>
-
-          {/* Export Button */}
-          <button
-            onClick={handleExportToExcel}
-            className="btn-secondary inline-flex items-center justify-center space-x-2"
-          >
-            <FileSpreadsheet className="w-4 h-4" />
-            <span>Export Excel</span>
-          </button>
         </div>
       </div>
 

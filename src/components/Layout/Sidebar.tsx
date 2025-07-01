@@ -11,7 +11,8 @@ import {
   ChevronDown,
   Menu,
   X,
-  Play
+  Play,
+  CalendarPlus
 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { useState, useEffect } from 'react';
@@ -100,6 +101,7 @@ const Sidebar: React.FC = () => {
     { to: '/dashboard', icon: Home, label: 'Dashboard' },
     { to: '/employees', icon: Users, label: 'Employees' },
     { to: '/attendance-logs', icon: Calendar, label: 'Attendance Logs' },
+    { to: '/assign-meeting', icon: CalendarPlus, label: 'Assign Meeting' },
     { to: '/kiosk', icon: Monitor, label: 'Kiosk Mode' },
     { to: '/settings', icon: Settings, label: 'Settings' },
   ];
@@ -164,47 +166,49 @@ const Sidebar: React.FC = () => {
         })}
       </nav>
 
-      {/* Quick Actions - Updated */}
-      <div className="px-3 py-3 border-b border-gray-200 flex-shrink-0">
-        <div className="space-y-2">
-          {/* Take Break and AFK */}
-          {isExpanded ? (
-            <div className="grid grid-cols-2 gap-1.5">
-              <button 
-                onClick={handleBreakRequest}
-                className="flex flex-col items-center p-2 bg-yellow-50 hover:bg-yellow-100 rounded-md transition-colors"
-              >
-                <Coffee className="w-3 h-3 mb-1 text-yellow-600" />
-                <span className="text-xs text-gray-700 font-medium">Break</span>
-              </button>
-              <button 
-                onClick={handleAFK}
-                className="flex flex-col items-center p-2 bg-red-50 hover:bg-red-100 rounded-md transition-colors"
-              >
-                <UserX className="w-3 h-3 mb-1 text-red-600" />
-                <span className="text-xs text-gray-700 font-medium">AFK</span>
-              </button>
-            </div>
-          ) : (
-            <div className="space-y-1.5">
-              <button 
-                onClick={handleBreakRequest}
-                className="h-10 w-10 flex items-center justify-center bg-yellow-50 hover:bg-yellow-100 rounded-lg transition-colors mx-auto" 
-                title="Take Break"
-              >
-                <Coffee className="w-4 h-4 text-yellow-600" />
-              </button>
-              <button 
-                onClick={handleAFK}
-                className="h-10 w-10 flex items-center justify-center bg-red-50 hover:bg-red-100 rounded-lg transition-colors mx-auto" 
-                title="AFK"
-              >
-                <UserX className="w-4 h-4 text-red-600" />
-              </button>
-            </div>
-          )}
+      {/* Quick Actions - Updated (Only for employees) */}
+      {employee?.role !== 'admin' && (
+        <div className="px-3 py-3 border-b border-gray-200 flex-shrink-0">
+          <div className="space-y-2">
+            {/* Take Break and AFK */}
+            {isExpanded ? (
+              <div className="grid grid-cols-2 gap-1.5">
+                <button 
+                  onClick={handleBreakRequest}
+                  className="flex flex-col items-center p-2 bg-yellow-50 hover:bg-yellow-100 rounded-md transition-colors"
+                >
+                  <Coffee className="w-3 h-3 mb-1 text-yellow-600" />
+                  <span className="text-xs text-gray-700 font-medium">Break</span>
+                </button>
+                <button 
+                  onClick={handleAFK}
+                  className="flex flex-col items-center p-2 bg-red-50 hover:bg-red-100 rounded-md transition-colors"
+                >
+                  <UserX className="w-3 h-3 mb-1 text-red-600" />
+                  <span className="text-xs text-gray-700 font-medium">AFK</span>
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-1.5">
+                <button 
+                  onClick={handleBreakRequest}
+                  className="h-10 w-10 flex items-center justify-center bg-yellow-50 hover:bg-yellow-100 rounded-lg transition-colors mx-auto" 
+                  title="Take Break"
+                >
+                  <Coffee className="w-4 h-4 text-yellow-600" />
+                </button>
+                <button 
+                  onClick={handleAFK}
+                  className="h-10 w-10 flex items-center justify-center bg-red-50 hover:bg-red-100 rounded-lg transition-colors mx-auto" 
+                  title="AFK"
+                >
+                  <UserX className="w-4 h-4 text-red-600" />
+                </button>
+              </div>
+            )}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Spacer */}
       <div className="flex-1"></div>

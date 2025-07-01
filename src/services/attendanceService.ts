@@ -1,64 +1,59 @@
 import { AttendanceRecord, BreakTime, GeolocationData } from '../types';
-import { format, subDays } from 'date-fns';
-
-// Mock data storage for demo
-let mockAttendanceRecords: AttendanceRecord[] = [];
-let mockNotifications: any[] = [];
-
-// Initialize with sample data
-const initializeSampleData = () => {
-  if (mockAttendanceRecords.length === 0) {
-    const sampleEmployees = [
-      { id: 'emp001', name: 'John Doe' },
-      { id: 'emp002', name: 'Jane Smith' },
-      { id: 'emp003', name: 'Bob Johnson' },
-      { id: 'admin001', name: 'Admin User' },
-    ];
-
-    // Generate sample data for the past 30 days
-    for (let i = 0; i < 30; i++) {
-      const date = subDays(new Date(), i);
-      const dateString = format(date, 'yyyy-MM-dd');
-      
-      sampleEmployees.forEach((emp) => {
-        // Skip some days to simulate absences (90% attendance rate)
-        if (Math.random() > 0.1) {
-          const clockInHour = 8 + Math.random() * 2; // 8-10 AM
-          const clockInMinute = Math.random() * 60;
-          const clockIn = new Date(date);
-          clockIn.setHours(Math.floor(clockInHour), Math.floor(clockInMinute), 0, 0);
-          
-          const workHours = 8 + Math.random() * 2; // 8-10 hours
-          const clockOut = new Date(clockIn);
-          clockOut.setHours(clockOut.getHours() + Math.floor(workHours), clockOut.getMinutes() + ((workHours % 1) * 60), 0, 0);
-          
-          const overtime = Math.max(0, workHours - 8);
-          const status = clockInHour > 9.25 ? 'late' : 'present';
-          
-          mockAttendanceRecords.push({
-            id: `att_${emp.id}_${i}`,
-            employeeId: emp.id,
-            employeeName: emp.name,
-            date: dateString,
-            clockIn,
-            clockOut,
-            lunchStart: undefined,
-            lunchEnd: undefined,
-            breakTimes: [],
-            location: undefined,
-            earlyLogoutReason: overtime === 0 && Math.random() > 0.9 ? 'Personal work' : undefined,
-            overtime: Math.round(overtime * 100) / 100,
-            status,
-            totalHours: Math.round(workHours * 100) / 100,
-            createdAt: clockIn,
-          });
-        }
-      });
-    }
-  }
-};
+import { format } from 'date-fns';
+import { 
+  collection, 
+  doc, 
+  getDocs, 
+  addDoc, 
+  updateDoc, 
+  query, 
+  where, 
+  orderBy, 
+  limit as firestoreLimit,
+  Timestamp 
+} from 'firebase/firestore';
+import { db } from './firebaseConfig';
+import { employeeService } from './employeeService';
+import { notificationService } from './notificationService';
 
 class AttendanceService {
+  private readonly COLLECTION_NAME = 'attendance';
+
+  private convertFirestoreToAttendance(doc: any): AttendanceRecord {
+    const data = doc.data();
+    return {
+      ...data,
+      id: doc.id,
+      clockIn: data.clockIn?.toDate(),
+      clockOut: data.clockOut?.toDate(),
+      lunchStart: data.lunchStart?.toDate(),
+      lunchEnd: data.lunchEnd?.toDate(),
+      createdAt: data.createdAt?.toDate(),
+      breakTimes: data.breakTimes?.map((bt: any) => ({
+        ...bt,
+        start: bt.start?.toDate(),
+        end: bt.end?.toDate()
+      })) || []
+    };
+  }
+
+  private convertAttendanceToFirestore(record: Partial<AttendanceRecord>) {
+    const { id, ...data } = record;
+    return {
+      ...data,
+      clockIn: data.clockIn ? Timestamp.fromDate(data.clockIn) : null,
+      clockOut: data.clockOut ? Timestamp.fromDate(data.clockOut) : null,
+      lunchStart: data.lunchStart ? Timestamp.fromDate(data.lunchStart) : null,
+      lunchEnd: data.lunchEnd ? Timestamp.fromDate(data.lunchEnd) : null,
+      createdAt: data.createdAt ? Timestamp.fromDate(data.createdAt) : Timestamp.now(),
+      breakTimes: data.breakTimes?.map(bt => ({
+        ...bt,
+        start: bt.start ? Timestamp.fromDate(bt.start) : null,
+        end: bt.end ? Timestamp.fromDate(bt.end) : null
+      })) || []
+    };
+  }
+
   async clockIn(employeeId: string, location?: GeolocationData) {
     const today = format(new Date(), 'yyyy-MM-dd');
     const now = new Date();
@@ -70,10 +65,15 @@ class AttendanceService {
       throw new Error('Already clocked in today');
     }
 
-    const attendanceData: AttendanceRecord = {
-      id: `att_${Date.now()}`,
+    // Get employee details
+    const employee = await employeeService.getEmployeeById(employeeId);
+    if (!employee) {
+      throw new Error('Employee not found');
+    }
+
+    const attendanceData: Partial<AttendanceRecord> = {
       employeeId,
-      employeeName: employeeId === 'emp001' ? 'John Doe' : 'Admin User',
+      employeeName: employee.name,
       date: today,
       clockIn: now,
       location,
@@ -86,13 +86,15 @@ class AttendanceService {
 
     if (existingRecord) {
       // Update existing record
-      const index = mockAttendanceRecords.findIndex(r => r.id === existingRecord.id);
-      mockAttendanceRecords[index] = { ...existingRecord, ...attendanceData };
-      return mockAttendanceRecords[index];
+      const docRef = doc(db, this.COLLECTION_NAME, existingRecord.id);
+      const updateData = this.convertAttendanceToFirestore(attendanceData);
+      await updateDoc(docRef, updateData);
+      return { ...existingRecord, ...attendanceData };
     } else {
       // Create new record
-      mockAttendanceRecords.push(attendanceData);
-      return attendanceData;
+      const docRef = await addDoc(collection(db, this.COLLECTION_NAME), 
+        this.convertAttendanceToFirestore(attendanceData));
+      return { ...attendanceData, id: docRef.id } as AttendanceRecord;
     }
   }
 
@@ -105,38 +107,53 @@ class AttendanceService {
 
     const now = new Date();
     const clockInTime = todayRecord.clockIn;
-    const totalHours = (now.getTime() - clockInTime.getTime()) / (1000 * 60 * 60);
     
-    // Calculate overtime (assuming 8 hours is standard)
-    const overtime = Math.max(0, totalHours - 8);
+    // Calculate total time worked (including breaks)
+    const totalTimeInMs = now.getTime() - clockInTime.getTime();
+    const totalHoursGross = totalTimeInMs / (1000 * 60 * 60);
+    
+    // Calculate total break time
+    const totalBreakTimeInMs = this.calculateTotalBreakTime(todayRecord.breakTimes);
+    const totalBreakHours = totalBreakTimeInMs / (1000 * 60 * 60);
+    
+    // Calculate net work time (gross time - break time)
+    const netWorkHours = totalHoursGross - totalBreakHours;
+    
+    // Calculate overtime (assuming 8 hours is standard work day)
+    const overtime = Math.max(0, netWorkHours - 8);
 
-    const updatedRecord = {
-      ...todayRecord,
+    const updateData = {
       clockOut: now,
-      totalHours: Math.round(totalHours * 100) / 100,
+      totalHours: Math.round(netWorkHours * 100) / 100,
+      totalBreakHours: Math.round(totalBreakHours * 100) / 100,
       overtime: Math.round(overtime * 100) / 100,
       earlyLogoutReason,
     };
 
-    const index = mockAttendanceRecords.findIndex(r => r.id === todayRecord.id);
-    mockAttendanceRecords[index] = updatedRecord;
+    const docRef = doc(db, this.COLLECTION_NAME, todayRecord.id);
+    await updateDoc(docRef, this.convertAttendanceToFirestore(updateData));
     
     // Create notification for early logout
     if (earlyLogoutReason) {
-      mockNotifications.push({
-        id: `notif_${Date.now()}`,
-        type: 'early_logout',
-        title: 'Early Logout',
-        message: `${todayRecord.employeeName} logged out early: ${earlyLogoutReason}`,
+      await notificationService.createAttendanceNotification(
         employeeId,
-        employeeName: todayRecord.employeeName,
-        priority: 'medium',
-        isRead: false,
-        createdAt: new Date(),
-      });
+        todayRecord.employeeName,
+        'early_logout',
+        `Early logout: ${earlyLogoutReason}`
+      );
     }
 
-    return updatedRecord;
+    // Create notification for overtime
+    if (overtime > 0) {
+      await notificationService.createAttendanceNotification(
+        employeeId,
+        todayRecord.employeeName,
+        'overtime',
+        `Overtime worked: ${overtime.toFixed(1)} hours`
+      );
+    }
+
+    return { ...todayRecord, ...updateData };
   }
 
   async startBreak(employeeId: string, reason: string) {
@@ -154,11 +171,10 @@ class AttendanceService {
 
     const updatedBreakTimes = [...todayRecord.breakTimes, breakTime];
     
-    const index = mockAttendanceRecords.findIndex(r => r.id === todayRecord.id);
-    mockAttendanceRecords[index] = {
-      ...todayRecord,
+    const docRef = doc(db, this.COLLECTION_NAME, todayRecord.id);
+    await updateDoc(docRef, this.convertAttendanceToFirestore({
       breakTimes: updatedBreakTimes,
-    };
+    }));
 
     return breakTime;
   }
@@ -185,11 +201,10 @@ class AttendanceService {
       duration: Math.round(duration),
     };
 
-    const index = mockAttendanceRecords.findIndex(r => r.id === todayRecord.id);
-    mockAttendanceRecords[index] = {
-      ...todayRecord,
+    const docRef = doc(db, this.COLLECTION_NAME, todayRecord.id);
+    await updateDoc(docRef, this.convertAttendanceToFirestore({
       breakTimes: updatedBreakTimes,
-    };
+    }));
 
     return updatedBreakTimes[breakIndex];
   }
@@ -202,50 +217,76 @@ class AttendanceService {
     if (hour === 14) {
       const todayRecord = await this.getTodayAttendance(employeeId);
       if (todayRecord && !todayRecord.lunchStart) {
-        const index = mockAttendanceRecords.findIndex(r => r.id === todayRecord.id);
-        mockAttendanceRecords[index] = {
-          ...todayRecord,
+        const docRef = doc(db, this.COLLECTION_NAME, todayRecord.id);
+        await updateDoc(docRef, this.convertAttendanceToFirestore({
           lunchStart: now,
-        };
+        }));
       }
     } else if (hour === 15) {
       const todayRecord = await this.getTodayAttendance(employeeId);
       if (todayRecord && todayRecord.lunchStart && !todayRecord.lunchEnd) {
-        const index = mockAttendanceRecords.findIndex(r => r.id === todayRecord.id);
-        mockAttendanceRecords[index] = {
-          ...todayRecord,
+        const docRef = doc(db, this.COLLECTION_NAME, todayRecord.id);
+        await updateDoc(docRef, this.convertAttendanceToFirestore({
           lunchEnd: now,
-        };
+        }));
       }
     }
   }
 
   async getTodayAttendance(employeeId: string): Promise<AttendanceRecord | null> {
     const today = format(new Date(), 'yyyy-MM-dd');
-    return mockAttendanceRecords.find(record => 
-      record.employeeId === employeeId && record.date === today
-    ) || null;
+    const q = query(
+      collection(db, this.COLLECTION_NAME),
+      where('employeeId', '==', employeeId),
+      where('date', '==', today)
+    );
+    
+    const querySnapshot = await getDocs(q);
+    if (querySnapshot.empty) {
+      return null;
+    }
+    
+    return this.convertFirestoreToAttendance(querySnapshot.docs[0]);
   }
 
   async getAttendanceHistory(employeeId: string, limit: number = 30): Promise<AttendanceRecord[]> {
-    return mockAttendanceRecords
-      .filter(record => record.employeeId === employeeId)
-      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-      .slice(0, limit);
+    const q = query(
+      collection(db, this.COLLECTION_NAME),
+      where('employeeId', '==', employeeId),
+      orderBy('date', 'desc'),
+      firestoreLimit(limit)
+    );
+    
+    const querySnapshot = await getDocs(q);
+    return querySnapshot.docs.map(doc => this.convertFirestoreToAttendance(doc));
   }
 
   async getAllAttendanceRecords(startDate?: string, endDate?: string): Promise<AttendanceRecord[]> {
-    let records = [...mockAttendanceRecords];
+    let q = query(collection(db, this.COLLECTION_NAME), orderBy('date', 'desc'));
     
-    if (startDate) {
-      records = records.filter(record => record.date >= startDate);
+    if (startDate && endDate) {
+      q = query(
+        collection(db, this.COLLECTION_NAME),
+        where('date', '>=', startDate),
+        where('date', '<=', endDate),
+        orderBy('date', 'desc')
+      );
+    } else if (startDate) {
+      q = query(
+        collection(db, this.COLLECTION_NAME),
+        where('date', '>=', startDate),
+        orderBy('date', 'desc')
+      );
+    } else if (endDate) {
+      q = query(
+        collection(db, this.COLLECTION_NAME),
+        where('date', '<=', endDate),
+        orderBy('date', 'desc')
+      );
     }
     
-    if (endDate) {
-      records = records.filter(record => record.date <= endDate);
-    }
-    
-    return records.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    const querySnapshot = await getDocs(q);
+    return querySnapshot.docs.map(doc => this.convertFirestoreToAttendance(doc));
   }
 
   async getAttendanceStats(employeeId?: string, days: number = 30): Promise<{
@@ -258,26 +299,32 @@ class AttendanceService {
     totalHours: number;
     overtimeHours: number;
   }> {
-    const endDate = new Date();
-    const startDate = new Date();
-    startDate.setDate(startDate.getDate() - days);
+    const endDate = format(new Date(), 'yyyy-MM-dd');
+    const startDate = format(new Date(Date.now() - days * 24 * 60 * 60 * 1000), 'yyyy-MM-dd');
     
-    let records = mockAttendanceRecords;
+    let q = query(
+      collection(db, this.COLLECTION_NAME),
+      where('date', '>=', startDate),
+      where('date', '<=', endDate)
+    );
     
     if (employeeId) {
-      records = records.filter(record => record.employeeId === employeeId);
+      q = query(
+        collection(db, this.COLLECTION_NAME),
+        where('employeeId', '==', employeeId),
+        where('date', '>=', startDate),
+        where('date', '<=', endDate)
+      );
     }
     
-    records = records.filter(record => {
-      const recordDate = new Date(record.date);
-      return recordDate >= startDate && recordDate <= endDate;
-    });
+    const querySnapshot = await getDocs(q);
+    const records = querySnapshot.docs.map(doc => this.convertFirestoreToAttendance(doc));
     
     const presentDays = records.filter(r => r.status === 'present').length;
     const lateDays = records.filter(r => r.status === 'late').length;
     const absentDays = records.filter(r => r.status === 'absent').length;
-    const totalHours = records.reduce((sum, r) => sum + r.totalHours, 0);
-    const overtimeHours = records.reduce((sum, r) => sum + r.overtime, 0);
+    const totalHours = records.reduce((sum, r) => sum + (r.totalHours || 0), 0);
+    const overtimeHours = records.reduce((sum, r) => sum + (r.overtime || 0), 0);
     
     const workingDays = presentDays + lateDays;
     const attendancePercentage = days > 0 ? ((workingDays / days) * 100) : 0;
@@ -305,9 +352,15 @@ class AttendanceService {
     }
     return 'present';
   }
-}
 
-// Initialize sample data on load
-initializeSampleData();
+  private calculateTotalBreakTime(breakTimes: BreakTime[]): number {
+    return breakTimes.reduce((total, breakTime) => {
+      if (breakTime.start && breakTime.end) {
+        return total + (breakTime.end.getTime() - breakTime.start.getTime());
+      }
+      return total;
+    }, 0);
+  }
+}
 
 export const attendanceService = new AttendanceService();

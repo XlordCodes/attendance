@@ -10,8 +10,10 @@ import ClockInOut from './components/Employee/ClockInOut';
 import EmployeeManagement from './components/Admin/EmployeeManagement';
 import KioskMode from './components/Admin/KioskMode';
 import AdminSetup from './components/Admin/AdminSetup';
+import AssignMeeting from './components/Admin/AssignMeeting';
 import AttendanceLogs from './components/Attendance/AttendanceLogs';
 import AttendancePage from './components/Attendance/AttendancePage';
+import SetupPage from './pages/SetupPage';
 
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user, employee, loading } = useAuth();
@@ -61,6 +63,7 @@ const AppContent: React.FC = () => {
     return (
       <Routes>
         <Route path="/setup" element={<AdminSetup />} />
+        <Route path="/db-setup" element={<SetupPage />} />
         <Route path="*" element={<UnifiedLoginPage />} />
       </Routes>
     );
@@ -91,6 +94,11 @@ const AppContent: React.FC = () => {
           <Route path="/employees" element={
             <ProtectedRoute>
               <EmployeeManagement />
+            </ProtectedRoute>
+          } />
+          <Route path="/assign-meeting" element={
+            <ProtectedRoute>
+              <AssignMeeting />
             </ProtectedRoute>
           } />
           <Route path="/kiosk" element={

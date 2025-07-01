@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Clock, Users, QrCode, KeySquare } from 'lucide-react';
-import { Html5QrcodeScanner } from 'html5-qrcode';
+import { Clock, Users, KeySquare } from 'lucide-react';
 import { attendanceService } from '../../services/attendanceService';
 import { employeeService } from '../../services/employeeService';
 import { format } from 'date-fns';
@@ -9,7 +8,6 @@ import toast from 'react-hot-toast';
 const KioskMode: React.FC = () => {
   const [currentTime, setCurrentTime] = useState(new Date());
   const [activeEmployees, setActiveEmployees] = useState<any[]>([]);
-  const [showQRScanner, setShowQRScanner] = useState(false);
   const [showManualEntry, setShowManualEntry] = useState(false);
   const [employeeId, setEmployeeId] = useState('');
   const [loading, setLoading] = useState(false);
@@ -45,17 +43,6 @@ const KioskMode: React.FC = () => {
     }
   };
 
-  const handleQRCodeScan = (qrData: string) => {
-    try {
-      const data = JSON.parse(qrData);
-      if (data.employeeId) {
-        handleAttendanceAction(data.employeeId);
-      }
-    } catch (error) {
-      toast.error('Invalid QR code');
-    }
-  };
-
   const handleManualEntry = () => {
     if (!employeeId.trim()) {
       toast.error('Please enter Employee ID');
@@ -86,7 +73,7 @@ const KioskMode: React.FC = () => {
         await attendanceService.clockOut(employee.id);
         toast.success(`${employee.name} clocked out successfully`);
       } else {
-        toast.info(`${employee.name} has already completed attendance for today`);
+        toast.error(`${employee.name} has already completed attendance for today`);
       }
 
       await loadActiveEmployees();
@@ -125,14 +112,6 @@ const KioskMode: React.FC = () => {
               <h2 className="text-xl font-semibold text-gray-900 mb-4">Mark Attendance</h2>
               
               <div className="space-y-4">
-                <button
-                  onClick={() => setShowQRScanner(true)}
-                  className="w-full bg-blue-600 text-white py-3 px-4 rounded-lg hover:bg-blue-700 flex items-center justify-center space-x-2"
-                >
-                  <QrCode className="w-5 h-5" />
-                  <span>Scan QR Code</span>
-                </button>
-
                 <button
                   onClick={() => setShowManualEntry(true)}
                   className="w-full bg-green-600 text-white py-3 px-4 rounded-lg hover:bg-green-700 flex items-center justify-center space-x-2"
@@ -196,14 +175,6 @@ const KioskMode: React.FC = () => {
         </div>
       </div>
 
-      {/* QR Scanner Modal */}
-      {showQRScanner && (
-        <QRScannerModal
-          onScan={handleQRCodeScan}
-          onClose={() => setShowQRScanner(false)}
-        />
-      )}
-
       {/* Manual Entry Modal */}
       {showManualEntry && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
@@ -238,51 +209,6 @@ const KioskMode: React.FC = () => {
           </div>
         </div>
       )}
-    </div>
-  );
-};
-
-const QRScannerModal: React.FC<{
-  onScan: (data: string) => void;
-  onClose: () => void;
-}> = ({ onScan, onClose }) => {
-  useEffect(() => {
-    const scanner = new Html5QrcodeScanner(
-      'qr-reader',
-      { fps: 10, qrbox: { width: 250, height: 250 } },
-      false
-    );
-
-    scanner.render(
-      (decodedText) => {
-        onScan(decodedText);
-        scanner.clear();
-        onClose();
-      },
-      (error) => {
-        console.warn('QR scan error:', error);
-      }
-    );
-
-    return () => {
-      scanner.clear();
-    };
-  }, [onScan, onClose]);
-
-  return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg p-6 w-96">
-        <h3 className="text-lg font-medium text-gray-900 mb-4">
-          Scan QR Code
-        </h3>
-        <div id="qr-reader" className="mb-4"></div>
-        <button
-          onClick={onClose}
-          className="w-full px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200"
-        >
-          Cancel
-        </button>
-      </div>
     </div>
   );
 };
