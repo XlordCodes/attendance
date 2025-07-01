@@ -11,7 +11,6 @@ import {
   Bell
 } from 'lucide-react';
 import { format } from 'date-fns';
-import { useAuth } from '../../hooks/useAuth';
 import { employeeService } from '../../services/employeeService';
 import { attendanceService } from '../../services/attendanceService';
 
@@ -33,7 +32,6 @@ interface RecentActivity {
 }
 
 const AdminDashboardNew: React.FC = () => {
-  const { employee } = useAuth();
   const [currentTime, setCurrentTime] = useState(new Date());
   const [searchTerm, setSearchTerm] = useState('');
   const [adminStats, setAdminStats] = useState<AdminStats>({
@@ -132,20 +130,16 @@ const AdminDashboardNew: React.FC = () => {
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-4">
             <div className="w-16 h-16 bg-gray-900 rounded-lg flex items-center justify-center">
-              <span className="text-white font-bold text-2xl">
-                {employee?.name?.charAt(0).toUpperCase()}
-              </span>
+              <div className="w-8 h-8 bg-white rounded opacity-90"></div>
             </div>
             <div>
               <h1 className="text-3xl font-bold text-gray-900">
-                Welcome back, {employee?.name?.split(' ')[0]}!
+                Admin Dashboard
               </h1>
-              <p className="text-lg text-gray-600 capitalize flex items-center space-x-2 mt-1">
-                <span>{employee?.role}</span>
-                <span>•</span>
+              <p className="text-lg text-gray-600 flex items-center space-x-2 mt-1">
                 <span className="flex items-center">
                   <div className="w-3 h-3 bg-green-500 rounded-full mr-2"></div>
-                  Online
+                  System Online
                 </span>
                 <span>•</span>
                 <span>{format(currentTime, 'EEEE, MMMM d, yyyy')}</span>

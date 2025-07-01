@@ -306,39 +306,6 @@ const Sidebar: React.FC = () => {
         )}
       </div>
 
-      {/* User Profile */}
-      {employee && (
-        <div className="px-3 py-3 border-t border-gray-200 flex-shrink-0">
-          {isExpanded ? (
-            <div className="bg-gray-50 rounded-lg p-3">
-              <div className="flex items-center space-x-3">
-                <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center">
-                  <span className="text-white font-semibold text-sm">
-                    {employee.name ? employee.name.charAt(0).toUpperCase() : 'U'}
-                  </span>
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-gray-900 truncate">
-                    {employee.name || 'User'}
-                  </p>
-                  <p className="text-xs text-gray-500 capitalize">
-                    {employee.role || 'Employee'}
-                  </p>
-                </div>
-              </div>
-            </div>
-          ) : (
-            <div className="flex justify-center">
-              <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center">
-                <span className="text-white font-semibold text-sm">
-                  {employee.name ? employee.name.charAt(0).toUpperCase() : 'U'}
-                </span>
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-
       {/* User Menu & Logout */}
       <div className="px-3 py-3 border-t border-gray-200 flex-shrink-0">
         <div className={`flex items-center ${isExpanded ? 'justify-between' : 'flex-col space-y-1.5'}`}>

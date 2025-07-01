@@ -4,6 +4,7 @@ import { AuthProvider, useAuth } from './hooks/useAuth';
 import UnifiedLoginPage from './components/Auth/UnifiedLoginPage';
 import AuthTester from './components/Auth/AuthTester';
 import AuthDebugger from './components/Auth/AuthDebugger';
+import AttendanceTest from './components/Test/AttendanceTest';
 import Sidebar from './components/Layout/Sidebar';
 import EmployeeDashboard from './components/Dashboard/EmployeeDashboard';
 import AdminDashboardNew from './components/Dashboard/AdminDashboardNew';
@@ -13,7 +14,6 @@ import AdminSetup from './components/Admin/AdminSetup';
 import AssignMeeting from './components/Admin/AssignMeeting';
 import AttendanceLogs from './components/Attendance/AttendanceLogs';
 import AttendancePage from './components/Attendance/AttendancePage';
-import SetupPage from './pages/SetupPage';
 
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user, employee, loading } = useAuth();
@@ -59,9 +59,9 @@ const AppContent: React.FC = () => {
     return (
       <Routes>
         <Route path="/setup" element={<AdminSetup />} />
-        <Route path="/db-setup" element={<SetupPage />} />
         <Route path="/test-auth" element={<AuthTester />} />
         <Route path="/debug-auth" element={<AuthDebugger />} />
+        <Route path="/test-attendance" element={<AttendanceTest />} />
         <Route path="*" element={<UnifiedLoginPage />} />
       </Routes>
     );
