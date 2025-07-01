@@ -7,102 +7,17 @@ interface EmployeeData {
   name: string;
   department: string;
   position: string;
-  role: 'admin' | 'employee' | 'kiosk';
+  role: 'admin' | 'employee';
 }
 
 const employeeList: EmployeeData[] = [
-  // Test accounts
-  {
-    email: 'employee@aintrix.com',
-    name: 'Test Employee',
-    department: 'IT',
-    position: 'Software Developer',
-    role: 'employee'
-  },
-  {
-    email: 'admin@aintrix.com',
-    name: 'Test Admin',
-    department: 'IT',
-    position: 'Administrator',
-    role: 'admin'
-  },
-  {
-    email: 'kiosk@aintrix.com',
-    name: 'Kiosk User',
-    department: 'IT',
-    position: 'Kiosk',
-    role: 'kiosk'
-  },
-  // Production employee accounts
-  {
-    email: 'shanmugapriyagangadurai@gmail.com',
-    name: 'Shanmugapriya Gangadurai',
-    department: 'IT',
-    position: 'Software Developer',
-    role: 'employee'
-  },
-  {
-    email: 'eamathew2909@gmail.com',
-    name: 'Mathew EA',
-    department: 'IT',
-    position: 'Software Developer',
-    role: 'employee'
-  },
-  {
-    email: 'Ayishasiddiqua3112@gmail.com',
-    name: 'Ayisha Siddiqua',
-    department: 'IT',
-    position: 'Software Developer',
-    role: 'employee'
-  },
-  {
-    email: 'sannyj16@gmail.com',
-    name: 'Sunny J',
-    department: 'IT',
-    position: 'Software Developer',
-    role: 'employee'
-  },
-  {
-    email: 'bsnabii67@gmail.com',
-    name: 'Nabii BS',
-    department: 'IT',
-    position: 'Software Developer',
-    role: 'employee'
-  },
+  // Single user - Kailash as Admin
   {
     email: 'kailash.s2376@gmail.com',
     name: 'Kailash S',
     department: 'IT',
-    position: 'Admin',
+    position: 'System Administrator',
     role: 'admin'
-  },
-  {
-    email: 'jeevarithik24@gmail.com',
-    name: 'Jeeva Rithik',
-    department: 'IT',
-    position: 'Software Developer',
-    role: 'employee'
-  },
-  {
-    email: 'yousuf38152006@gmail.com',
-    name: 'Yousuf',
-    department: 'IT',
-    position: 'Software Developer',
-    role: 'employee'
-  },
-  {
-    email: 'siddharth.ks1566@gmail.com',
-    name: 'Siddharth KS',
-    department: 'IT',
-    position: 'Software Developer',
-    role: 'employee'
-  },
-  {
-    email: 'afiyaa1805@gmail.com',
-    name: 'Afiya A',
-    department: 'IT',
-    position: 'Software Developer',
-    role: 'employee'
   },
   {
     email: 'jazim0014@gmail.com',
@@ -134,14 +49,11 @@ export const setupEmployeeDatabase = async () => {
     try {
       console.log(`Creating user: ${employee.email}`);
       
-      // Determine password: for test accounts use admin123, for others use email
-      const password = employee.email.includes('@aintrix.com') ? 'admin123' : employee.email;
-      
       // Create Firebase Auth user
       const userCredential = await createUserWithEmailAndPassword(
         auth, 
         employee.email, 
-        password
+        employee.email // Use email as password for simplicity
       );
       
       const user = userCredential.user;
@@ -151,7 +63,7 @@ export const setupEmployeeDatabase = async () => {
         id: user.uid,
         name: employee.name,
         email: employee.email,
-        password: password, // Store actual password used
+        password: employee.email, // Store actual password used
         employeeId: `EMP${Date.now().toString().slice(-6)}`, // Generate unique employee ID
         department: employee.department,
         position: employee.position,
@@ -165,7 +77,21 @@ export const setupEmployeeDatabase = async () => {
       // Store in employees collection
       await setDoc(doc(db, 'employees', user.uid), employeeData);
       
-      console.log(`✅ Created employee: ${employee.name} (${employee.email}) with password: ${password}`);
+      // Also create a simplified user document for auth
+      const userData = {
+        name: employee.name,
+        email: employee.email,
+        role: employee.role,
+        department: employee.department,
+        position: employee.position,
+        isActive: true,
+        createdAt: new Date()
+      };
+      
+      // Store in users collection for simplified auth lookup
+      await setDoc(doc(db, 'users', user.uid), userData);
+      
+      console.log(`✅ Created user: ${employee.name} (${employee.email}) with password: ${employee.email}`);
       
       // Sign out after creating each user
       await auth.signOut();
@@ -187,11 +113,8 @@ export const setupEmployeeDatabase = async () => {
   }
   
   console.log('Employee database setup completed!');
-  console.log('Test accounts:');
-  console.log('- employee@aintrix.com / admin123');
-  console.log('- admin@aintrix.com / admin123');
-  console.log('- kiosk@aintrix.com / admin123');
-  console.log('Production accounts: email = password');
+  console.log('Single user account:');
+  console.log('- kailash.s2376@gmail.com / kailash.s2376@gmail.com (Admin)');
 };
 
 export const testLogin = async (email: string, password: string) => {

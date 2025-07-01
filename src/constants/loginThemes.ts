@@ -1,12 +1,5 @@
 // Premium hero images for different login modes
 export const heroImages = {
-  kiosk: {
-    url: 'https://images.unsplash.com/photo-1451187580459-43490279c0fa?ixlib=rb-4.0.3&auto=format&fit=crop&w=1920&q=80',
-    alt: 'Modern digital workspace with futuristic technology',
-    title: 'Digital Workspace',
-    subtitle: 'Streamlined attendance tracking',
-    overlay: 'bg-black bg-opacity-60' // Darker overlay for better contrast in dark mode
-  },
   admin: {
     url: 'https://images.unsplash.com/photo-1560472354-b33ff0c44a43?ixlib=rb-4.0.3&auto=format&fit=crop&w=1920&q=80',
     alt: 'Executive boardroom with modern business technology',
@@ -32,11 +25,6 @@ export const heroImages = {
 
 // Professional color schemes for each mode
 export const colorThemes = {
-  kiosk: {
-    primary: 'blue',
-    isDark: true,
-    gradient: 'from-blue-900 to-indigo-900',
-  },
   admin: {
     primary: 'red',
     isDark: false,
@@ -56,12 +44,6 @@ export const colorThemes = {
 
 // Professional feature descriptions for each mode
 export const modeFeatures = {
-  kiosk: [
-    'Real-time attendance dashboard',
-    'Quick check-in/check-out terminal',
-    'Company-wide attendance overview',
-    'Digital signage capabilities'
-  ],
   admin: [
     'Complete employee management',
     'Advanced analytics & reports',
@@ -71,6 +53,7 @@ export const modeFeatures = {
   employee: [
     'Personal attendance tracking',
     'Time off requests',
-    'Mobile-friendly interface'
+    'Mobile-friendly interface',
+    'Real-time clock in/out'
   ]
 };

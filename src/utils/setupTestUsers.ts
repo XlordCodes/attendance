@@ -13,14 +13,6 @@ export const setupTestUsers = async () => {
       employeeId: 'ADM001'
     },
     {
-      email: 'kiosk@aintrix.com',
-      password: 'admin123',
-      name: 'Kiosk Mode',
-      role: 'kiosk',
-      department: 'System',
-      employeeId: 'KIOSK001'
-    },
-    {
       email: 'employee@aintrix.com',
       password: 'admin123',
       name: 'Test Employee',
@@ -65,7 +57,6 @@ export const setupTestUsers = async () => {
     console.log('Test users setup completed!');
     console.log('Login credentials:');
     console.log('Admin: admin@aintrix.com / admin123');
-    console.log('Kiosk: kiosk@aintrix.com / admin123');
     console.log('Employee: employee@aintrix.com / admin123');
     
   } catch (error) {

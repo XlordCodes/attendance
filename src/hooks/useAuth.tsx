@@ -9,7 +9,7 @@ interface AuthContextType {
   user: User | null;
   employee: Employee | null;
   loading: boolean;
-  login: (email: string, password: string, role?: string) => Promise<unknown>;
+  login: (email: string, password: string) => Promise<unknown>;
   logout: () => Promise<void>;
 }
 
@@ -92,11 +92,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return unsubscribe;
   }, []);
 
-  const login = async (email: string, password: string, role?: string) => {
+  const login = async (email: string, password: string) => {
     try {
       setLoading(true);
       
-      console.log('🔐 Starting login process for:', email, 'Role:', role);
+      console.log('🔐 Starting login process for:', email);
       
       // Step 1: First authenticate with Firebase Auth
       try {
@@ -110,14 +110,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           const userData = userDoc.data();
           console.log('✅ User found in Firestore:', userData);
           
-          // Step 3: Check role if specified
-          if (role && userData.role && userData.role.toLowerCase() !== role.toLowerCase()) {
-            // If specific role requested but user doesn't have that role
-            if (role === 'admin' && userData.role.toLowerCase() !== 'admin') {
-              throw new Error('Access denied. Admin privileges required.');
-            }
-            // Note: Admin users can access employee portal, so we don't restrict that
-          }
+          // Show success toast with correct user name
+          toast.success(`Welcome back, ${userData.name}!`);
           
           return userCredential;
           
@@ -139,12 +133,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           const userData = userDocByEmail.data();
           console.log('✅ User found by email:', userData);
           
-          // Check role if specified
-          if (role && userData.role && userData.role.toLowerCase() !== role.toLowerCase()) {
-            if (role === 'admin' && userData.role.toLowerCase() !== 'admin') {
-              throw new Error('Access denied. Admin privileges required.');
-            }
-          }
+          // Show success toast with correct user name
+          toast.success(`Welcome back, ${userData.name}!`);
           
           return userCredential;
         }

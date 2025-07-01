@@ -4,7 +4,7 @@ export interface Employee {
   name: string;
   email: string;
   password: string;
-  role: 'employee' | 'admin' | 'kiosk';
+  role: 'employee' | 'admin';
   department: string;
   position: string;
   isActive: boolean;

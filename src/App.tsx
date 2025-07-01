@@ -3,12 +3,12 @@ import { Toaster } from 'react-hot-toast';
 import { AuthProvider, useAuth } from './hooks/useAuth';
 import UnifiedLoginPage from './components/Auth/UnifiedLoginPage';
 import AuthTester from './components/Auth/AuthTester';
+import AuthDebugger from './components/Auth/AuthDebugger';
 import Sidebar from './components/Layout/Sidebar';
 import EmployeeDashboard from './components/Dashboard/EmployeeDashboard';
 import AdminDashboardNew from './components/Dashboard/AdminDashboardNew';
 import ClockInOut from './components/Employee/ClockInOut';
 import EmployeeManagement from './components/Admin/EmployeeManagement';
-import KioskMode from './components/Admin/KioskMode';
 import AdminSetup from './components/Admin/AdminSetup';
 import AssignMeeting from './components/Admin/AssignMeeting';
 import AttendanceLogs from './components/Attendance/AttendanceLogs';
@@ -61,6 +61,7 @@ const AppContent: React.FC = () => {
         <Route path="/setup" element={<AdminSetup />} />
         <Route path="/db-setup" element={<SetupPage />} />
         <Route path="/test-auth" element={<AuthTester />} />
+        <Route path="/debug-auth" element={<AuthDebugger />} />
         <Route path="*" element={<UnifiedLoginPage />} />
       </Routes>
     );
@@ -114,11 +115,6 @@ const AppContent: React.FC = () => {
           <Route path="/assign-meeting" element={
             <ProtectedRoute>
               <AssignMeeting />
-            </ProtectedRoute>
-          } />
-          <Route path="/kiosk" element={
-            <ProtectedRoute>
-              <KioskMode />
             </ProtectedRoute>
           } />
           <Route path="/setup" element={

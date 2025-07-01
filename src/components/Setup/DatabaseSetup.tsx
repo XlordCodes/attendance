@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { setupAdminKioskUsers } from '../../utils/setupAdminKiosk';
+import { setupEmployeeDatabase } from '../../utils/setupEmployeeDatabase';
 import toast from 'react-hot-toast';
 
 const DatabaseSetup: React.FC = () => {
@@ -11,12 +11,12 @@ const DatabaseSetup: React.FC = () => {
     
     setLoading(true);
     try {
-      await setupAdminKioskUsers();
+      await setupEmployeeDatabase();
       setCompleted(true);
-      toast.success('Admin and Kiosk accounts setup completed successfully!');
+      toast.success('Employee database setup completed successfully!');
     } catch (error) {
       console.error('Setup error:', error);
-      toast.error('Error setting up admin and kiosk accounts. Check console for details.');
+      toast.error('Error setting up employee database. Check console for details.');
     } finally {
       setLoading(false);
     }
@@ -29,9 +29,12 @@ const DatabaseSetup: React.FC = () => {
       {!completed ? (
         <div className="space-y-4">
           <p className="text-gray-600 text-sm">
-            Click the button below to set up admin and kiosk accounts:
-            <br />• admin@aintrix.com / admin123
-            <br />• kiosk@aintrix.com / admin123
+            Click the button below to set up all user accounts:
+            <br />• admin@aintrix.com / admin123 (Admin)
+            <br />• kailash.s2376@gmail.com / admin123 (Admin)  
+            <br />• yousuf38152006@gmail.com / admin123 (Admin)
+            <br />• employee@aintrix.com / admin123 (Employee)
+            <br />+ Production employees
           </p>
           
           <button
@@ -39,7 +42,7 @@ const DatabaseSetup: React.FC = () => {
             disabled={loading}
             className="w-full bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {loading ? 'Setting up accounts...' : 'Setup Admin & Kiosk Accounts'}
+            {loading ? 'Setting up database...' : 'Setup Employee Database'}
           </button>
         </div>
       ) : (
@@ -47,11 +50,13 @@ const DatabaseSetup: React.FC = () => {
           <div className="p-4 bg-green-100 rounded-lg">
             <h3 className="font-medium text-green-900 mb-2">✅ Setup Completed!</h3>
             <p className="text-green-800 text-sm mb-2">
-              Admin and Kiosk accounts have been created successfully.
+              All user accounts have been created successfully.
             </p>
             <div className="text-green-700 text-xs space-y-1">
-              <p>• admin@aintrix.com / admin123</p>
-              <p>• kiosk@aintrix.com / admin123</p>
+              <p>• admin@aintrix.com / admin123 (Admin)</p>
+              <p>• kailash.s2376@gmail.com / admin123 (Admin)</p>
+              <p>• yousuf38152006@gmail.com / admin123 (Admin)</p>
+              <p>• employee@aintrix.com / admin123 (Employee)</p>
             </div>
           </div>
           

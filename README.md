@@ -4,13 +4,13 @@ A modern, responsive attendance management system built with React, TypeScript, 
 
 ## 🚀 Features
 
-- **Multi-mode Login**: Employee, Admin, and Kiosk access modes
+- **Multi-mode Login**: Employee and Admin access modes
 - **Real-time Attendance Tracking**: Clock in/out with location tracking
 - **Break Time Management**: Track breaks and AFK time with automatic deduction from work hours
 - **Meeting Management**: Assign meetings to employees with schedule tracking
 - **Responsive Design**: Mobile-first design that works on all screen sizes
 - **Admin Dashboard**: Comprehensive employee and attendance management
-- **Kiosk Mode**: Quick attendance marking for shared devices
+- **Advanced Analytics**: Comprehensive attendance reporting and insights
 - **Export Functionality**: Export attendance data to Excel
 
 ## 🔧 Setup Instructions
@@ -66,7 +66,7 @@ After running the database setup, the following accounts will be available:
 ### Test Accounts (for development/testing)
 - **Employee**: `employee@aintrix.com` / `admin123`
 - **Admin**: `admin@aintrix.com` / `admin123`
-- **Kiosk**: `kiosk@aintrix.com` / `admin123`
+- **Admin**: `admin@aintrix.com` / `admin123`
 
 ### Production Admin Account
 - **Email**: `kailash.s2376@gmail.com`
@@ -92,7 +92,7 @@ All employee accounts use their email as the password:
 
 ### Authentication
 - **Password Rule**: All users log in using their email as the password
-- **Multi-mode Access**: Employee, Admin, and Kiosk modes
+- **Multi-mode Access**: Employee and Admin modes
 - **No Password Hints**: Clean UI without password rule mentions
 
 ### Attendance Management
@@ -111,11 +111,6 @@ All employee accounts use their email as the password:
 - **Meeting Assignment**: Assign meetings to employees with scheduling
 - **Attendance Reports**: View and export attendance data for all employees
 - **Dashboard Analytics**: Comprehensive attendance statistics and insights
-
-### Kiosk Mode
-- **Manual Entry**: Employees can mark attendance using employee ID
-- **Real-time Status**: Shows currently logged-in employees
-- **Database Integration**: All attendance data stored in Firestore
 
 ## 📱 Responsive Design
 
@@ -171,7 +166,7 @@ npm run setup-help
 - ✅ Enhanced responsive design with reduced DPI
 - ✅ Set up comprehensive employee database
 - ✅ Fixed attendance report fetching for all modes
-- ✅ Updated kiosk mode with database integration
+- ✅ Enhanced admin dashboard with comprehensive employee management
 - ✅ Improved admin login and access control
 
 ## 🔧 Troubleshooting

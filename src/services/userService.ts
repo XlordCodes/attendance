@@ -118,7 +118,7 @@ class UserService {
     }
   }
 
-  async getUsersByRole(role: 'admin' | 'employee' | 'kiosk'): Promise<Employee[]> {
+  async getUsersByRole(role: 'admin' | 'employee'): Promise<Employee[]> {
     try {
       const usersRef = collection(db, this.COLLECTION_NAME);
       const q = query(usersRef, where('role', '==', role), orderBy('createdAt', 'desc'));

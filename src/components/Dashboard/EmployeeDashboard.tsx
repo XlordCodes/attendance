@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Clock, Calendar, TrendingUp, CheckCircle, AlertCircle, Activity, Bell, MapPin, X } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
-import { attendanceService } from '../../services/attendanceService_new';
+import { attendanceService } from '../../services/attendanceService';
 import { meetingService } from '../../services/meetingService';
 import { notificationService } from '../../services/notificationService';
 import { AttendanceRecord, GeolocationData, Meeting, Notification } from '../../types';
@@ -64,7 +64,7 @@ const EmployeeDashboard: React.FC = () => {
 
     setLoading(true);
     try {
-      const record = await attendanceService.startAttendance(
+      const record = await attendanceService.clockIn(
         employee.id,
         location || undefined
       );
@@ -98,7 +98,7 @@ const EmployeeDashboard: React.FC = () => {
 
     setLoading(true);
     try {
-      const record = await attendanceService.endAttendance(employee.id, reason);
+      const record = await attendanceService.clockOut(employee.id, reason);
       setTodayRecord(record);
       setShowEarlyLogoutModal(false);
       setEarlyLogoutReason('');
@@ -137,7 +137,7 @@ const EmployeeDashboard: React.FC = () => {
     
     try {
       console.log('Loading weekly stats for employee:', employee.id);
-      const records = await attendanceService.getUserAttendanceHistory(employee.id, 7);
+      const records = await attendanceService.getAttendanceHistory(employee.id, 7);
       console.log('Weekly attendance records:', records);
       
       const weekStart = startOfWeek(new Date());

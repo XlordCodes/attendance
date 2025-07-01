@@ -276,6 +276,54 @@ const AdminDashboardNew: React.FC = () => {
 
           {/* Main Content Grid */}
           <div className="grid grid-cols-1 gap-6">
+            {/* Kiosk Display Section */}
+            <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-6">
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-lg font-bold text-gray-900">Kiosk Display</h3>
+                <span className="text-sm text-gray-500">Office Overview</span>
+              </div>
+              
+              <div className="bg-gradient-to-r from-gray-50 to-gray-100 rounded-lg p-6">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  {/* Current Time */}
+                  <div className="text-center">
+                    <div className="text-3xl font-bold text-gray-900">
+                      {format(currentTime, 'HH:mm')}
+                    </div>
+                    <div className="text-sm text-gray-600">
+                      {format(currentTime, 'EEEE, MMMM do')}
+                    </div>
+                  </div>
+                  
+                  {/* Today's Summary */}
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-green-600">
+                      {adminStats.presentToday}
+                    </div>
+                    <div className="text-sm text-gray-600">
+                      Employees Present
+                    </div>
+                  </div>
+                  
+                  {/* Office Status */}
+                  <div className="text-center">
+                    <div className="text-xl font-bold text-blue-600">
+                      {Math.round((adminStats.presentToday / Math.max(adminStats.totalEmployees, 1)) * 100)}%
+                    </div>
+                    <div className="text-sm text-gray-600">
+                      Office Capacity
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="mt-4 text-center">
+                  <p className="text-sm text-gray-600">
+                    Welcome to AINTRIX • Have a productive day!
+                  </p>
+                </div>
+              </div>
+            </div>
+
             {/* Recent Activity */}
             <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-6">
               <div className="flex items-center justify-between mb-6">

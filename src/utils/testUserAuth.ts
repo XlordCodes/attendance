@@ -8,7 +8,7 @@ export const testUserAuthentication = async () => {
   
   const testAccounts = [
     { email: 'admin@aintrix.com', password: 'admin123', expectedRole: 'admin' },
-    { email: 'kiosk@aintrix.com', password: 'admin123', expectedRole: 'kiosk' }
+    { email: 'employee@aintrix.com', password: 'admin123', expectedRole: 'employee' }
   ];
 
   for (const account of testAccounts) {
