@@ -43,10 +43,10 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
   }
 
   return (
-    <div className="flex h-screen bg-gray-50">
+    <div className="flex h-screen bg-gray-50 overflow-hidden">
       <Sidebar />
-      <main className="flex-1 overflow-auto bg-gray-50">
-        <div className="p-8 h-full">
+      <main className="flex-1 overflow-auto bg-gray-50 ml-0">
+        <div className="p-8 min-h-full">
           {children}
         </div>
       </main>
@@ -119,38 +119,40 @@ const AppContent: React.FC = () => {
 
 function App() {
   return (
-    <AuthProvider>
-      <Router>
-        <div className="App">
-          <AppContent />
-          <Toaster
-            position="top-right"
-            toastOptions={{
-              duration: 4000,
-              style: {
-                background: '#1f2937',
-                color: '#ffffff',
-                fontFamily: 'Inter, system-ui, sans-serif',
-                fontWeight: '500',
-                borderRadius: '8px',
-                boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
-                border: '1px solid #374151',
-              },
-              success: {
+    <div className="h-full">
+      <AuthProvider>
+        <Router>
+          <div className="App h-full">
+            <AppContent />
+            <Toaster
+              position="top-right"
+              toastOptions={{
+                duration: 4000,
                 style: {
-                  background: '#059669',
+                  background: '#1f2937',
+                  color: '#ffffff',
+                  fontFamily: 'Inter, system-ui, sans-serif',
+                  fontWeight: '500',
+                  borderRadius: '8px',
+                  boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
+                  border: '1px solid #374151',
                 },
-              },
-              error: {
-                style: {
-                  background: '#dc2626',
+                success: {
+                  style: {
+                    background: '#059669',
+                  },
                 },
-              },
-            }}
-          />
-        </div>
-      </Router>
-    </AuthProvider>
+                error: {
+                  style: {
+                    background: '#dc2626',
+                  },
+                },
+              }}
+            />
+          </div>
+        </Router>
+      </AuthProvider>
+    </div>
   );
 }
 

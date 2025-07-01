@@ -12,9 +12,11 @@ import {
   XCircle,
   UserPlus,
   FileText,
-  BarChart3
+  BarChart3,
+  Bell
 } from 'lucide-react';
 import { format } from 'date-fns';
+import { useAuth } from '../../hooks/useAuth';
 
 interface AdminStats {
   totalEmployees: number;
@@ -34,6 +36,7 @@ interface RecentActivity {
 }
 
 const AdminDashboardNew: React.FC = () => {
+  const { employee } = useAuth();
   const [currentTime, setCurrentTime] = useState(new Date());
   const [searchTerm, setSearchTerm] = useState('');
   const [adminStats] = useState<AdminStats>({
@@ -105,13 +108,51 @@ const AdminDashboardNew: React.FC = () => {
 
   return (
     <div className="max-w-7xl mx-auto space-y-6">
-      {/* Header */}
+      {/* Welcome Header */}
+      <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-6">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-4">
+            <div className="w-16 h-16 bg-gray-900 rounded-lg flex items-center justify-center">
+              <span className="text-white font-bold text-2xl">
+                {employee?.name?.charAt(0).toUpperCase()}
+              </span>
+            </div>
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900">
+                Welcome back, {employee?.name?.split(' ')[0]}!
+              </h1>
+              <p className="text-lg text-gray-600 capitalize flex items-center space-x-2 mt-1">
+                <span>{employee?.role}</span>
+                <span>•</span>
+                <span className="flex items-center">
+                  <div className="w-3 h-3 bg-green-500 rounded-full mr-2"></div>
+                  Online
+                </span>
+                <span>•</span>
+                <span>{format(currentTime, 'EEEE, MMMM d, yyyy')}</span>
+              </p>
+            </div>
+          </div>
+          
+          {/* Notifications */}
+          <div className="flex items-center space-x-3">
+            <button className="relative p-3 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors">
+              <Bell className="w-6 h-6" />
+              <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full text-xs flex items-center justify-center">
+                <span className="w-2 h-2 bg-white rounded-full"></span>
+              </span>
+            </button>
+          </div>
+        </div>
+      </div>
+      
+      {/* Dashboard Header */}
       <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-6">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900 mb-2">Admin Dashboard</h1>
+            <h2 className="text-2xl font-bold text-gray-900 mb-2">Admin Dashboard</h2>
             <p className="text-gray-600">
-              Manage your team and monitor attendance • {format(currentTime, 'EEEE, MMMM d, yyyy')}
+              Manage your team and monitor attendance
             </p>
           </div>
           

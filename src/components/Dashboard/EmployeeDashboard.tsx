@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Clock, Calendar, MapPin, Coffee, TrendingUp, CheckCircle, AlertCircle, Activity } from 'lucide-react';
+import { Clock, Calendar, MapPin, Coffee, TrendingUp, CheckCircle, AlertCircle, Activity, Bell } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { attendanceService } from '../../services/attendanceService';
 import { AttendanceRecord } from '../../types';
@@ -99,6 +99,44 @@ const EmployeeDashboard: React.FC = () => {
 
   return (
     <div className="max-w-7xl mx-auto space-y-6">
+      {/* Welcome Header */}
+      <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-6">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-4">
+            <div className="w-16 h-16 bg-gray-900 rounded-lg flex items-center justify-center">
+              <span className="text-white font-bold text-2xl">
+                {employee?.name?.charAt(0).toUpperCase()}
+              </span>
+            </div>
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900">
+                Welcome back, {employee?.name?.split(' ')[0]}!
+              </h1>
+              <p className="text-lg text-gray-600 capitalize flex items-center space-x-2 mt-1">
+                <span>{employee?.role}</span>
+                <span>•</span>
+                <span className="flex items-center">
+                  <div className="w-3 h-3 bg-green-500 rounded-full mr-2"></div>
+                  Online
+                </span>
+                <span>•</span>
+                <span>{format(currentTime, 'EEEE, MMMM d, yyyy')}</span>
+              </p>
+            </div>
+          </div>
+          
+          {/* Notifications */}
+          <div className="flex items-center space-x-3">
+            <button className="relative p-3 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors">
+              <Bell className="w-6 h-6" />
+              <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full text-xs flex items-center justify-center">
+                <span className="w-2 h-2 bg-white rounded-full"></span>
+              </span>
+            </button>
+          </div>
+        </div>
+      </div>
+
       {/* Today's Status Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-6">

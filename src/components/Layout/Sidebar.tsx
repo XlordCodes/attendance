@@ -4,16 +4,15 @@ import {
   Clock, 
   Users, 
   Settings, 
-  Bell,
   Calendar,
   QrCode,
   Monitor,
-  Search,
   LogOut,
   Coffee,
-  MapPin,
-  FileText,
-  ChevronDown
+  UserX,
+  ChevronDown,
+  Menu,
+  X
 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { useState } from 'react';
@@ -21,8 +20,8 @@ import { useState } from 'react';
 const Sidebar: React.FC = () => {
   const { employee, logout } = useAuth();
   const location = useLocation();
-  const [searchQuery, setSearchQuery] = useState('');
   const [showUserMenu, setShowUserMenu] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(false);
 
   const handleLogout = async () => {
     try {
@@ -30,6 +29,10 @@ const Sidebar: React.FC = () => {
     } catch (error) {
       console.error('Logout failed:', error);
     }
+  };
+
+  const toggleSidebar = () => {
+    setIsExpanded(!isExpanded);
   };
 
   const employeeNavItems = [
@@ -47,117 +50,43 @@ const Sidebar: React.FC = () => {
     { to: '/settings', icon: Settings, label: 'Settings' },
   ];
 
-  const quickActions = [
-    { icon: Clock, label: 'Quick Clock In', color: 'text-green-600' },
-    { icon: Coffee, label: 'Start Break', color: 'text-yellow-600' },
-    { icon: MapPin, label: 'Work From Home', color: 'text-blue-600' },
-    { icon: FileText, label: 'Request Leave', color: 'text-purple-600' },
-  ];
-
   const navItems = employee?.role === 'admin' ? adminNavItems : employeeNavItems;
 
   return (
-    <div className="w-80 bg-white border-r border-gray-200 h-screen flex flex-col">
-      {/* Header */}
-      <div className="px-6 py-6 border-b border-gray-200">
-        <div className="flex items-center space-x-3 mb-6">
-          <div className="w-8 h-8 bg-gray-900 rounded-md flex items-center justify-center">
-            <span className="text-white font-bold text-sm">A</span>
-          </div>
-          <div>
-            <h1 className="font-bold text-gray-900">AINTRIX</h1>
-            <p className="text-xs text-gray-500">Attendance System</p>
-          </div>
-        </div>
-
-        {/* Search */}
-        <div className="relative mb-4">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
-          <input
-            type="text"
-            placeholder="Search..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-md text-sm text-gray-700 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:border-gray-500"
-          />
-        </div>
-
-        {/* Current Date & Time */}
-        <div className="text-center py-3 bg-gray-50 rounded-md mb-4">
-          <p className="text-sm font-medium text-gray-900">
-            {new Date().toLocaleDateString('en-US', { 
-              weekday: 'short', 
-              month: 'short', 
-              day: 'numeric' 
-            })}
-          </p>
-          <p className="text-xs text-gray-500">
-            {new Date().toLocaleTimeString('en-US', { 
-              hour: '2-digit', 
-              minute: '2-digit' 
-            })}
-          </p>
-        </div>
-      </div>
-
-      {/* User Info */}
-      <div className="px-6 py-4 border-b border-gray-200">
+    <div 
+      className={`${isExpanded ? 'w-64' : 'w-14'} bg-white border-r border-gray-200 h-screen flex flex-col overflow-hidden transition-all duration-300`}
+    >
+      {/* Header with Menu Toggle */}
+      <div className="px-3 py-3 border-b border-gray-200 flex-shrink-0">
         <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-3">
-            <div className="w-12 h-12 bg-gray-900 rounded-md flex items-center justify-center">
-              <span className="text-white font-bold text-lg">
-                {employee?.name?.charAt(0).toUpperCase()}
-              </span>
+          {isExpanded && (
+            <div className="flex items-center space-x-2">
+              <div className="w-7 h-7 bg-gray-900 rounded-md flex items-center justify-center flex-shrink-0">
+                <span className="text-white font-bold text-xs">A</span>
+              </div>
+              <div className="transition-opacity duration-300">
+                <h1 className="font-bold text-gray-900 whitespace-nowrap text-sm">AINTRIX</h1>
+                <p className="text-xs text-gray-500 whitespace-nowrap">Attendance System</p>
+              </div>
             </div>
-            <div>
-              <p className="font-semibold text-gray-900 text-sm">
-                Welcome back, {employee?.name?.split(' ')[0]}!
-              </p>
-              <p className="text-xs text-gray-500 capitalize flex items-center space-x-2">
-                <span>{employee?.role}</span>
-                <span>•</span>
-                <span className="flex items-center">
-                  <div className="w-2 h-2 bg-green-500 rounded-full mr-1"></div>
-                  Online
-                </span>
-              </p>
-            </div>
-          </div>
+          )}
           
-          {/* Notifications - Single notification icon */}
-          <div className="flex items-center space-x-2">
-            <button className="relative p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-md">
-              <Bell className="w-4 h-4" />
-              <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full text-xs flex items-center justify-center">
-                <span className="w-1.5 h-1.5 bg-white rounded-full"></span>
-              </span>
-            </button>
-          </div>
+          {/* Menu Toggle Button */}
+          <button
+            onClick={toggleSidebar}
+            className="p-1.5 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-md transition-colors mx-auto"
+            title={isExpanded ? "Collapse" : "Expand"}
+          >
+            {isExpanded ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
+          </button>
         </div>
       </div>
 
-      {/* Quick Actions */}
-      <div className="px-6 py-4 border-b border-gray-200">
-        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Quick Actions</p>
-        <div className="grid grid-cols-2 gap-2">
-          {quickActions.map((action, index) => {
-            const Icon = action.icon;
-            return (
-              <button
-                key={index}
-                className="flex flex-col items-center p-3 bg-gray-50 hover:bg-gray-100 rounded-md transition-colors"
-              >
-                <Icon className={`w-4 h-4 mb-1 ${action.color}`} />
-                <span className="text-xs text-gray-700 font-medium">{action.label}</span>
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Navigation */}
-      <nav className="flex-1 px-4 py-6 space-y-1">
-        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3 px-3">Navigation</p>
+      {/* Navigation - Moved to top */}
+      <nav className="px-2 py-3 space-y-1 border-b border-gray-200">
+        {isExpanded && (
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2 px-2">Navigation</p>
+        )}
         {navItems.map((item) => {
           const Icon = item.icon;
           const isActive = location.pathname === item.to;
@@ -166,58 +95,133 @@ const Sidebar: React.FC = () => {
             <NavLink
               key={item.to}
               to={item.to}
-              className={`flex items-center px-3 py-3 text-sm font-medium rounded-md transition-colors ${
+              className={`flex items-center px-2 py-2.5 text-sm font-medium rounded-md transition-all duration-200 ${
                 isActive
                   ? 'bg-gray-900 text-white'
                   : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
-              }`}
+              } ${!isExpanded ? 'justify-center' : ''}`}
+              title={!isExpanded ? item.label : undefined}
             >
-              <Icon className="w-4 h-4 mr-3" />
-              <span>{item.label}</span>
+              <Icon className="w-4 h-4 flex-shrink-0" />
+              {isExpanded && (
+                <span className="ml-2 whitespace-nowrap transition-opacity duration-300">{item.label}</span>
+              )}
             </NavLink>
           );
         })}
       </nav>
 
+      {/* Date & Time - Reorganized */}
+      {isExpanded && (
+        <div className="px-3 py-2 border-b border-gray-200 flex-shrink-0">
+          <div className="text-center py-2 bg-gray-50 rounded-md">
+            <p className="text-xs font-semibold text-gray-900">
+              {new Date().toLocaleDateString('en-US', { 
+                weekday: 'short', 
+                month: 'short', 
+                day: 'numeric' 
+              })}
+            </p>
+            <p className="text-xs text-gray-500 mt-0.5">
+              {new Date().toLocaleTimeString('en-US', { 
+                hour: '2-digit', 
+                minute: '2-digit' 
+              })}
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Quick Actions - Moved down */}
+      <div className="px-3 py-3 border-b border-gray-200 flex-shrink-0">
+        {isExpanded && (
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Quick Actions</p>
+        )}
+        <div className="space-y-2">
+          {/* Clock In/Out - Wide */}
+          <button className={`w-full flex items-center p-2 bg-green-50 hover:bg-green-100 rounded-md transition-colors ${!isExpanded ? 'justify-center' : 'justify-start'}`}>
+            <Clock className="w-4 h-4 text-green-600 flex-shrink-0" />
+            {isExpanded && (
+              <span className="ml-2 text-xs text-gray-700 font-medium whitespace-nowrap">Clock In/Out</span>
+            )}
+          </button>
+          
+          {/* Take Break and AFK */}
+          {isExpanded ? (
+            <div className="grid grid-cols-2 gap-1.5">
+              <button className="flex flex-col items-center p-2 bg-yellow-50 hover:bg-yellow-100 rounded-md transition-colors">
+                <Coffee className="w-3 h-3 mb-1 text-yellow-600" />
+                <span className="text-xs text-gray-700 font-medium">Break</span>
+              </button>
+              <button className="flex flex-col items-center p-2 bg-red-50 hover:bg-red-100 rounded-md transition-colors">
+                <UserX className="w-3 h-3 mb-1 text-red-600" />
+                <span className="text-xs text-gray-700 font-medium">AFK</span>
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-1.5">
+              <button className="w-full flex items-center justify-center p-2 bg-yellow-50 hover:bg-yellow-100 rounded-md transition-colors" title="Take Break">
+                <Coffee className="w-3 h-3 text-yellow-600" />
+              </button>
+              <button className="w-full flex items-center justify-center p-2 bg-red-50 hover:bg-red-100 rounded-md transition-colors" title="AFK">
+                <UserX className="w-3 h-3 text-red-600" />
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Spacer */}
+      <div className="flex-1"></div>
+
       {/* User Menu & Logout */}
-      <div className="px-6 py-4 border-t border-gray-200">
-        <div className="flex items-center justify-between mb-4">
+      <div className="px-3 py-3 border-t border-gray-200 flex-shrink-0">
+        <div className={`flex items-center ${isExpanded ? 'justify-between' : 'flex-col space-y-1.5'}`}>
           <button
             onClick={() => setShowUserMenu(!showUserMenu)}
-            className="flex items-center space-x-2 text-sm text-gray-600 hover:text-gray-900"
+            className={`flex items-center space-x-1.5 text-sm text-gray-600 hover:text-gray-900 p-1.5 rounded-md hover:bg-gray-100 transition-colors ${!isExpanded ? 'justify-center' : ''}`}
+            title="Settings"
           >
-            <Settings className="w-4 h-4" />
-            <span>Settings</span>
-            <ChevronDown className={`w-3 h-3 transition-transform ${showUserMenu ? 'rotate-180' : ''}`} />
+            <Settings className="w-4 h-4 flex-shrink-0" />
+            {isExpanded && (
+              <>
+                <span className="whitespace-nowrap text-xs">Settings</span>
+                <ChevronDown className={`w-3 h-3 transition-all duration-300 ${showUserMenu ? 'rotate-180' : ''}`} />
+              </>
+            )}
           </button>
           
           <button
             onClick={handleLogout}
-            className="flex items-center space-x-2 px-3 py-2 text-sm text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors"
+            className={`flex items-center space-x-1.5 px-2 py-1.5 text-sm text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors ${!isExpanded ? 'justify-center' : ''}`}
             title="Logout"
           >
-            <LogOut className="w-4 h-4" />
-            <span>Logout</span>
+            <LogOut className="w-4 h-4 flex-shrink-0" />
+            {isExpanded && (
+              <span className="whitespace-nowrap text-xs">Logout</span>
+            )}
           </button>
         </div>
         
-        {showUserMenu && (
-          <div className="bg-gray-50 rounded-md p-3 space-y-2">
-            <button className="w-full text-left text-sm text-gray-600 hover:text-gray-900 py-1">
+        {showUserMenu && isExpanded && (
+          <div className="bg-gray-50 rounded-md p-2 mt-2 space-y-1">
+            <button className="w-full text-left text-xs text-gray-600 hover:text-gray-900 py-1">
               Profile Settings
             </button>
-            <button className="w-full text-left text-sm text-gray-600 hover:text-gray-900 py-1">
+            <button className="w-full text-left text-xs text-gray-600 hover:text-gray-900 py-1">
               Preferences
             </button>
-            <button className="w-full text-left text-sm text-gray-600 hover:text-gray-900 py-1">
+            <button className="w-full text-left text-xs text-gray-600 hover:text-gray-900 py-1">
               Help & Support
             </button>
           </div>
         )}
         
-        <p className="text-xs text-gray-500 text-center mt-4">
-          v1.0.0 • AINTRIX Global
-        </p>
+        {isExpanded && (
+          <p className="text-xs text-gray-500 text-center mt-3">
+            v1.0.0 • AINTRIX Global
+          </p>
+        )}
       </div>
     </div>
   );
