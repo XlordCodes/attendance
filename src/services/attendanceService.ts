@@ -46,7 +46,6 @@ const initializeSampleData = () => {
             lunchEnd: undefined,
             breakTimes: [],
             location: undefined,
-            isWFH: Math.random() > 0.8, // 20% WFH
             earlyLogoutReason: overtime === 0 && Math.random() > 0.9 ? 'Personal work' : undefined,
             overtime: Math.round(overtime * 100) / 100,
             status,
@@ -60,7 +59,7 @@ const initializeSampleData = () => {
 };
 
 class AttendanceService {
-  async clockIn(employeeId: string, location?: GeolocationData, isWFH: boolean = false) {
+  async clockIn(employeeId: string, location?: GeolocationData) {
     const today = format(new Date(), 'yyyy-MM-dd');
     const now = new Date();
 
@@ -78,7 +77,6 @@ class AttendanceService {
       date: today,
       clockIn: now,
       location,
-      isWFH,
       breakTimes: [],
       overtime: 0,
       status: this.determineStatus(now),

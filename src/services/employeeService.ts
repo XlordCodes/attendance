@@ -13,7 +13,6 @@ import {
 import { createUserWithEmailAndPassword, signOut } from 'firebase/auth';
 import { db, auth } from './firebaseConfig';
 import { Employee } from '../types';
-import * as QRCode from 'qrcode';
 
 // Mock data for testing
 let mockEmployees: Employee[] = [];
@@ -32,7 +31,6 @@ const initializeSampleEmployees = () => {
         department: 'Engineering',
         isActive: true,
         createdAt: new Date('2024-01-01'),
-        qrCode: '',
       },
       {
         id: 'emp002',
@@ -44,7 +42,6 @@ const initializeSampleEmployees = () => {
         department: 'Marketing',
         isActive: true,
         createdAt: new Date('2024-01-02'),
-        qrCode: '',
       },
       {
         id: 'emp003',
@@ -56,7 +53,6 @@ const initializeSampleEmployees = () => {
         department: 'Sales',
         isActive: true,
         createdAt: new Date('2024-01-03'),
-        qrCode: '',
       },
       {
         id: 'admin001',
@@ -68,7 +64,6 @@ const initializeSampleEmployees = () => {
         department: 'IT',
         isActive: true,
         createdAt: new Date('2024-01-01'),
-        qrCode: '',
       },
     ];
   }
@@ -78,16 +73,8 @@ const initializeSampleEmployees = () => {
 initializeSampleEmployees();
 
 class EmployeeService {
-  async createEmployee(employeeData: Omit<Employee, 'id' | 'createdAt' | 'qrCode'>): Promise<Employee> {
+  async createEmployee(employeeData: Omit<Employee, 'id' | 'createdAt'>): Promise<Employee> {
     try {
-      // Generate QR code for employee
-      const qrCodeData = JSON.stringify({
-        employeeId: employeeData.employeeId,
-        name: employeeData.name,
-        timestamp: Date.now()
-      });
-      const qrCode = await QRCode.toDataURL(qrCodeData);
-
       // Create Firebase Auth user
       const standardPassword = 'admin123'; // Standard password for all users
       const userCredential = await createUserWithEmailAndPassword(auth, employeeData.email, standardPassword);
@@ -98,7 +85,6 @@ class EmployeeService {
         id: userId,
         ...employeeData,
         createdAt: new Date(),
-        qrCode,
       };
 
       await setDoc(doc(db, 'employees', userId), {
@@ -208,56 +194,6 @@ class EmployeeService {
       return null;
     } catch (error) {
       console.error('Error getting employee by email:', error);
-      throw error;
-    }
-  }
-
-  async approveWFH(employeeId: string, expiryDate: Date): Promise<void> {
-    try {
-      const employee = await this.getEmployeeByEmployeeId(employeeId);
-      if (employee) {
-        await this.updateEmployee(employee.id, {
-          wfhApproved: true,
-          wfhExpiry: expiryDate,
-        });
-      }
-    } catch (error) {
-      console.error('Error approving WFH:', error);
-      throw error;
-    }
-  }
-
-  async revokeWFH(employeeId: string): Promise<void> {
-    try {
-      const employee = await this.getEmployeeByEmployeeId(employeeId);
-      if (employee) {
-        await this.updateEmployee(employee.id, {
-          wfhApproved: false,
-          wfhExpiry: undefined,
-        });
-      }
-    } catch (error) {
-      console.error('Error revoking WFH:', error);
-      throw error;
-    }
-  }
-
-  async regenerateQRCode(employeeId: string): Promise<string> {
-    try {
-      const employee = await this.getEmployeeByEmployeeId(employeeId);
-      if (!employee) throw new Error('Employee not found');
-
-      const qrCodeData = JSON.stringify({
-        employeeId: employee.employeeId,
-        name: employee.name,
-        timestamp: Date.now()
-      });
-      const qrCode = await QRCode.toDataURL(qrCodeData);
-
-      await this.updateEmployee(employee.id, { qrCode });
-      return qrCode;
-    } catch (error) {
-      console.error('Error regenerating QR code:', error);
       throw error;
     }
   }

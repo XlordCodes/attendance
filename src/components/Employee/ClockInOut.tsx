@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Clock, MapPin, Wifi, WifiOff, AlertCircle } from 'lucide-react';
+import { Clock, MapPin, AlertCircle } from 'lucide-react';
 import { attendanceService } from '../../services/attendanceService';
 import { useAuth } from '../../hooks/useAuth';
 import { AttendanceRecord, GeolocationData } from '../../types';
@@ -11,7 +11,6 @@ const ClockInOut: React.FC = () => {
   const [todayRecord, setTodayRecord] = useState<AttendanceRecord | null>(null);
   const [loading, setLoading] = useState(false);
   const [location, setLocation] = useState<GeolocationData | null>(null);
-  const [isWFH, setIsWFH] = useState(false);
   const [earlyLogoutReason, setEarlyLogoutReason] = useState('');
   const [showEarlyLogoutModal, setShowEarlyLogoutModal] = useState(false);
   const [currentTime, setCurrentTime] = useState(new Date());
@@ -64,8 +63,7 @@ const ClockInOut: React.FC = () => {
     try {
       const record = await attendanceService.clockIn(
         employee.id,
-        location || undefined,
-        isWFH
+        location || undefined
       );
       setTodayRecord(record);
       toast.success('Clocked in successfully!');
@@ -110,11 +108,11 @@ const ClockInOut: React.FC = () => {
   };
 
   const isClockInDisabled = () => {
-    return todayRecord?.clockIn && !todayRecord?.clockOut;
+    return !!(todayRecord?.clockIn && !todayRecord?.clockOut);
   };
 
   const isClockOutDisabled = () => {
-    return !todayRecord?.clockIn || todayRecord?.clockOut;
+    return !todayRecord?.clockIn || !!todayRecord?.clockOut;
   };
 
   return (
@@ -143,19 +141,6 @@ const ClockInOut: React.FC = () => {
                 <span className="text-sm text-gray-700">Location not available</span>
               </>
             )}
-          </div>
-          
-          <div className="ml-6 flex items-center space-x-2">
-            <input
-              type="checkbox"
-              id="wfh"
-              checked={isWFH}
-              onChange={(e) => setIsWFH(e.target.checked)}
-              className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-            />
-            <label htmlFor="wfh" className="text-sm text-gray-700">
-              Working from Home
-            </label>
           </div>
         </div>
 

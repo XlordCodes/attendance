@@ -7,7 +7,6 @@ import EmployeeDashboard from './components/Dashboard/EmployeeDashboard';
 import AdminDashboardNew from './components/Dashboard/AdminDashboardNew';
 import KioskDashboard from './components/Kiosk/KioskDashboard';
 import ClockInOut from './components/Employee/ClockInOut';
-import QRCodeDisplay from './components/Employee/QRCodeDisplay';
 import EmployeeManagement from './components/Admin/EmployeeManagement';
 import KioskMode from './components/Admin/KioskMode';
 import AdminSetup from './components/Admin/AdminSetup';
@@ -78,11 +77,6 @@ const AppContent: React.FC = () => {
       <Route path="/clock" element={
         <ProtectedRoute>
           <ClockInOut />
-        </ProtectedRoute>
-      } />
-      <Route path="/qr-code" element={
-        <ProtectedRoute>
-          <QRCodeDisplay />
         </ProtectedRoute>
       } />
       <Route path="/attendance-logs" element={

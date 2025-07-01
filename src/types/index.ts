@@ -9,9 +9,6 @@ export interface Employee {
   isActive: boolean;
   createdAt: Date;
   lastLogin?: Date;
-  wfhApproved?: boolean;
-  wfhExpiry?: Date;
-  qrCode?: string;
 }
 
 export interface AttendanceRecord {
@@ -25,7 +22,6 @@ export interface AttendanceRecord {
   lunchEnd?: Date;
   breakTimes: BreakTime[];
   location?: GeolocationData;
-  isWFH: boolean;
   earlyLogoutReason?: string;
   overtime: number;
   status: 'present' | 'absent' | 'late' | 'partial';
@@ -48,23 +44,9 @@ export interface GeolocationData {
   timestamp: Date;
 }
 
-export interface WFHRequest {
-  id: string;
-  employeeId: string;
-  employeeName: string;
-  requestDate: Date;
-  fromDate: Date;
-  toDate: Date;
-  reason: string;
-  status: 'pending' | 'approved' | 'rejected';
-  adminResponse?: string;
-  processedBy?: string;
-  processedAt?: Date;
-}
-
 export interface Notification {
   id: string;
-  type: 'wfh_request' | 'early_logout' | 'overtime' | 'system';
+  type: 'early_logout' | 'overtime' | 'system';
   title: string;
   message: string;
   employeeId?: string;
@@ -80,6 +62,5 @@ export interface DailyStats {
   present: number;
   absent: number;
   late: number;
-  wfh: number;
   overtime: number;
 }

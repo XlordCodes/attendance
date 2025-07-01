@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Clock, Calendar, TrendingUp, CheckCircle, AlertCircle, Activity, Bell, MapPin } from 'lucide-react';
+import { Clock, Calendar, TrendingUp, CheckCircle, AlertCircle, Activity, Bell, MapPin, X } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { attendanceService } from '../../services/attendanceService';
 import { AttendanceRecord, GeolocationData } from '../../types';
@@ -18,9 +18,9 @@ const EmployeeDashboard: React.FC = () => {
   const [currentTime, setCurrentTime] = useState(new Date());
   const [loading, setLoading] = useState(false);
   const [location, setLocation] = useState<GeolocationData | null>(null);
-  const [isWFH, setIsWFH] = useState(false);
   const [earlyLogoutReason, setEarlyLogoutReason] = useState('');
   const [showEarlyLogoutModal, setShowEarlyLogoutModal] = useState(false);
+  const [showNotifications, setShowNotifications] = useState(false);
 
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
@@ -60,8 +60,7 @@ const EmployeeDashboard: React.FC = () => {
     try {
       const record = await attendanceService.clockIn(
         employee.id,
-        location || undefined,
-        isWFH
+        location || undefined
       );
       setTodayRecord(record);
       toast.success('Clocked in successfully!');
@@ -189,7 +188,7 @@ const EmployeeDashboard: React.FC = () => {
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-4">
             <div className="w-16 h-16 bg-gray-900 rounded-lg flex items-center justify-center">
-              <span className="text-white font-bold text-2xl">
+              <span className="text-white font-bold text-1xl">
                 {employee?.name?.charAt(0).toUpperCase()}
               </span>
             </div>
@@ -212,7 +211,10 @@ const EmployeeDashboard: React.FC = () => {
           
           {/* Notifications */}
           <div className="flex items-center space-x-3">
-            <button className="relative p-3 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors">
+            <button 
+              onClick={() => setShowNotifications(!showNotifications)}
+              className="relative p-3 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+            >
               <Bell className="w-6 h-6" />
               <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full text-xs flex items-center justify-center">
                 <span className="w-2 h-2 bg-white rounded-full"></span>
@@ -399,7 +401,7 @@ const EmployeeDashboard: React.FC = () => {
 
             {/* Location Status */}
             <div className="mb-6 p-3 bg-gray-50 rounded-lg">
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-center">
                 <div className="flex items-center space-x-2">
                   {location ? (
                     <>
@@ -412,19 +414,6 @@ const EmployeeDashboard: React.FC = () => {
                       <span className="text-xs text-gray-700">Location not available</span>
                     </>
                   )}
-                </div>
-                
-                <div className="flex items-center space-x-2">
-                  <input
-                    type="checkbox"
-                    id="wfh"
-                    checked={isWFH}
-                    onChange={(e) => setIsWFH(e.target.checked)}
-                    className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                  />
-                  <label htmlFor="wfh" className="text-xs text-gray-700">
-                    WFH
-                  </label>
                 </div>
               </div>
             </div>
@@ -490,7 +479,7 @@ const EmployeeDashboard: React.FC = () => {
               <div className="flex items-start space-x-3">
                 <div className="w-2 h-2 bg-purple-500 rounded-full mt-2"></div>
                 <div className="flex-1">
-                  <p className="text-sm text-gray-900">WFH request approved</p>
+                  <p className="text-sm text-gray-900">Training completed</p>
                   <p className="text-xs text-gray-500">2 days ago</p>
                 </div>
               </div>
@@ -596,6 +585,51 @@ const EmployeeDashboard: React.FC = () => {
               >
                 Clock Out
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Notification Overlay */}
+      {showNotifications && (
+        <div className="fixed top-4 right-4 bg-white rounded-lg shadow-lg border border-gray-200 w-80 z-40">
+          <div className="p-4 border-b border-gray-200 flex items-center justify-between">
+            <h3 className="font-medium text-gray-900">Notifications</h3>
+            <button
+              onClick={() => setShowNotifications(false)}
+              className="text-gray-400 hover:text-gray-600"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+          <div className="p-4 space-y-3">
+            <div className="flex items-start space-x-3">
+              <div className="w-2 h-2 bg-blue-500 rounded-full mt-2"></div>
+              <div className="flex-1">
+                <p className="text-sm text-gray-900">Weekly report is ready</p>
+                <p className="text-xs text-gray-500">1 hour ago</p>
+              </div>
+            </div>
+            <div className="flex items-start space-x-3">
+              <div className="w-2 h-2 bg-green-500 rounded-full mt-2"></div>
+              <div className="flex-1">
+                <p className="text-sm text-gray-900">Attendance record updated</p>
+                <p className="text-xs text-gray-500">Today at 9:00 AM</p>
+              </div>
+            </div>
+            <div className="flex items-start space-x-3">
+              <div className="w-2 h-2 bg-yellow-500 rounded-full mt-2"></div>
+              <div className="flex-1">
+                <p className="text-sm text-gray-900">Remember to take breaks</p>
+                <p className="text-xs text-gray-500">Yesterday</p>
+              </div>
+            </div>
+            <div className="flex items-start space-x-3">
+              <div className="w-2 h-2 bg-purple-500 rounded-full mt-2"></div>
+              <div className="flex-1">
+                <p className="text-sm text-gray-900">Team meeting scheduled</p>
+                <p className="text-xs text-gray-500">2 days ago</p>
+              </div>
             </div>
           </div>
         </div>
