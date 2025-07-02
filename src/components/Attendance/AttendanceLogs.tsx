@@ -15,8 +15,8 @@ import {
   XCircle,
   AlertCircle
 } from 'lucide-react';
-import { attendanceService } from '../../services/attendanceService';
-import { employeeService } from '../../services/employeeService';
+import { attendanceServiceSubcollection } from '../../services/attendanceServiceSubcollection';
+import { userService } from '../../services/userService';
 import { AttendanceRecord, Employee } from '../../types';
 import { format, startOfMonth, endOfMonth, subMonths, addMonths } from 'date-fns';
 import toast from 'react-hot-toast';
@@ -55,7 +55,7 @@ const AttendanceLogs: React.FC = () => {
 
   const loadEmployees = async () => {
     try {
-      const employeesList = await employeeService.getAllEmployees();
+      const employeesList = await userService.getAllUsers();
       setEmployees(employeesList);
     } catch (error) {
       console.error('Error loading employees:', error);
@@ -68,8 +68,8 @@ const AttendanceLogs: React.FC = () => {
       const startDate = format(startOfMonth(selectedMonth), 'yyyy-MM-dd');
       const endDate = format(endOfMonth(selectedMonth), 'yyyy-MM-dd');
       
-      const allRecords = await attendanceService.getAllAttendanceRecords(startDate, endDate);
-      const employeesList = await employeeService.getAllEmployees();
+      const allRecords = await attendanceServiceSubcollection.getAllAttendanceRecords(startDate, endDate);
+      const employeesList = await userService.getAllUsers();
       
       let filteredEmployees = employeesList;
       if (selectedEmployee !== 'all') {

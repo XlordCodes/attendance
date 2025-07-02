@@ -204,6 +204,7 @@ const EmployeeModal: React.FC<{
     email: employee?.email || '',
     password: '',
     department: employee?.department || '',
+    position: employee?.position || '',
     role: employee?.role || 'employee' as 'employee' | 'admin',
     isActive: employee?.isActive ?? true,
   });
@@ -293,7 +294,6 @@ const EmployeeModal: React.FC<{
               />
             </div>
           )}
-
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Department
@@ -302,6 +302,19 @@ const EmployeeModal: React.FC<{
               type="text"
               value={formData.department}
               onChange={(e) => setFormData({ ...formData, department: e.target.value })}
+              className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+              required
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Position
+            </label>
+            <input
+              type="text"
+              value={formData.position}
+              onChange={(e) => setFormData({ ...formData, position: e.target.value })}
               className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
               required
             />

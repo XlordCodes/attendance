@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Clock, MapPin, AlertCircle } from 'lucide-react';
-import { attendanceService } from '../../services/attendanceService';
+import { attendanceServiceSubcollection } from '../../services/attendanceServiceSubcollection';
 import { useAuth } from '../../hooks/useAuth';
 import { AttendanceRecord, GeolocationData } from '../../types';
 import { format } from 'date-fns';
@@ -31,7 +31,7 @@ const ClockInOut: React.FC = () => {
     if (!employee) return;
     
     try {
-      const record = await attendanceService.getTodayAttendance(employee.id);
+      const record = await attendanceServiceSubcollection.getTodayAttendance(employee.id);
       setTodayRecord(record);
     } catch (error) {
       console.error('Error loading today record:', error);
@@ -61,7 +61,7 @@ const ClockInOut: React.FC = () => {
 
     setLoading(true);
     try {
-      const record = await attendanceService.clockIn(
+      const record = await attendanceServiceSubcollection.clockIn(
         employee.id,
         location || undefined
       );
@@ -95,7 +95,7 @@ const ClockInOut: React.FC = () => {
 
     setLoading(true);
     try {
-      const record = await attendanceService.clockOut(employee.id, reason);
+      const record = await attendanceServiceSubcollection.clockOut(employee.id, reason);
       setTodayRecord(record);
       setShowEarlyLogoutModal(false);
       setEarlyLogoutReason('');

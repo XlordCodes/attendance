@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Clock, Users, KeySquare } from 'lucide-react';
-import { attendanceService } from '../../services/attendanceService';
-import { employeeService } from '../../services/employeeService';
+import { attendanceServiceSubcollection } from '../../services/attendanceServiceSubcollection';
+import { userService } from '../../services/userService';
 import { format } from 'date-fns';
 import toast from 'react-hot-toast';
 
@@ -24,11 +24,11 @@ const KioskMode: React.FC = () => {
   const loadActiveEmployees = async () => {
     try {
       // Get all employees who are currently clocked in
-      const employees = await employeeService.getAllEmployees();
+      const employees = await userService.getAllUsers();
       const activeList = [];
       
       for (const employee of employees) {
-        const todayRecord = await attendanceService.getTodayAttendance(employee.id);
+        const todayRecord = await attendanceServiceSubcollection.getTodayAttendance(employee.id);
         if (todayRecord && todayRecord.clockIn && !todayRecord.clockOut) {
           activeList.push({
             ...employee,
@@ -56,21 +56,23 @@ const KioskMode: React.FC = () => {
   const handleAttendanceAction = async (empId: string) => {
     setLoading(true);
     try {
-      const employee = await employeeService.getEmployeeByEmployeeId(empId);
+      // Get user by employeeId - we'll search through all users
+      const allUsers = await userService.getAllUsers();
+      const employee = allUsers.find(user => user.employeeId === empId || user.id === empId);
       if (!employee) {
         toast.error('Employee not found');
         return;
       }
 
-      const todayRecord = await attendanceService.getTodayAttendance(employee.id);
+      const todayRecord = await attendanceServiceSubcollection.getTodayAttendance(employee.id);
       
       if (!todayRecord || !todayRecord.clockIn) {
         // Clock in
-        await attendanceService.clockIn(employee.id);
+        await attendanceServiceSubcollection.clockIn(employee.id);
         toast.success(`${employee.name} clocked in successfully`);
       } else if (!todayRecord.clockOut) {
         // Clock out
-        await attendanceService.clockOut(employee.id);
+        await attendanceServiceSubcollection.clockOut(employee.id);
         toast.success(`${employee.name} clocked out successfully`);
       } else {
         toast.error(`${employee.name} has already completed attendance for today`);

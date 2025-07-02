@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Calendar, Clock, Users, Send } from 'lucide-react';
-import { employeeService } from '../../services/employeeService';
+import { userService } from '../../services/userService';
 import { meetingService } from '../../services/meetingService';
 import { Employee, Meeting } from '../../types';
 import { format } from 'date-fns';
@@ -23,7 +23,7 @@ const AssignMeeting: React.FC = () => {
 
   const loadEmployees = async () => {
     try {
-      const employeesList = await employeeService.getAllEmployees();
+      const employeesList = await userService.getAllUsers();
       // Filter out admin users for meeting assignment
       const nonAdminEmployees = employeesList.filter(emp => emp.role !== 'admin');
       setEmployees(nonAdminEmployees);

@@ -15,7 +15,7 @@ import {
   Home,
   MapPin
 } from 'lucide-react';
-import { attendanceService } from '../../services/attendanceService';
+import { attendanceServiceSubcollection } from '../../services/attendanceServiceSubcollection';
 import { AttendanceRecord } from '../../types';
 import { format, subMonths, addMonths, parseISO, isToday } from 'date-fns';
 import { useAuth } from '../../hooks/useAuth';

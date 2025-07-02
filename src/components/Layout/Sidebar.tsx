@@ -92,16 +92,16 @@ const Sidebar: React.FC = () => {
   };
 
   const employeeNavItems = [
-    { to: '/employee-dashboard', icon: Home, label: 'Employee Dashboard' },
-    { to: '/clock', icon: Play, label: 'Clock In/Out' },
+    { to: '/dashboard', icon: Home, label: 'Dashboard' },
+    { to: '/clock', icon: Coffee, label: 'Clock In/Out' },
     { to: '/attendance-logs', icon: Calendar, label: 'My Attendance' },
   ];
 
   const adminNavItems = [
-    { to: '/admin-dashboard', icon: Home, label: 'Admin Dashboard' },
     { to: '/employees', icon: Users, label: 'Manage Employees' },
     { to: '/admin-attendance', icon: Calendar, label: 'All Attendance' },
     { to: '/assign-meeting', icon: CalendarPlus, label: 'Assign Meeting' },
+    { to: '/kiosk', icon: Play, label: 'Kiosk Mode' },
     { to: '/setup', icon: Settings, label: 'Setup' },
   ];
 

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { initializeUserAttendance, getUserAttendanceSample } from '../../utils/initializeAttendance';
 import { migrateFromArrayToSubcollection, verifyMigration } from '../../utils/migrateAttendanceData';
-import { attendanceService } from '../../services/attendanceService';
+import { attendanceServiceSubcollection } from '../../services/attendanceServiceSubcollection';
 import { useAuth } from '../../hooks/useAuth';
 import toast from 'react-hot-toast';
 
@@ -31,7 +31,7 @@ const AttendanceTest: React.FC = () => {
 
     setLoading(true);
     try {
-      await attendanceService.clockIn(user.uid);
+      await attendanceServiceSubcollection.clockIn(user.uid);
       toast.success('Clocked in successfully!');
       await loadAttendanceData();
     } catch (error: any) {
@@ -49,7 +49,7 @@ const AttendanceTest: React.FC = () => {
 
     setLoading(true);
     try {
-      await attendanceService.clockOut(user.uid);
+      await attendanceServiceSubcollection.clockOut(user.uid);
       toast.success('Clocked out successfully!');
       await loadAttendanceData();
     } catch (error: any) {

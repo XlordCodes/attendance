@@ -3,21 +3,39 @@ import { format } from 'date-fns';
 import { 
   doc, 
   getDoc,
-  updateDoc,
-  arrayUnion,
-  arrayRemove,
+  setDoc,
   Timestamp,
   getDocs,
   collection,
   query,
-  where
+  where,
+  orderBy,
+  limit
 } from 'firebase/firestore';
 import { db } from './firebaseConfig';
 import { notificationService } from './notificationService';
 
-class AttendanceService {
-  private readonly COLLECTION_NAME = 'users';
+class AttendanceServiceSubcollection {
+  private readonly USERS_COLLECTION = 'users';
+  private readonly ATTENDANCE_SUBCOLLECTION = 'attendance';
 
+  /**
+   * Get attendance subcollection reference for a user
+   */
+  private getAttendanceCollectionRef(userId: string) {
+    return collection(db, this.USERS_COLLECTION, userId, this.ATTENDANCE_SUBCOLLECTION);
+  }
+
+  /**
+   * Get attendance document reference for a specific date
+   */
+  private getAttendanceDocRef(userId: string, date: string) {
+    return doc(db, this.USERS_COLLECTION, userId, this.ATTENDANCE_SUBCOLLECTION, date);
+  }
+
+  /**
+   * Convert Firestore timestamps to JavaScript dates
+   */
   private convertFirestoreToAttendance(attendanceData: any, id: string): AttendanceRecord {
     return {
       ...attendanceData,
@@ -36,6 +54,9 @@ class AttendanceService {
     };
   }
 
+  /**
+   * Convert JavaScript dates to Firestore timestamps
+   */
   private convertAttendanceToFirestore(record: Partial<AttendanceRecord>) {
     const { id, ...data } = record;
     return {
@@ -54,12 +75,15 @@ class AttendanceService {
     };
   }
 
+  /**
+   * Clock in for a user
+   */
   async clockIn(userId: string, location?: GeolocationData): Promise<AttendanceRecord> {
     try {
       console.log('🕐 Starting clock in for user:', userId);
 
-      // Get user document
-      const userDocRef = doc(db, this.COLLECTION_NAME, userId);
+      // Get user document to fetch user details
+      const userDocRef = doc(db, this.USERS_COLLECTION, userId);
       const userDoc = await getDoc(userDocRef);
       
       if (!userDoc.exists()) {
@@ -70,14 +94,15 @@ class AttendanceService {
       const today = format(new Date(), 'yyyy-MM-dd');
 
       // Check if user already clocked in today
-      const todayAttendance = userData.attendance?.find((att: any) => att.date === today);
-      if (todayAttendance && todayAttendance.clockIn) {
+      const attendanceDocRef = this.getAttendanceDocRef(userId, today);
+      const attendanceDoc = await getDoc(attendanceDocRef);
+      
+      if (attendanceDoc.exists() && attendanceDoc.data().clockIn) {
         throw new Error('Already clocked in today');
       }
 
       const clockInTime = new Date();
-      const newAttendanceRecord = {
-        id: `${userId}_${today}`,
+      const attendanceRecord = {
         userId,
         userName: userData.name,
         userEmail: userData.email,
@@ -97,69 +122,65 @@ class AttendanceService {
         updatedAt: clockInTime
       };
 
-      const firestoreRecord = this.convertAttendanceToFirestore(newAttendanceRecord);
+      const firestoreRecord = this.convertAttendanceToFirestore(attendanceRecord);
 
-      // If today's attendance exists, remove it first
-      if (todayAttendance) {
-        await updateDoc(userDocRef, {
-          attendance: arrayRemove(todayAttendance)
-        });
-      }
-
-      // Add new attendance record
-      await updateDoc(userDocRef, {
-        attendance: arrayUnion(firestoreRecord)
-      });
+      // Create/update attendance document for today
+      await setDoc(attendanceDocRef, firestoreRecord, { merge: true });
 
       // Send notification for late arrival
-      if (newAttendanceRecord.status === 'late') {
-        await notificationService.sendNotification(
-          userId,
-          'late_arrival',
-          'You have been marked late for today.',
-          userData.name || 'Employee',
-          'warning'
-        );
+      if (attendanceRecord.status === 'late') {
+        try {
+          await notificationService.sendNotification(
+            userId,
+            'late_arrival',
+            'You have been marked late for today.',
+            userData.name || 'Employee',
+            'warning'
+          );
+        } catch (notificationError) {
+          console.warn('Failed to send notification:', notificationError);
+        }
       }
 
-      console.log('✅ Clock in successful:', newAttendanceRecord);
-      return newAttendanceRecord;
+      console.log('✅ Clock in successful:', attendanceRecord);
+      return { ...attendanceRecord, id: today };
     } catch (error) {
       console.error('❌ Clock in failed:', error);
       throw error;
     }
   }
 
+  /**
+   * Clock out for a user
+   */
   async clockOut(userId: string, reason?: string): Promise<AttendanceRecord> {
     try {
       console.log('🕕 Starting clock out for user:', userId);
 
-      const userDocRef = doc(db, this.COLLECTION_NAME, userId);
-      const userDoc = await getDoc(userDocRef);
-      
-      if (!userDoc.exists()) {
-        throw new Error('User not found');
-      }
-
-      const userData = userDoc.data();
       const today = format(new Date(), 'yyyy-MM-dd');
-
-      // Find today's attendance record
-      const todayAttendance = userData.attendance?.find((att: any) => att.date === today);
-      if (!todayAttendance || !todayAttendance.clockIn) {
+      const attendanceDocRef = this.getAttendanceDocRef(userId, today);
+      const attendanceDoc = await getDoc(attendanceDocRef);
+      
+      if (!attendanceDoc.exists()) {
         throw new Error('No clock in record found for today');
       }
 
-      if (todayAttendance.clockOut) {
+      const attendanceData = attendanceDoc.data();
+      
+      if (!attendanceData.clockIn) {
+        throw new Error('No clock in record found for today');
+      }
+
+      if (attendanceData.clockOut) {
         throw new Error('Already clocked out today');
       }
 
       const clockOutTime = new Date();
-      const clockInTime = todayAttendance.clockIn.toDate();
+      const clockInTime = attendanceData.clockIn.toDate();
       const totalHours = (clockOutTime.getTime() - clockInTime.getTime()) / (1000 * 60 * 60);
 
       const updatedRecord = {
-        ...todayAttendance,
+        ...attendanceData,
         clockOut: clockOutTime,
         totalHours: Math.round(totalHours * 100) / 100,
         earlyLogoutReason: reason,
@@ -168,96 +189,118 @@ class AttendanceService {
 
       const firestoreRecord = this.convertAttendanceToFirestore(updatedRecord);
 
-      // Remove old record and add updated one
-      await updateDoc(userDocRef, {
-        attendance: arrayRemove(todayAttendance)
-      });
+      // Update attendance document
+      await setDoc(attendanceDocRef, firestoreRecord, { merge: true });
 
-      await updateDoc(userDocRef, {
-        attendance: arrayUnion(firestoreRecord)
-      });
-
-      console.log('✅ Clock out successful:', updatedRecord);
-      return this.convertFirestoreToAttendance(firestoreRecord, updatedRecord.id);
+      console.log('✅ Clock out successful');
+      return this.convertFirestoreToAttendance(firestoreRecord, today);
     } catch (error) {
       console.error('❌ Clock out failed:', error);
       throw error;
     }
   }
 
+  /**
+   * Get today's attendance record for a user
+   */
   async getTodayAttendance(userId: string): Promise<AttendanceRecord | null> {
     try {
-      const userDocRef = doc(db, this.COLLECTION_NAME, userId);
-      const userDoc = await getDoc(userDocRef);
-      
-      if (!userDoc.exists()) {
-        return null;
-      }
-
-      const userData = userDoc.data();
       const today = format(new Date(), 'yyyy-MM-dd');
-
-      const todayAttendance = userData.attendance?.find((att: any) => att.date === today);
-      if (!todayAttendance) {
+      const attendanceDocRef = this.getAttendanceDocRef(userId, today);
+      const attendanceDoc = await getDoc(attendanceDocRef);
+      
+      if (!attendanceDoc.exists()) {
         return null;
       }
 
-      return this.convertFirestoreToAttendance(todayAttendance, todayAttendance.id || `${userId}_${today}`);
+      return this.convertFirestoreToAttendance(attendanceDoc.data(), today);
     } catch (error) {
       console.error('Error getting today attendance:', error);
       return null;
     }
   }
 
+  /**
+   * Get attendance history for a user
+   */
   async getAttendanceHistory(userId: string, days: number = 30): Promise<AttendanceRecord[]> {
     try {
-      const userDocRef = doc(db, this.COLLECTION_NAME, userId);
-      const userDoc = await getDoc(userDocRef);
+      const attendanceCollectionRef = this.getAttendanceCollectionRef(userId);
+      const q = query(
+        attendanceCollectionRef, 
+        orderBy('date', 'desc'), 
+        limit(days)
+      );
       
-      if (!userDoc.exists()) {
-        return [];
-      }
+      const querySnapshot = await getDocs(q);
+      const records: AttendanceRecord[] = [];
 
-      const userData = userDoc.data();
-      const attendanceRecords = userData.attendance || [];
+      querySnapshot.forEach((doc) => {
+        const record = this.convertFirestoreToAttendance(doc.data(), doc.id);
+        records.push(record);
+      });
 
-      // Sort by date descending and limit to requested days
-      return attendanceRecords
-        .map((att: any) => this.convertFirestoreToAttendance(att, att.id || `${userId}_${att.date}`))
-        .sort((a: AttendanceRecord, b: AttendanceRecord) => 
-          new Date(b.date).getTime() - new Date(a.date).getTime()
-        )
-        .slice(0, days);
+      return records;
     } catch (error) {
       console.error('Error getting attendance history:', error);
       return [];
     }
   }
 
+  /**
+   * Get attendance records for a specific date range
+   */
+  async getAttendanceByDateRange(
+    userId: string, 
+    startDate: string, 
+    endDate: string
+  ): Promise<AttendanceRecord[]> {
+    try {
+      const attendanceCollectionRef = this.getAttendanceCollectionRef(userId);
+      const q = query(
+        attendanceCollectionRef,
+        where('date', '>=', startDate),
+        where('date', '<=', endDate),
+        orderBy('date', 'desc')
+      );
+      
+      const querySnapshot = await getDocs(q);
+      const records: AttendanceRecord[] = [];
+
+      querySnapshot.forEach((doc) => {
+        const record = this.convertFirestoreToAttendance(doc.data(), doc.id);
+        records.push(record);
+      });
+
+      return records;
+    } catch (error) {
+      console.error('Error getting attendance by date range:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Get all attendance records across all users (for admin)
+   */
   async getAllAttendanceRecords(startDate?: string, endDate?: string): Promise<AttendanceRecord[]> {
     try {
-      const usersCollection = collection(db, this.COLLECTION_NAME);
-      const querySnapshot = await getDocs(usersCollection);
+      const usersCollection = collection(db, this.USERS_COLLECTION);
+      const usersSnapshot = await getDocs(usersCollection);
       
       const allRecords: AttendanceRecord[] = [];
 
-      querySnapshot.forEach((doc) => {
-        const userData = doc.data();
-        const attendanceRecords = userData.attendance || [];
+      for (const userDoc of usersSnapshot.docs) {
+        const userId = userDoc.id;
+        let userRecords: AttendanceRecord[] = [];
 
-        attendanceRecords.forEach((att: any) => {
-          const record = this.convertFirestoreToAttendance(att, att.id || `${doc.id}_${att.date}`);
-          
-          // Filter by date range if provided
-          if (startDate && endDate) {
-            if (record.date >= startDate && record.date <= endDate) {
-              allRecords.push(record);
-            }
-          } else {
-            allRecords.push(record);
-          }
-        });
-      });
+        if (startDate && endDate) {
+          userRecords = await this.getAttendanceByDateRange(userId, startDate, endDate);
+        } else {
+          userRecords = await this.getAttendanceHistory(userId, 90); // Default 90 days
+        }
+
+        allRecords.push(...userRecords);
+      }
 
       return allRecords.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
     } catch (error) {
@@ -266,6 +309,9 @@ class AttendanceService {
     }
   }
 
+  /**
+   * Get attendance statistics for a user
+   */
   async getAttendanceStats(userId: string, totalDays: number) {
     try {
       const records = await this.getAttendanceHistory(userId, totalDays);
@@ -302,30 +348,22 @@ class AttendanceService {
     }
   }
 
-  private determineStatus(clockInTime: Date): 'present' | 'late' {
-    const hour = clockInTime.getHours();
-    const minute = clockInTime.getMinutes();
-    const totalMinutes = hour * 60 + minute;
-    
-    // Consider late if after 9:15 AM (555 minutes)
-    return totalMinutes > 555 ? 'late' : 'present';
-  }
-
-  // Break management methods
+  /**
+   * Start a break for a user
+   */
   async startBreak(userId: string, reason?: string): Promise<AttendanceRecord> {
     try {
-      const userDocRef = doc(db, this.COLLECTION_NAME, userId);
-      const userDoc = await getDoc(userDocRef);
+      const today = format(new Date(), 'yyyy-MM-dd');
+      const attendanceDocRef = this.getAttendanceDocRef(userId, today);
+      const attendanceDoc = await getDoc(attendanceDocRef);
       
-      if (!userDoc.exists()) {
-        throw new Error('User not found');
+      if (!attendanceDoc.exists()) {
+        throw new Error('Please clock in first');
       }
 
-      const userData = userDoc.data();
-      const today = format(new Date(), 'yyyy-MM-dd');
-      const todayAttendance = userData.attendance?.find((att: any) => att.date === today);
-
-      if (!todayAttendance || !todayAttendance.clockIn) {
+      const attendanceData = attendanceDoc.data();
+      
+      if (!attendanceData.clockIn) {
         throw new Error('Please clock in first');
       }
 
@@ -336,49 +374,40 @@ class AttendanceService {
         type: 'break'
       };
 
-      const updatedBreakTimes = [...(todayAttendance.breakTimes || []), newBreakTime];
+      const updatedBreakTimes = [...(attendanceData.breakTimes || []), newBreakTime];
       const updatedRecord = {
-        ...todayAttendance,
+        ...attendanceData,
         breakTimes: updatedBreakTimes,
         updatedAt: new Date()
       };
 
       const firestoreRecord = this.convertAttendanceToFirestore(updatedRecord);
 
-      // Update attendance record
-      await updateDoc(userDocRef, {
-        attendance: arrayRemove(todayAttendance)
-      });
+      // Update attendance document
+      await setDoc(attendanceDocRef, firestoreRecord, { merge: true });
 
-      await updateDoc(userDocRef, {
-        attendance: arrayUnion(firestoreRecord)
-      });
-
-      return this.convertFirestoreToAttendance(firestoreRecord, updatedRecord.id);
+      return this.convertFirestoreToAttendance(firestoreRecord, today);
     } catch (error) {
       console.error('Error starting break:', error);
       throw error;
     }
   }
 
+  /**
+   * End a break for a user
+   */
   async endBreak(userId: string): Promise<AttendanceRecord> {
     try {
-      const userDocRef = doc(db, this.COLLECTION_NAME, userId);
-      const userDoc = await getDoc(userDocRef);
-      
-      if (!userDoc.exists()) {
-        throw new Error('User not found');
-      }
-
-      const userData = userDoc.data();
       const today = format(new Date(), 'yyyy-MM-dd');
-      const todayAttendance = userData.attendance?.find((att: any) => att.date === today);
-
-      if (!todayAttendance) {
+      const attendanceDocRef = this.getAttendanceDocRef(userId, today);
+      const attendanceDoc = await getDoc(attendanceDocRef);
+      
+      if (!attendanceDoc.exists()) {
         throw new Error('No attendance record found for today');
       }
 
-      const breakTimes = todayAttendance.breakTimes || [];
+      const attendanceData = attendanceDoc.data();
+      const breakTimes = attendanceData.breakTimes || [];
       const activeBreak = breakTimes.find((bt: any) => !bt.end);
 
       if (!activeBreak) {
@@ -386,7 +415,8 @@ class AttendanceService {
       }
 
       const endTime = new Date();
-      const duration = (endTime.getTime() - activeBreak.start.toDate().getTime()) / (1000 * 60); // minutes
+      const startTime = activeBreak.start.toDate();
+      const duration = (endTime.getTime() - startTime.getTime()) / (1000 * 60); // minutes
 
       const updatedBreakTimes = breakTimes.map((bt: any) => 
         bt.id === activeBreak.id 
@@ -398,7 +428,7 @@ class AttendanceService {
         sum + (bt.duration || 0), 0) / 60; // convert to hours
 
       const updatedRecord = {
-        ...todayAttendance,
+        ...attendanceData,
         breakTimes: updatedBreakTimes,
         totalBreakHours: Math.round(totalBreakHours * 100) / 100,
         updatedAt: endTime
@@ -406,40 +436,27 @@ class AttendanceService {
 
       const firestoreRecord = this.convertAttendanceToFirestore(updatedRecord);
 
-      // Update attendance record
-      await updateDoc(userDocRef, {
-        attendance: arrayRemove(todayAttendance)
-      });
+      // Update attendance document
+      await setDoc(attendanceDocRef, firestoreRecord, { merge: true });
 
-      await updateDoc(userDocRef, {
-        attendance: arrayUnion(firestoreRecord)
-      });
-
-      return this.convertFirestoreToAttendance(firestoreRecord, updatedRecord.id);
+      return this.convertFirestoreToAttendance(firestoreRecord, today);
     } catch (error) {
       console.error('Error ending break:', error);
       throw error;
     }
   }
-}
 
-export const attendanceService = new AttendanceService();
-
-// Example NotificationService class
-export class NotificationService {
-  // ... other methods ...
-
-  async sendNotification(
-    userId: string,
-    type: string,
-    message: string,
-    userName: string,
-    severity: string
-  ): Promise<void> {
-    // Implementation for sending notification
-    // e.g., push notification, email, etc.
-    console.log(
-      `Notification sent to ${userName} (${userId}): [${severity}] ${type} - ${message}`
-    );
+  /**
+   * Determine attendance status based on clock in time
+   */
+  private determineStatus(clockInTime: Date): 'present' | 'late' {
+    const hour = clockInTime.getHours();
+    const minute = clockInTime.getMinutes();
+    const totalMinutes = hour * 60 + minute;
+    
+    // Consider late if after 9:15 AM (555 minutes)
+    return totalMinutes > 555 ? 'late' : 'present';
   }
 }
+
+export const attendanceServiceSubcollection = new AttendanceServiceSubcollection();
