@@ -164,6 +164,28 @@ const EmployeeDashboardNew: React.FC = () => {
 
   const unreadNotificationsCount = notifications.filter(n => !n.isRead).length;
 
+  // Calculate real-time hours worked for today
+  const getTodayHoursWorked = useCallback(() => {
+    if (!todayRecord?.clockIn) return 0;
+    
+    const endTime = todayRecord.clockOut || currentTime;
+    const workingMs = endTime.getTime() - todayRecord.clockIn.getTime();
+    
+    // Subtract break time
+    const breakMs = todayRecord.breaks.reduce((total, breakSession) => {
+      if (breakSession.endTime && breakSession.startTime) {
+        return total + (breakSession.endTime.getTime() - breakSession.startTime.getTime());
+      } else if (!breakSession.endTime && breakSession.startTime) {
+        // Active break
+        return total + (currentTime.getTime() - breakSession.startTime.getTime());
+      }
+      return total;
+    }, 0);
+    
+    const actualWorkingMs = Math.max(0, workingMs - breakMs);
+    return actualWorkingMs / (1000 * 60 * 60); // Convert to hours
+  }, [todayRecord, currentTime]);
+
   // Load all dashboard data when employee and user are available
   useEffect(() => {
     if (employee && user) {
@@ -184,6 +206,14 @@ const EmployeeDashboardNew: React.FC = () => {
         setError(err.message || 'Failed to load dashboard data');
         setLoading(false);
       });
+      
+      // Set up an interval to refresh data every 30 seconds
+      const refreshInterval = setInterval(() => {
+        loadTodayRecord();
+        loadWeeklyStats();
+      }, 30000);
+      
+      return () => clearInterval(refreshInterval);
     }
   }, [employee, user]);
 
@@ -363,7 +393,10 @@ const EmployeeDashboardNew: React.FC = () => {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Clock In/Out Section */}
         <div className="space-y-6">
-          <ClockInOutNew />
+          <ClockInOutNew onAttendanceChange={() => {
+            loadTodayRecord();
+            loadWeeklyStats();
+          }} />
         </div>
 
         {/* Today's Status & Upcoming Meetings */}
@@ -412,7 +445,7 @@ const EmployeeDashboardNew: React.FC = () => {
                   <div className="flex items-center justify-between">
                     <span className="text-sm text-gray-600">Hours worked</span>
                     <span className="text-sm font-medium">
-                      {formatDuration(todayRecord.hoursWorked || 0)}
+                      {formatDuration(getTodayHoursWorked())}
                     </span>
                   </div>
 

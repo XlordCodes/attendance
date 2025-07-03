@@ -6,7 +6,11 @@ import { useAuth } from '../../hooks/useAuth';
 import { format } from 'date-fns';
 import toast from 'react-hot-toast';
 
-const ClockInOutNew: React.FC = () => {
+interface ClockInOutNewProps {
+  onAttendanceChange?: () => void;
+}
+
+const ClockInOutNew: React.FC<ClockInOutNewProps> = ({ onAttendanceChange }) => {
   const { employee } = useAuth();
   const [todayRecord, setTodayRecord] = useState<AttendanceRecord | null>(null);
   const [loading, setLoading] = useState(false);
@@ -80,6 +84,9 @@ const ClockInOutNew: React.FC = () => {
       setShowLateReasonModal(false);
       setLateReason('');
       setPendingClockIn(false);
+      
+      // Notify parent component of change
+      onAttendanceChange?.();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Clock in failed');
     } finally {
@@ -109,6 +116,9 @@ const ClockInOutNew: React.FC = () => {
       const record = await globalAttendanceService.clockOut(employee.id);
       setTodayRecord(record);
       toast.success(`Clocked out successfully! Worked ${(record.hoursWorked || 0).toFixed(2)} hours`);
+      
+      // Notify parent component of change
+      onAttendanceChange?.();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Clock out failed');
     } finally {
@@ -125,6 +135,9 @@ const ClockInOutNew: React.FC = () => {
       setTodayRecord(record);
       setIsOnBreak(true);
       toast.success('Break started');
+      
+      // Notify parent component of change
+      onAttendanceChange?.();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Start break failed');
     } finally {
@@ -141,6 +154,9 @@ const ClockInOutNew: React.FC = () => {
       setTodayRecord(record);
       setIsOnBreak(false);
       toast.success('Break ended');
+      
+      // Notify parent component of change
+      onAttendanceChange?.();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'End break failed');
     } finally {
