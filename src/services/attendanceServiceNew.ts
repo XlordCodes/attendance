@@ -22,7 +22,6 @@ export interface AttendanceDocumentNew {
   isLate: boolean;
   lateReason: string;
   workedHours: number;
-  afkTime: number;
 }
 
 export interface BreakSession {
@@ -38,7 +37,6 @@ export interface AttendanceDocumentDisplay {
   isLate: boolean;
   lateReason: string;
   workedHours: number;
-  afkTime: number;
 }
 
 export interface BreakSessionDisplay {
@@ -67,19 +65,18 @@ class AttendanceServiceNew {
   /**
    * Convert Firestore attendance document to display format
    */
-  private convertFirestoreToDisplay(data: any, date: string): AttendanceDocumentDisplay {
+  private convertFirestoreToDisplay(data: Record<string, unknown>, date: string): AttendanceDocumentDisplay {
     return {
       date,
-      loginTime: data.loginTime?.toDate() || null,
-      logoutTime: data.logoutTime?.toDate() || null,
-      breaks: (data.breaks || []).map((breakSession: any) => ({
-        start: breakSession.start?.toDate(),
-        end: breakSession.end?.toDate() || null
+      loginTime: (data.loginTime as { toDate(): Date })?.toDate() || null,
+      logoutTime: (data.logoutTime as { toDate(): Date })?.toDate() || null,
+      breaks: ((data.breaks as Array<Record<string, unknown>>) || []).map((breakSession: Record<string, unknown>) => ({
+        start: (breakSession.start as { toDate(): Date })?.toDate(),
+        end: (breakSession.end as { toDate(): Date })?.toDate() || null
       })),
       isLate: data.isLate || false,
       lateReason: data.lateReason || '',
-      workedHours: data.workedHours || 0,
-      afkTime: data.afkTime || 0
+      workedHours: data.workedHours || 0
     };
   }
 
@@ -109,9 +106,6 @@ class AttendanceServiceNew {
     }
     if (attendance.workedHours !== undefined) {
       result.workedHours = attendance.workedHours;
-    }
-    if (attendance.afkTime !== undefined) {
-      result.afkTime = attendance.afkTime;
     }
 
     return result;
@@ -186,7 +180,7 @@ class AttendanceServiceNew {
   /**
    * Clock in - create or update attendance document with login time
    */
-  async clockIn(userId: string): Promise<AttendanceDocumentDisplay> {
+  async clockIn(userId: string, customLateReason?: string): Promise<AttendanceDocumentDisplay> {
     try {
       const today = format(new Date(), 'yyyy-MM-dd');
       const loginTime = new Date();
@@ -198,6 +192,11 @@ class AttendanceServiceNew {
       }
 
       const lateInfo = this.calculateIsLate(loginTime);
+      
+      // Use custom late reason if provided and user is actually late
+      const finalLateReason = lateInfo.isLate && customLateReason 
+        ? customLateReason 
+        : lateInfo.lateReason;
 
       const attendanceData: AttendanceDocumentDisplay = {
         date: today,
@@ -205,9 +204,8 @@ class AttendanceServiceNew {
         logoutTime: null,
         breaks: [],
         isLate: lateInfo.isLate,
-        lateReason: lateInfo.lateReason,
-        workedHours: 0,
-        afkTime: 0
+        lateReason: finalLateReason,
+        workedHours: 0
       };
 
       const firestoreData = this.convertDisplayToFirestore(attendanceData);
@@ -368,24 +366,7 @@ class AttendanceServiceNew {
     }
   }
 
-  /**
-   * Update AFK time
-   */
-  async updateAfkTime(userId: string, afkMinutes: number): Promise<void> {
-    try {
-      const today = format(new Date(), 'yyyy-MM-dd');
-      const docRef = this.getAttendanceDocRef(userId, today);
-      
-      await updateDoc(docRef, { 
-        afkTime: afkMinutes 
-      });
 
-      console.log('✅ AFK time updated for user:', userId, 'minutes:', afkMinutes);
-    } catch (error) {
-      console.error('❌ Update AFK time failed:', error);
-      throw error;
-    }
-  }
 
   /**
    * Get attendance records for a date range

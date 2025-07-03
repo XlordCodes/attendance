@@ -2,19 +2,15 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { Toaster } from 'react-hot-toast';
 import { AuthProvider, useAuth } from './hooks/useAuth';
 import UnifiedLoginPage from './components/Auth/UnifiedLoginPage';
-import AuthTester from './components/Auth/AuthTester';
-import AuthDebugger from './components/Auth/AuthDebugger';
-import AttendanceTest from './components/Test/AttendanceTest';
 import Sidebar from './components/Layout/Sidebar';
 import UnifiedDashboardNew from './components/Dashboard/UnifiedDashboardNew';
 import EmployeeDashboardNew from './components/Dashboard/EmployeeDashboardNew';
 import AdminDashboardNew from './components/Dashboard/AdminDashboardNew';
-import ClockInOutNew from './components/Employee/ClockInOutNew';
 import EmployeeManagement from './components/Admin/EmployeeManagement';
 import AdminSetup from './components/Admin/AdminSetup';
 import AssignMeeting from './components/Admin/AssignMeeting';
 import AttendanceLogsNew from './components/Attendance/AttendanceLogsNew';
-import AttendancePage from './components/Attendance/AttendancePage';
+import AttendancePageNew from './components/Attendance/AttendancePageNew';
 import KioskMode from './components/Admin/KioskMode';
 
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -61,9 +57,6 @@ const AppContent: React.FC = () => {
     return (
       <Routes>
         <Route path="/setup" element={<AdminSetup />} />
-        <Route path="/test-auth" element={<AuthTester />} />
-        <Route path="/debug-auth" element={<AuthDebugger />} />
-        <Route path="/test-attendance" element={<AttendanceTest />} />
         <Route path="*" element={<UnifiedLoginPage />} />
       </Routes>
     );
@@ -85,14 +78,9 @@ const AppContent: React.FC = () => {
           <EmployeeDashboardNew />
         </ProtectedRoute>
       } />
-      <Route path="/clock" element={
-        <ProtectedRoute>
-          <ClockInOutNew />
-        </ProtectedRoute>
-      } />
       <Route path="/attendance-logs" element={
         <ProtectedRoute>
-          <AttendancePage />
+          <AttendancePageNew />
         </ProtectedRoute>
       } />
       

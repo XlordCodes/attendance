@@ -36,29 +36,29 @@ class AttendanceServiceSubcollection {
   /**
    * Convert Firestore timestamps to JavaScript dates
    */
-  private convertFirestoreToAttendance(attendanceData: any, id: string): AttendanceRecord {
+  private convertFirestoreToAttendance(attendanceData: Record<string, unknown>, docId: string): AttendanceRecord {
     return {
       ...attendanceData,
-      id,
-      clockIn: attendanceData.clockIn?.toDate(),
-      clockOut: attendanceData.clockOut?.toDate(),
-      lunchStart: attendanceData.lunchStart?.toDate(),
-      lunchEnd: attendanceData.lunchEnd?.toDate(),
-      createdAt: attendanceData.createdAt?.toDate(),
-      updatedAt: attendanceData.updatedAt?.toDate(),
-      breakTimes: attendanceData.breakTimes?.map((bt: any) => ({
+      id: docId,
+      clockIn: (attendanceData.clockIn as { toDate(): Date })?.toDate(),
+      clockOut: (attendanceData.clockOut as { toDate(): Date })?.toDate(),
+      lunchStart: (attendanceData.lunchStart as { toDate(): Date })?.toDate(),
+      lunchEnd: (attendanceData.lunchEnd as { toDate(): Date })?.toDate(),
+      createdAt: (attendanceData.createdAt as { toDate(): Date })?.toDate(),
+      updatedAt: (attendanceData.updatedAt as { toDate(): Date })?.toDate(),
+      breakTimes: ((attendanceData.breakTimes as Array<Record<string, unknown>>) || []).map((bt: Record<string, unknown>) => ({
         ...bt,
-        start: bt.start?.toDate(),
-        end: bt.end?.toDate()
-      })) || []
-    };
+        start: (bt.start as { toDate(): Date })?.toDate(),
+        end: (bt.end as { toDate(): Date })?.toDate()
+      }))
+    } as AttendanceRecord;
   }
 
   /**
    * Convert JavaScript dates to Firestore timestamps
    */
   private convertAttendanceToFirestore(record: Partial<AttendanceRecord>) {
-    const { id, ...data } = record;
+    const { id: _recordId, ...data } = record;
     return {
       ...data,
       clockIn: data.clockIn ? Timestamp.fromDate(data.clockIn) : null,
@@ -408,24 +408,24 @@ class AttendanceServiceSubcollection {
 
       const attendanceData = attendanceDoc.data();
       const breakTimes = attendanceData.breakTimes || [];
-      const activeBreak = breakTimes.find((bt: any) => !bt.end);
+      const activeBreak = breakTimes.find((bt: Record<string, unknown>) => !bt.end);
 
       if (!activeBreak) {
         throw new Error('No active break found');
       }
 
       const endTime = new Date();
-      const startTime = activeBreak.start.toDate();
+      const startTime = (activeBreak.start as { toDate(): Date }).toDate();
       const duration = (endTime.getTime() - startTime.getTime()) / (1000 * 60); // minutes
 
-      const updatedBreakTimes = breakTimes.map((bt: any) => 
+      const updatedBreakTimes = breakTimes.map((bt: Record<string, unknown>) => 
         bt.id === activeBreak.id 
           ? { ...bt, end: endTime, duration }
           : bt
       );
 
-      const totalBreakHours = updatedBreakTimes.reduce((sum: number, bt: any) => 
-        sum + (bt.duration || 0), 0) / 60; // convert to hours
+      const totalBreakHours = updatedBreakTimes.reduce((sum: number, bt: Record<string, unknown>) => 
+        sum + ((bt.duration as number) || 0), 0) / 60; // convert to hours
 
       const updatedRecord = {
         ...attendanceData,

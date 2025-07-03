@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Clock, AlertCircle, Coffee, Play, Pause } from 'lucide-react';
 import { attendanceServiceNew, AttendanceDocumentDisplay } from '../../services/attendanceServiceNew';
 import { useAuth } from '../../hooks/useAuth';
@@ -11,71 +11,16 @@ const ClockInOutNew: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [currentTime, setCurrentTime] = useState(new Date());
   const [isOnBreak, setIsOnBreak] = useState(false);
-  const [afkTime, setAfkTime] = useState(0);
-  const [afkTimer, setAfkTimer] = useState<NodeJS.Timeout | null>(null);
-  const [lastActivity, setLastActivity] = useState(Date.now());
+  const [showLateReasonModal, setShowLateReasonModal] = useState(false);
+  const [lateReason, setLateReason] = useState('');
+  const [pendingClockIn, setPendingClockIn] = useState(false);
 
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => clearInterval(timer);
   }, []);
 
-  useEffect(() => {
-    if (employee) {
-      loadTodayRecord();
-    }
-  }, [employee]);
-
-  // AFK detection
-  useEffect(() => {
-    const handleActivity = () => {
-      setLastActivity(Date.now());
-    };
-
-    const events = ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart', 'click'];
-    events.forEach(event => {
-      document.addEventListener(event, handleActivity, true);
-    });
-
-    return () => {
-      events.forEach(event => {
-        document.removeEventListener(event, handleActivity, true);
-      });
-    };
-  }, []);
-
-  // AFK timer
-  useEffect(() => {
-    if (todayRecord?.loginTime && !todayRecord?.logoutTime && !isOnBreak) {
-      const timer = setInterval(() => {
-        const now = Date.now();
-        const timeSinceActivity = now - lastActivity;
-        const afkThreshold = 5 * 60 * 1000; // 5 minutes
-
-        if (timeSinceActivity > afkThreshold) {
-          const newAfkMinutes = Math.floor(timeSinceActivity / (1000 * 60));
-          setAfkTime(newAfkMinutes);
-          
-          // Update AFK time in database every minute
-          if (newAfkMinutes % 1 === 0 && employee) {
-            attendanceServiceNew.updateAfkTime(employee.id, newAfkMinutes);
-          }
-        } else {
-          setAfkTime(0);
-        }
-      }, 60000); // Check every minute
-
-      setAfkTimer(timer);
-      return () => clearInterval(timer);
-    } else {
-      if (afkTimer) {
-        clearInterval(afkTimer);
-        setAfkTimer(null);
-      }
-    }
-  }, [todayRecord, lastActivity, isOnBreak, employee]);
-
-  const loadTodayRecord = async () => {
+  const loadTodayRecord = useCallback(async () => {
     if (!employee) return;
     
     try {
@@ -85,31 +30,74 @@ const ClockInOutNew: React.FC = () => {
       if (record) {
         const onBreak = record.breaks.some(breakSession => !breakSession.end);
         setIsOnBreak(onBreak);
-        setAfkTime(record.afkTime || 0);
       }
     } catch (error) {
       console.error('Error loading today record:', error);
     }
-  };
+  }, [employee]);
+
+  useEffect(() => {
+    if (employee) {
+      loadTodayRecord();
+    }
+  }, [employee, loadTodayRecord]);
 
   const handleClockIn = async () => {
     if (!employee) return;
 
+    // Check if it would be a late arrival (9:00 AM standard)
+    const now = new Date();
+    const workStartTime = new Date();
+    workStartTime.setHours(9, 0, 0, 0);
+    
+    const isLateArrival = now > workStartTime;
+    
+    if (isLateArrival && !pendingClockIn) {
+      // Show modal to ask for late reason
+      setPendingClockIn(true);
+      setShowLateReasonModal(true);
+      return;
+    }
+
+    await performClockIn();
+  };
+
+  const performClockIn = async () => {
+    if (!employee) return;
+
     setLoading(true);
     try {
-      const record = await attendanceServiceNew.clockIn(employee.id);
+      const record = await attendanceServiceNew.clockIn(employee.id, lateReason.trim() || undefined);
       setTodayRecord(record);
-      setLastActivity(Date.now());
       toast.success('Clocked in successfully!');
       
       if (record.isLate) {
         toast.error(`Late arrival: ${record.lateReason}`);
       }
+
+      // Reset modal state
+      setShowLateReasonModal(false);
+      setLateReason('');
+      setPendingClockIn(false);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Clock in failed');
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleLateReasonSubmit = () => {
+    if (lateReason.trim()) {
+      performClockIn();
+    } else {
+      toast.error('Please provide a reason for late arrival');
+    }
+  };
+
+  const handleCancelLateReason = () => {
+    setShowLateReasonModal(false);
+    setLateReason('');
+    setPendingClockIn(false);
   };
 
   const handleClockOut = async () => {
@@ -119,7 +107,6 @@ const ClockInOutNew: React.FC = () => {
     try {
       const record = await attendanceServiceNew.clockOut(employee.id);
       setTodayRecord(record);
-      setAfkTime(0);
       toast.success(`Clocked out successfully! Worked ${record.workedHours.toFixed(2)} hours`);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Clock out failed');
@@ -136,7 +123,6 @@ const ClockInOutNew: React.FC = () => {
       const record = await attendanceServiceNew.startBreak(employee.id);
       setTodayRecord(record);
       setIsOnBreak(true);
-      setAfkTime(0); // Reset AFK time during breaks
       toast.success('Break started');
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Start break failed');
@@ -153,7 +139,6 @@ const ClockInOutNew: React.FC = () => {
       const record = await attendanceServiceNew.endBreak(employee.id);
       setTodayRecord(record);
       setIsOnBreak(false);
-      setLastActivity(Date.now()); // Reset activity tracking
       toast.success('Break ended');
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'End break failed');
@@ -202,7 +187,7 @@ const ClockInOutNew: React.FC = () => {
     return `${Math.floor(duration)}m`;
   };
 
-  const isClocked = Boolean(todayRecord?.loginTime && !todayRecord?.logoutTime);
+
 
   return (
     <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
@@ -273,20 +258,7 @@ const ClockInOutNew: React.FC = () => {
         </div>
       )}
 
-      {/* AFK Warning */}
-      {afkTime > 0 && isClocked && !isOnBreak && (
-        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-4">
-          <div className="flex items-center">
-            <AlertCircle className="h-5 w-5 text-yellow-600 mr-2" />
-            <div>
-              <p className="text-sm font-medium text-yellow-900">Away From Keyboard</p>
-              <p className="text-sm text-yellow-700">
-                You've been inactive for {afkTime} minutes
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
+
 
       {/* Action Buttons */}
       <div className="space-y-4">
@@ -374,12 +346,44 @@ const ClockInOutNew: React.FC = () => {
           <h3 className="text-sm font-medium text-gray-900 mb-3">Today's Stats</h3>
           <div className="grid grid-cols-2 gap-4 text-sm">
             <div>
-              <span className="text-gray-600">AFK Time:</span>
-              <span className="ml-2 font-medium">{todayRecord.afkTime}m</span>
-            </div>
-            <div>
               <span className="text-gray-600">Breaks:</span>
               <span className="ml-2 font-medium">{todayRecord.breaks.length}</span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Late Reason Modal */}
+      {showLateReasonModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">Late Arrival</h3>
+            <p className="text-gray-600 mb-4">
+              You're arriving after 9:00 AM. Please provide a reason for your late arrival:
+            </p>
+            <textarea
+              value={lateReason}
+              onChange={(e) => setLateReason(e.target.value)}
+              placeholder="Enter reason for late arrival..."
+              className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+              rows={3}
+              autoFocus
+            />
+            <div className="flex justify-end space-x-3 mt-4">
+              <button
+                onClick={handleCancelLateReason}
+                className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+                disabled={loading}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleLateReasonSubmit}
+                className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
+                disabled={loading || !lateReason.trim()}
+              >
+                {loading ? 'Clocking In...' : 'Clock In'}
+              </button>
             </div>
           </div>
         </div>

@@ -5,8 +5,6 @@ import {
   Settings, 
   Calendar,
   LogOut,
-  Coffee,
-  UserX,
   ChevronDown,
   Menu,
   X,
@@ -14,7 +12,7 @@ import {
   CalendarPlus
 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 
 const Sidebar: React.FC = () => {
   const { employee, logout } = useAuth();
@@ -22,24 +20,6 @@ const Sidebar: React.FC = () => {
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
-  const [showBreakModal, setShowBreakModal] = useState(false);
-  const [breakMinutes, setBreakMinutes] = useState('');
-  const [showAFKOverlay, setShowAFKOverlay] = useState(false);
-  const [afkTime, setAfkTime] = useState(0);
-  const [afkStartTime, setAfkStartTime] = useState<Date | null>(null);
-
-  // AFK Timer Effect
-  useEffect(() => {
-    let interval: NodeJS.Timeout;
-    if (showAFKOverlay && afkStartTime) {
-      interval = setInterval(() => {
-        setAfkTime(Math.floor((Date.now() - afkStartTime.getTime()) / 1000));
-      }, 1000);
-    }
-    return () => {
-      if (interval) clearInterval(interval);
-    };
-  }, [showAFKOverlay, afkStartTime]);
 
   const handleLogout = async () => {
     try {
@@ -53,47 +33,8 @@ const Sidebar: React.FC = () => {
     setIsExpanded(!isExpanded);
   };
 
-  const handleBreakRequest = () => {
-    setShowBreakModal(true);
-  };
-
-  const submitBreakRequest = () => {
-    if (breakMinutes && !isNaN(Number(breakMinutes))) {
-      console.log(`Break requested for ${breakMinutes} minutes`);
-      // TODO: Implement break logic
-      setShowBreakModal(false);
-      setBreakMinutes('');
-    }
-  };
-
-  const handleAFK = () => {
-    setShowAFKOverlay(true);
-    setAfkStartTime(new Date());
-    setAfkTime(0);
-  };
-
-  const endAFK = () => {
-    setShowAFKOverlay(false);
-    setAfkStartTime(null);
-    setAfkTime(0);
-    console.log('AFK mode ended');
-    // TODO: Implement end AFK logic
-  };
-
-  const formatTime = (seconds: number) => {
-    const hours = Math.floor(seconds / 3600);
-    const minutes = Math.floor((seconds % 3600) / 60);
-    const secs = seconds % 60;
-    
-    if (hours > 0) {
-      return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-    }
-    return `${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-  };
-
   const employeeNavItems = [
     { to: '/dashboard', icon: Home, label: 'Dashboard' },
-    { to: '/clock', icon: Coffee, label: 'Clock In/Out' },
     { to: '/attendance-logs', icon: Calendar, label: 'My Attendance' },
   ];
 
@@ -232,50 +173,6 @@ const Sidebar: React.FC = () => {
         )}
       </nav>
 
-      {/* Quick Actions - Only for regular employees */}
-      {!isAdmin && (
-        <div className="px-3 py-3 border-b border-gray-200 flex-shrink-0">
-          <div className="space-y-2">
-            {/* Take Break and AFK */}
-            {isExpanded ? (
-              <div className="grid grid-cols-2 gap-1.5">
-                <button 
-                  onClick={handleBreakRequest}
-                  className="flex flex-col items-center p-2 bg-yellow-50 hover:bg-yellow-100 rounded-md transition-colors"
-                >
-                  <Coffee className="w-3 h-3 mb-1 text-yellow-600" />
-                  <span className="text-xs text-gray-700 font-medium">Break</span>
-                </button>
-                <button 
-                  onClick={handleAFK}
-                  className="flex flex-col items-center p-2 bg-red-50 hover:bg-red-100 rounded-md transition-colors"
-                >
-                  <UserX className="w-3 h-3 mb-1 text-red-600" />
-                  <span className="text-xs text-gray-700 font-medium">AFK</span>
-                </button>
-              </div>
-            ) : (
-              <div className="space-y-1.5">
-                <button 
-                  onClick={handleBreakRequest}
-                  className="h-10 w-10 flex items-center justify-center bg-yellow-50 hover:bg-yellow-100 rounded-lg transition-colors mx-auto" 
-                  title="Take Break"
-                >
-                  <Coffee className="w-4 h-4 text-yellow-600" />
-                </button>
-                <button 
-                  onClick={handleAFK}
-                  className="h-10 w-10 flex items-center justify-center bg-red-50 hover:bg-red-100 rounded-lg transition-colors mx-auto" 
-                  title="AFK"
-                >
-                  <UserX className="w-4 h-4 text-red-600" />
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
       {/* Spacer */}
       <div className="flex-1"></div>
 
@@ -363,78 +260,6 @@ const Sidebar: React.FC = () => {
           </p>
         )}
       </div>
-
-      {/* Break Request Modal */}
-      {showBreakModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-96">
-            <h3 className="text-lg font-medium text-gray-900 mb-4">
-              Request Break Time
-            </h3>
-            <p className="text-sm text-gray-600 mb-4">
-              How many minutes do you need for your break?
-            </p>
-            <input
-              type="number"
-              value={breakMinutes}
-              onChange={(e) => setBreakMinutes(e.target.value)}
-              placeholder="Enter minutes (e.g., 15)"
-              className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent mb-4"
-              min="1"
-              max="120"
-            />
-            <div className="flex space-x-3">
-              <button
-                onClick={() => {
-                  setShowBreakModal(false);
-                  setBreakMinutes('');
-                }}
-                className="flex-1 px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={submitBreakRequest}
-                disabled={!breakMinutes.trim() || isNaN(Number(breakMinutes))}
-                className="flex-1 px-4 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 disabled:bg-gray-300 transition-colors flex items-center justify-center space-x-2"
-              >
-                <Coffee className="w-4 h-4" />
-                <span>Start Break</span>
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* AFK Overlay */}
-      {showAFKOverlay && (
-        <div className="fixed inset-0 bg-gray-900 bg-opacity-95 flex items-center justify-center z-50">
-          <div className="text-center text-white">
-            <div className="mb-8">
-              <UserX className="w-24 h-24 mx-auto mb-4 text-red-400" />
-              <h2 className="text-4xl font-bold mb-2">Away From Keyboard</h2>
-              <p className="text-xl text-gray-300">You are currently AFK</p>
-            </div>
-            
-            <div className="mb-8">
-              <div className="text-6xl font-mono font-bold mb-2">
-                {formatTime(afkTime)}
-              </div>
-              <p className="text-lg text-gray-400">
-                AFK since {afkStartTime?.toLocaleTimeString()}
-              </p>
-            </div>
-            
-            <button
-              onClick={endAFK}
-              className="bg-green-600 hover:bg-green-700 text-white px-8 py-4 rounded-lg font-medium text-lg transition-colors flex items-center space-x-3 mx-auto"
-            >
-              <Play className="w-6 h-6" />
-              <span>End AFK - Resume Work</span>
-            </button>
-          </div>
-        </div>
-      )}
 
       {/* Notification Overlay */}
       {showNotifications && (

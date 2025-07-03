@@ -16,17 +16,17 @@ import { Notification } from '../types';
 class NotificationService {
   private readonly COLLECTION_NAME = 'notifications';
 
-  private convertFirestoreToNotification(doc: any): Notification {
+  private convertFirestoreToNotification(doc: { id: string; data(): Record<string, unknown> }): Notification {
     const data = doc.data();
     return {
       ...data,
       id: doc.id,
-      createdAt: data.createdAt?.toDate(),
-    };
+      createdAt: (data.createdAt as { toDate(): Date })?.toDate(),
+    } as Notification;
   }
 
   private convertNotificationToFirestore(notification: Partial<Notification>) {
-    const { id, ...data } = notification;
+    const { id: _unusedId, ...data } = notification;
     return {
       ...data,
       createdAt: data.createdAt ? Timestamp.fromDate(data.createdAt) : Timestamp.now(),

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Clock, Calendar, TrendingUp, AlertCircle, Bell, X } from 'lucide-react';
+import { Clock, Calendar, TrendingUp, Bell, X } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { attendanceServiceNew, AttendanceDocumentDisplay } from '../../services/attendanceServiceNew';
 import { meetingService } from '../../services/meetingService';
@@ -19,10 +19,31 @@ const EmployeeDashboardNew: React.FC = () => {
     daysPresent: 0,
     averageHours: 0,
     totalBreaks: 0,
-    afkTime: 0,
   });
   const [currentTime, setCurrentTime] = useState(new Date());
   const [showNotifications, setShowNotifications] = useState(false);
+
+  // Debug employee data
+  useEffect(() => {
+    if (employee) {
+      console.log('Employee data:', employee);
+      console.log('Employee name field:', employee.name);
+      console.log('All employee fields:', Object.keys(employee));
+    }
+  }, [employee]);
+
+  // Helper function to get display name from employee data
+  const getEmployeeName = () => {
+    if (!employee) return 'User';
+    
+    // Try different possible field names for the name
+    return employee.name || 
+           employee.Name || 
+           (employee as any).displayName || 
+           (employee as any).fullName || 
+           employee.email?.split('@')[0] || 
+           'User';
+  };
 
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
@@ -67,14 +88,12 @@ const EmployeeDashboardNew: React.FC = () => {
       const totalHours = weeklyRecords.reduce((sum, record) => sum + record.workedHours, 0);
       const daysPresent = weeklyRecords.filter(record => record.loginTime).length;
       const totalBreaks = weeklyRecords.reduce((sum, record) => sum + record.breaks.length, 0);
-      const afkTime = weeklyRecords.reduce((sum, record) => sum + record.afkTime, 0);
 
       setWeeklyStats({
         totalHours,
         daysPresent,
         averageHours: daysPresent > 0 ? totalHours / daysPresent : 0,
-        totalBreaks,
-        afkTime
+        totalBreaks
       });
     } catch (error) {
       console.error('Error loading weekly stats:', error);
@@ -154,10 +173,10 @@ const EmployeeDashboardNew: React.FC = () => {
         <div className="flex justify-between items-start">
           <div>
             <h1 className="text-2xl font-bold mb-2">
-              Welcome back, {employee?.name}!
+              Welcome back, {getEmployeeName()}!
             </h1>
             <p className="text-blue-100">
-              {format(currentTime, 'EEEE, MMMM d, yyyy')} • {format(currentTime, 'HH:mm:ss')}
+              {format(currentTime, 'EEEE, MMMM d, yyyy')} • {getEmployeeName()} • {format(currentTime, 'HH:mm:ss')}
             </p>
             <p className="text-blue-100 text-sm mt-1">
               {employee?.department} • {employee?.position}
@@ -175,73 +194,73 @@ const EmployeeDashboardNew: React.FC = () => {
                 </span>
               )}
             </button>
-
-            {/* Notifications Dropdown */}
-            {showNotifications && (
-              <div className="absolute right-0 mt-2 w-80 bg-white rounded-lg shadow-lg border z-50">
-                <div className="p-4 border-b flex justify-between items-center">
-                  <h3 className="font-semibold text-gray-900">Notifications</h3>
-                  <div className="flex items-center space-x-2">
-                    {unreadNotificationsCount > 0 && (
-                      <button
-                        onClick={clearAllNotifications}
-                        className="text-xs text-blue-600 hover:text-blue-800"
-                      >
-                        Mark all read
-                      </button>
-                    )}
-                    <button
-                      onClick={() => setShowNotifications(false)}
-                      className="text-gray-400 hover:text-gray-600"
-                    >
-                      <X className="h-4 w-4" />
-                    </button>
-                  </div>
-                </div>
-                <div className="max-h-64 overflow-y-auto">
-                  {notifications.length > 0 ? (
-                    notifications.map((notification) => (
-                      <div
-                        key={notification.id}
-                        className={`p-3 border-b last:border-b-0 cursor-pointer hover:bg-gray-50 ${
-                          !notification.isRead ? 'bg-blue-50' : ''
-                        }`}
-                        onClick={() => markNotificationAsRead(notification.id)}
-                      >
-                        <div className="flex items-start space-x-3">
-                          <div className={`mt-1 h-2 w-2 rounded-full ${
-                            notification.type === 'overtime' ? 'bg-yellow-400' :
-                            notification.type === 'early_logout' ? 'bg-red-400' :
-                            'bg-blue-400'
-                          }`} />
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium text-gray-900">
-                              {notification.title}
-                            </p>
-                            <p className="text-sm text-gray-600">
-                              {notification.message}
-                            </p>
-                            <p className="text-xs text-gray-400 mt-1">
-                              {format(new Date(notification.createdAt), 'MMM d, HH:mm')}
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-                    ))
-                  ) : (
-                    <div className="p-4 text-center text-gray-500">
-                      No notifications
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
           </div>
         </div>
       </div>
 
+      {/* Notifications Dropdown - positioned at top right of main content */}
+      {showNotifications && (
+        <div className="fixed top-20 right-8 w-80 bg-white rounded-lg shadow-lg border z-50">
+          <div className="p-4 border-b flex justify-between items-center">
+            <h3 className="font-semibold text-gray-900">Notifications</h3>
+            <div className="flex items-center space-x-2">
+              {unreadNotificationsCount > 0 && (
+                <button
+                  onClick={clearAllNotifications}
+                  className="text-xs text-blue-600 hover:text-blue-800"
+                >
+                  Mark all read
+                </button>
+              )}
+              <button
+                onClick={() => setShowNotifications(false)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+          <div className="max-h-64 overflow-y-auto">
+            {notifications.length > 0 ? (
+              notifications.map((notification) => (
+                <div
+                  key={notification.id}
+                  className={`p-3 border-b last:border-b-0 cursor-pointer hover:bg-gray-50 ${
+                    !notification.isRead ? 'bg-blue-50' : ''
+                  }`}
+                  onClick={() => markNotificationAsRead(notification.id)}
+                >
+                  <div className="flex items-start space-x-3">
+                    <div className={`mt-1 h-2 w-2 rounded-full ${
+                      notification.type === 'overtime' ? 'bg-yellow-400' :
+                      notification.type === 'early_logout' ? 'bg-red-400' :
+                      'bg-blue-400'
+                    }`} />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-gray-900">
+                        {notification.title}
+                      </p>
+                      <p className="text-sm text-gray-600">
+                        {notification.message}
+                      </p>
+                      <p className="text-xs text-gray-400 mt-1">
+                        {format(new Date(notification.createdAt), 'MMM d, HH:mm')}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="p-4 text-center text-gray-500">
+                No notifications
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Quick Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         <div className="bg-white rounded-lg shadow-sm border p-6">
           <div className="flex items-center">
             <Clock className="h-8 w-8 text-blue-600" />
@@ -274,22 +293,11 @@ const EmployeeDashboardNew: React.FC = () => {
             </div>
           </div>
         </div>
-
-        <div className="bg-white rounded-lg shadow-sm border p-6">
-          <div className="flex items-center">
-            <AlertCircle className="h-8 w-8 text-yellow-600" />
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">AFK Time</p>
-              <p className="text-2xl font-bold text-gray-900">{weeklyStats.afkTime}m</p>
-              <p className="text-xs text-gray-500">This week</p>
-            </div>
-          </div>
-        </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Clock In/Out Section */}
-        <div className="lg:col-span-2">
+        <div>
           <ClockInOutNew />
         </div>
 

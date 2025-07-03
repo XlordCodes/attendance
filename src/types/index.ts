@@ -2,6 +2,7 @@ export interface Employee {
   id: string;
   employeeId?: string;
   name: string;
+  Name?: string; // Alternative field name used in Firestore
   email: string;
   password: string;
   role: 'employee' | 'admin';

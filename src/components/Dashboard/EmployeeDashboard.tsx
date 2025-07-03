@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Clock, Calendar, TrendingUp, CheckCircle, AlertCircle, Activity, Bell, MapPin, X } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { attendanceServiceSubcollection } from '../../services/attendanceServiceSubcollection';
@@ -13,6 +13,29 @@ const EmployeeDashboard: React.FC = () => {
   const [todayRecord, setTodayRecord] = useState<AttendanceRecord | null>(null);
   const [meetings, setMeetings] = useState<Meeting[]>([]);
   const [notifications, setNotifications] = useState<Notification[]>([]);
+
+  // Debug employee data
+  useEffect(() => {
+    if (employee) {
+      console.log('Employee data:', employee);
+      console.log('Employee name field:', employee.name);
+      console.log('All employee fields:', Object.keys(employee));
+    }
+  }, [employee]);
+
+  // Helper function to get display name from employee data
+  const getEmployeeName = () => {
+    if (!employee) return 'User';
+    
+    // Try different possible field names for the name
+    const empRecord = employee as Record<string, unknown>;
+    return employee.name || 
+           employee.Name || 
+           empRecord.displayName || 
+           empRecord.fullName || 
+           employee.email?.split('@')[0] || 
+           'User';
+  };
   const [weeklyStats, setWeeklyStats] = useState({
     totalHours: 0,
     daysPresent: 0,
@@ -39,7 +62,7 @@ const EmployeeDashboard: React.FC = () => {
       loadNotifications();
       getCurrentLocation();
     }
-  }, [employee]);
+  }, [employee, loadTodayRecord, loadWeeklyStats, loadMeetings, loadNotifications]);
 
   const getCurrentLocation = () => {
     if (navigator.geolocation) {
@@ -118,7 +141,7 @@ const EmployeeDashboard: React.FC = () => {
     return !todayRecord?.clockIn || !!todayRecord?.clockOut;
   };
 
-  const loadTodayRecord = async () => {
+  const loadTodayRecord = useCallback(async () => {
     if (!employee) return;
     
     try {
@@ -130,9 +153,9 @@ const EmployeeDashboard: React.FC = () => {
       console.error('Error loading today record:', error);
       toast.error('Failed to load today\'s attendance record');
     }
-  };
+  }, [employee]);
 
-  const loadWeeklyStats = async () => {
+  const loadWeeklyStats = useCallback(async () => {
     if (!employee) return;
     
     try {
@@ -169,9 +192,9 @@ const EmployeeDashboard: React.FC = () => {
       console.error('Error loading weekly stats:', error);
       toast.error('Failed to load weekly statistics');
     }
-  };
+  }, [employee]);
 
-  const loadMeetings = async () => {
+  const loadMeetings = useCallback(async () => {
     if (!employee) return;
     
     try {
@@ -185,9 +208,9 @@ const EmployeeDashboard: React.FC = () => {
     } catch (error) {
       console.error('Error loading meetings:', error);
     }
-  };
+  }, [employee]);
 
-  const loadNotifications = async () => {
+  const loadNotifications = useCallback(async () => {
     if (!employee) return;
     
     try {
@@ -199,7 +222,7 @@ const EmployeeDashboard: React.FC = () => {
       console.error('Error loading notifications:', error);
       // Don't show error toast for notifications as it's not critical
     }
-  };
+  }, [employee]);
 
   const getWorkingHoursToday = () => {
     if (!todayRecord?.clockIn) return 0;
@@ -231,37 +254,28 @@ const EmployeeDashboard: React.FC = () => {
   return (
     <div className="max-w-7xl mx-auto space-y-6">
       {/* Welcome Header */}
-      <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-3">
-            <div className="w-12 h-12 bg-gray-900 rounded-lg flex items-center justify-center">
-              <div className="w-6 h-6 bg-white rounded opacity-90"></div>
-            </div>
-            <div>
-              <h1 className="text-xl font-semibold text-gray-900">
-                Employee Dashboard
-              </h1>
-              <p className="text-sm text-gray-600 flex items-center space-x-2 mt-0.5">
-                <span className="flex items-center">
-                  <div className="w-2 h-2 bg-green-500 rounded-full mr-1"></div>
-                  Online
-                </span>
-                <span>•</span>
-                <span>{format(currentTime, 'MMM d, yyyy')}</span>
-              </p>
-            </div>
+      <div className="bg-gradient-to-r from-blue-600 to-purple-600 rounded-lg shadow-sm text-white p-6">
+        <div className="flex justify-between items-start">
+          <div>
+            <h1 className="text-2xl font-bold mb-2">
+              Welcome back, {getEmployeeName()}!
+            </h1>
+            <p className="text-blue-100">
+              {format(currentTime, 'EEEE, MMMM d, yyyy')} • {format(currentTime, 'HH:mm:ss')}
+            </p>
+            <p className="text-blue-100 text-sm mt-1">
+              {employee?.department} • {employee?.position}
+            </p>
           </div>
-          
-          {/* Notifications */}
-          <div className="flex items-center space-x-3">
-            <button 
+          <div className="relative">
+            <button
               onClick={() => setShowNotifications(!showNotifications)}
-              className="relative p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+              className="bg-white/20 hover:bg-white/30 p-3 rounded-lg transition-colors relative"
             >
-              <Bell className="w-5 h-5" />
+              <Bell className="h-6 w-6" />
               {notifications.filter(n => !n.isRead).length > 0 && (
-                <span className="absolute -top-0.5 -right-0.5 w-3 h-3 bg-red-500 rounded-full text-xs flex items-center justify-center">
-                  <span className="w-1.5 h-1.5 bg-white rounded-full"></span>
+                <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
+                  {notifications.filter(n => !n.isRead).length}
                 </span>
               )}
             </button>

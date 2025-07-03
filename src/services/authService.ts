@@ -36,16 +36,18 @@ class AuthService {
         ...user,
         role: 'employee'
       } as AuthUser;
-    } catch (error: any) {
-      throw new Error(error.message || 'Authentication failed');
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Authentication failed';
+      throw new Error(errorMessage);
     }
   }
 
   async signOut(): Promise<void> {
     try {
       await signOut(auth);
-    } catch (error: any) {
-      throw new Error(error.message || 'Sign out failed');
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Sign out failed';
+      throw new Error(errorMessage);
     }
   }
 
