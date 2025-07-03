@@ -6,14 +6,14 @@ import AuthTester from './components/Auth/AuthTester';
 import AuthDebugger from './components/Auth/AuthDebugger';
 import AttendanceTest from './components/Test/AttendanceTest';
 import Sidebar from './components/Layout/Sidebar';
-import UnifiedDashboard from './components/Dashboard/UnifiedDashboard';
-import EmployeeDashboard from './components/Dashboard/EmployeeDashboard';
+import UnifiedDashboardNew from './components/Dashboard/UnifiedDashboardNew';
+import EmployeeDashboardNew from './components/Dashboard/EmployeeDashboardNew';
 import AdminDashboardNew from './components/Dashboard/AdminDashboardNew';
-import ClockInOut from './components/Employee/ClockInOut';
+import ClockInOutNew from './components/Employee/ClockInOutNew';
 import EmployeeManagement from './components/Admin/EmployeeManagement';
 import AdminSetup from './components/Admin/AdminSetup';
 import AssignMeeting from './components/Admin/AssignMeeting';
-import AttendanceLogs from './components/Attendance/AttendanceLogs';
+import AttendanceLogsNew from './components/Attendance/AttendanceLogsNew';
 import AttendancePage from './components/Attendance/AttendancePage';
 import KioskMode from './components/Admin/KioskMode';
 
@@ -75,19 +75,19 @@ const AppContent: React.FC = () => {
       <Route path="/dashboard" element={
         <ProtectedRoute>
           {/* Unified dashboard for all users - admins get both views */}
-          <UnifiedDashboard />
+          <UnifiedDashboardNew />
         </ProtectedRoute>
       } />
       
       {/* Employee features - accessible by all users */}
       <Route path="/employee-dashboard" element={
         <ProtectedRoute>
-          <EmployeeDashboard />
+          <EmployeeDashboardNew />
         </ProtectedRoute>
       } />
       <Route path="/clock" element={
         <ProtectedRoute>
-          <ClockInOut />
+          <ClockInOutNew />
         </ProtectedRoute>
       } />
       <Route path="/attendance-logs" element={
@@ -106,7 +106,7 @@ const AppContent: React.FC = () => {
           } />
           <Route path="/admin-attendance" element={
             <ProtectedRoute>
-              <AttendanceLogs />
+              <AttendanceLogsNew />
             </ProtectedRoute>
           } />
           <Route path="/employees" element={

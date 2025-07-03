@@ -5,9 +5,7 @@ import {
   TrendingUp, 
   CheckCircle, 
   AlertCircle, 
-  Activity, 
   Bell, 
-  MapPin, 
   X,
   Users,
   Download,
@@ -20,14 +18,16 @@ import {
   BarChart3
 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
-import { attendanceServiceSubcollection } from '../../services/attendanceServiceSubcollection';
+import { attendanceServiceNew } from '../../services/attendanceServiceNew';
 import { userService } from '../../services/userService';
 import { meetingService } from '../../services/meetingService';
 import { notificationService } from '../../services/notificationService';
-import { AttendanceRecord, GeolocationData, Meeting, Notification, Employee } from '../../types';
-import { format, startOfWeek, endOfWeek, parseISO, isToday, isFuture } from 'date-fns';
+import { Meeting, Notification, Employee } from '../../types';
+import { format, startOfWeek, endOfWeek, isToday, isFuture } from 'date-fns';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
+import EmployeeDashboardNew from './EmployeeDashboardNew';
+import AttendanceLogsNew from '../Attendance/AttendanceLogsNew';
 
 interface AdminStats {
   totalEmployees: number;
@@ -424,200 +424,13 @@ const UnifiedDashboard: React.FC = () => {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Employee View (Always visible, but primary for non-admins) */}
         {(!isAdmin || activeTab === 'employee') && (
-          <div className="space-y-8">
-            {/* Clock In/Out Section */}
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-              <div className="flex items-center justify-between mb-6">
-                <h2 className="text-xl font-semibold text-gray-900 flex items-center">
-                  <Clock className="w-5 h-5 mr-2 text-gray-600" />
-                  Today's Attendance
-                </h2>
-                {location && (
-                  <div className="flex items-center text-sm text-gray-500">
-                    <MapPin className="w-4 h-4 mr-1" />
-                    Location detected
-                  </div>
-                )}
-              </div>
-              
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                {/* Clock In */}
-                <div className="text-center">
-                  <div className="mb-4">
-                    <div className="text-sm font-medium text-gray-600 mb-2">Clock In</div>
-                    <div className="text-2xl font-mono text-green-600">
-                      {formatTime(todayRecord?.clockIn)}
-                    </div>
-                  </div>
-                  <button
-                    onClick={handleClockIn}
-                    disabled={loading || isClockInDisabled()}
-                    className="w-full bg-green-600 hover:bg-green-700 disabled:bg-gray-300 text-white font-medium py-3 px-6 rounded-lg transition-colors"
-                  >
-                    {loading ? 'Processing...' : 'Clock In'}
-                  </button>
-                </div>
-
-                {/* Status */}
-                <div className="text-center">
-                  <div className="mb-4">
-                    <div className="text-sm font-medium text-gray-600 mb-2">Status</div>
-                    <div className="flex items-center justify-center">
-                      {getStatusIcon(todayRecord?.status || 'absent')}
-                      <span className="ml-2 text-lg font-medium capitalize">
-                        {todayRecord?.status || 'Not clocked in'}
-                      </span>
-                    </div>
-                  </div>
-                  <div className="text-sm text-gray-500">
-                    {todayRecord?.totalHours 
-                      ? `${todayRecord.totalHours.toFixed(1)} hours worked`
-                      : 'No time recorded'
-                    }
-                  </div>
-                </div>
-
-                {/* Clock Out */}
-                <div className="text-center">
-                  <div className="mb-4">
-                    <div className="text-sm font-medium text-gray-600 mb-2">Clock Out</div>
-                    <div className="text-2xl font-mono text-red-600">
-                      {formatTime(todayRecord?.clockOut)}
-                    </div>
-                  </div>
-                  <button
-                    onClick={handleClockOut}
-                    disabled={loading || isClockOutDisabled()}
-                    className="w-full bg-red-600 hover:bg-red-700 disabled:bg-gray-300 text-white font-medium py-3 px-6 rounded-lg transition-colors"
-                  >
-                    {loading ? 'Processing...' : 'Clock Out'}
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            {/* Weekly Stats */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                <div className="flex items-center">
-                  <Clock className="w-8 h-8 text-blue-600" />
-                  <div className="ml-4">
-                    <p className="text-sm font-medium text-gray-600">Total Hours</p>
-                    <p className="text-2xl font-bold text-gray-900">
-                      {weeklyStats.totalHours.toFixed(1)}
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                <div className="flex items-center">
-                  <Calendar className="w-8 h-8 text-green-600" />
-                  <div className="ml-4">
-                    <p className="text-sm font-medium text-gray-600">Days Present</p>
-                    <p className="text-2xl font-bold text-gray-900">
-                      {weeklyStats.daysPresent}
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                <div className="flex items-center">
-                  <TrendingUp className="w-8 h-8 text-purple-600" />
-                  <div className="ml-4">
-                    <p className="text-sm font-medium text-gray-600">Average Hours</p>
-                    <p className="text-2xl font-bold text-gray-900">
-                      {weeklyStats.averageHours.toFixed(1)}
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                <div className="flex items-center">
-                  <Activity className="w-8 h-8 text-orange-600" />
-                  <div className="ml-4">
-                    <p className="text-sm font-medium text-gray-600">Overtime</p>
-                    <p className="text-2xl font-bold text-gray-900">
-                      {weeklyStats.overtimeHours.toFixed(1)}h
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Meetings and Notifications */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-              {/* Upcoming Meetings */}
-              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-                  <Calendar className="w-5 h-5 mr-2 text-gray-600" />
-                  Upcoming Meetings
-                </h3>
-                <div className="space-y-3">
-                  {meetings.length > 0 ? (
-                    meetings.slice(0, 5).map((meeting) => (
-                      <div key={meeting.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                        <div>
-                          <p className="font-medium text-gray-900">{meeting.title}</p>
-                          <p className="text-sm text-gray-600">
-                            {format(parseISO(meeting.date), 'MMM d, yyyy')} at {meeting.time}
-                          </p>
-                        </div>
-                        <div className="text-xs text-gray-500">
-                          Meeting
-                        </div>
-                      </div>
-                    ))
-                  ) : (
-                    <p className="text-gray-500 text-center py-4">No upcoming meetings</p>
-                  )}
-                </div>
-              </div>
-
-              {/* Recent Notifications */}
-              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-lg font-semibold text-gray-900 flex items-center">
-                    <Bell className="w-5 h-5 mr-2 text-gray-600" />
-                    Notifications
-                  </h3>
-                  {notifications.length > 0 && (
-                    <span className="bg-red-100 text-red-800 text-xs font-medium px-2.5 py-0.5 rounded-full">
-                      {notifications.length} total
-                    </span>
-                  )}
-                </div>
-                <div className="space-y-3">
-                  {notifications.length > 0 ? (
-                    notifications.slice(0, 5).map((notification) => (
-                      <div 
-                        key={notification.id} 
-                        className="p-3 rounded-lg border-l-4 bg-blue-50 border-blue-400"
-                      >
-                        <p className="font-medium text-gray-900">
-                          {notification.title}
-                        </p>
-                        <p className="text-sm mt-1 text-gray-600">
-                          {notification.message}
-                        </p>
-                        <p className="text-xs text-gray-500 mt-2">
-                          {format(new Date(notification.createdAt), 'MMM d, yyyy HH:mm')}
-                        </p>
-                      </div>
-                    ))
-                  ) : (
-                    <p className="text-gray-500 text-center py-4">No notifications</p>
-                  )}
-                </div>
-              </div>
-            </div>
-          </div>
+          <EmployeeDashboardNew />
         )}
 
         {/* Admin View (Only for admins) */}
         {isAdmin && activeTab === 'admin' && (
+          <AttendanceLogsNew />
+        )}
           <div className="space-y-8">
             {/* Admin Stats */}
             <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-6">
