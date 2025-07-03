@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Clock, Users, KeySquare } from 'lucide-react';
-import { attendanceServiceSubcollection } from '../../services/attendanceServiceSubcollection';
+import { globalAttendanceService } from '../../services/globalAttendanceService';
 import { userService } from '../../services/userService';
 import { format } from 'date-fns';
 import toast from 'react-hot-toast';
@@ -28,7 +28,7 @@ const KioskMode: React.FC = () => {
       const activeList = [];
       
       for (const employee of employees) {
-        const todayRecord = await attendanceServiceSubcollection.getTodayAttendance(employee.id);
+        const todayRecord = await globalAttendanceService.getTodayAttendance(employee.id);
         if (todayRecord && todayRecord.clockIn && !todayRecord.clockOut) {
           activeList.push({
             ...employee,
@@ -64,15 +64,15 @@ const KioskMode: React.FC = () => {
         return;
       }
 
-      const todayRecord = await attendanceServiceSubcollection.getTodayAttendance(employee.id);
+      const todayRecord = await globalAttendanceService.getTodayAttendance(employee.id);
       
       if (!todayRecord || !todayRecord.clockIn) {
         // Clock in
-        await attendanceServiceSubcollection.clockIn(employee.id);
+        await globalAttendanceService.clockIn(employee.id);
         toast.success(`${employee.name} clocked in successfully`);
       } else if (!todayRecord.clockOut) {
         // Clock out
-        await attendanceServiceSubcollection.clockOut(employee.id);
+        await globalAttendanceService.clockOut(employee.id);
         toast.success(`${employee.name} clocked out successfully`);
       } else {
         toast.error(`${employee.name} has already completed attendance for today`);

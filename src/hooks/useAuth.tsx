@@ -37,13 +37,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         try {
           console.log('👤 Fetching user data for UID:', firebaseUser.uid);
           
-          // Try to get user data from Firestore users collection by UID first
-          const userDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
+          // Use the Firebase UID directly for fully dynamic user lookup
+          const mappedUserId = firebaseUser.uid;
+          console.log('🔄 Mapped user ID:', mappedUserId);
+          
+          // Try to get user data from Firestore users collection
+          const userDoc = await getDoc(doc(db, 'users', mappedUserId));
           
           if (userDoc.exists()) {
             const userData = userDoc.data() as Omit<Employee, 'id'>;
             const employeeData = {
-              id: firebaseUser.uid,
+              id: mappedUserId, // Use mapped ID instead of Firebase UID
+              uid: firebaseUser.uid, // Keep original UID for reference
               ...userData,
             };
             

@@ -46,7 +46,7 @@ export interface BreakSessionDisplay {
 
 class AttendanceServiceNew {
   private readonly USERS_COLLECTION = 'users';
-  private readonly ATTENDANCE_SUBCOLLECTION = 'attendance_kailash';
+  private readonly ATTENDANCE_SUBCOLLECTION = 'attendance';
 
   /**
    * Get attendance document reference for a specific date

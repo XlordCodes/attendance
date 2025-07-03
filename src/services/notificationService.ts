@@ -26,7 +26,7 @@ class NotificationService {
   }
 
   private convertNotificationToFirestore(notification: Partial<Notification>) {
-    const { id: _unusedId, ...data } = notification;
+    const { id, ...data } = notification;
     return {
       ...data,
       createdAt: data.createdAt ? Timestamp.fromDate(data.createdAt) : Timestamp.now(),

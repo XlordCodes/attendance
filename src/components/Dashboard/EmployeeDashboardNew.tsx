@@ -1,17 +1,18 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Clock, Calendar, TrendingUp, Bell, X } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
-import { attendanceServiceNew, AttendanceDocumentDisplay } from '../../services/attendanceServiceNew';
+import { globalAttendanceService } from '../../services/globalAttendanceService';
 import { meetingService } from '../../services/meetingService';
 import { notificationService } from '../../services/notificationService';
-import { Meeting, Notification } from '../../types';
+import { Meeting, Notification, AttendanceRecord } from '../../types';
 import { format, startOfWeek, endOfWeek, isToday, isFuture } from 'date-fns';
 import toast from 'react-hot-toast';
 import ClockInOutNew from '../Employee/ClockInOutNew';
 
 const EmployeeDashboardNew: React.FC = () => {
-  const { employee } = useAuth();
-  const [todayRecord, setTodayRecord] = useState<AttendanceDocumentDisplay | null>(null);
+  console.log('🔄 EmployeeDashboardNew rendering...');
+  const { employee, user } = useAuth();
+  const [todayRecord, setTodayRecord] = useState<AttendanceRecord | null>(null);
   const [meetings, setMeetings] = useState<Meeting[]>([]);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [weeklyStats, setWeeklyStats] = useState({
@@ -22,71 +23,68 @@ const EmployeeDashboardNew: React.FC = () => {
   });
   const [currentTime, setCurrentTime] = useState(new Date());
   const [showNotifications, setShowNotifications] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   // Debug employee data
   useEffect(() => {
+    console.log('🔍 EmployeeDashboardNew mounted');
+    console.log('👤 User:', user ? 'Present' : 'Not present');
+    console.log('👨‍💼 Employee:', employee ? 'Present' : 'Not present');
     if (employee) {
-      console.log('Employee data:', employee);
-      console.log('Employee name field:', employee.name);
-      console.log('All employee fields:', Object.keys(employee));
+      console.log('✅ Employee data:', employee);
+      console.log('✅ Employee name field:', employee.name);
+      console.log('✅ All employee fields:', Object.keys(employee));
+    } else {
+      console.log('❌ No employee data');
     }
-  }, [employee]);
+  }, [employee, user]);
 
   // Helper function to get display name from employee data
-  const getEmployeeName = () => {
+  const getEmployeeName = useCallback(() => {
     if (!employee) return 'User';
     
-    // Try different possible field names for the name
+    // Safely get employee name with fallbacks
     return employee.name || 
-           employee.Name || 
-           (employee as any).displayName || 
-           (employee as any).fullName || 
            employee.email?.split('@')[0] || 
            'User';
-  };
+  }, [employee]);
 
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => clearInterval(timer);
   }, []);
 
-  useEffect(() => {
-    if (employee) {
-      loadTodayRecord();
-      loadWeeklyStats();
-      loadMeetings();
-      loadNotifications();
-    }
-  }, [employee]);
-
-  const loadTodayRecord = async () => {
-    if (!employee) return;
+  const loadTodayRecord = useCallback(async () => {
+    if (!employee || !user) return;
     
     try {
-      const record = await attendanceServiceNew.getTodayAttendance(employee.id);
+      console.log('📋 Loading today record for:', getEmployeeName());
+      console.log('📋 Using user ID:', employee.id); // Use employee.id instead of user.uid
+      const record = await globalAttendanceService.getTodayAttendance(employee.id);
+      console.log('✅ Today record loaded:', record);
       setTodayRecord(record);
     } catch (error) {
-      console.error('Error loading today record:', error);
+      console.error('❌ Error loading today record:', error);
+      // Don't throw, just log the error
     }
-  };
+  }, [employee, user, getEmployeeName]);
 
-  const loadWeeklyStats = async () => {
-    if (!employee) return;
+  const loadWeeklyStats = useCallback(async () => {
+    if (!employee || !user) return;
 
     try {
       const weekStart = startOfWeek(new Date());
       const weekEnd = endOfWeek(new Date());
-      const startDate = format(weekStart, 'yyyy-MM-dd');
-      const endDate = format(weekEnd, 'yyyy-MM-dd');
 
-      const weeklyRecords = await attendanceServiceNew.getAttendanceRange(
-        employee.id,
-        startDate,
-        endDate
+      const weeklyRecords = await globalAttendanceService.getAttendanceRange(
+        employee.id, // Use employee.id instead of user.uid
+        weekStart,
+        weekEnd
       );
 
-      const totalHours = weeklyRecords.reduce((sum, record) => sum + record.workedHours, 0);
-      const daysPresent = weeklyRecords.filter(record => record.loginTime).length;
+      const totalHours = weeklyRecords.reduce((sum, record) => sum + (record.hoursWorked || 0), 0);
+      const daysPresent = weeklyRecords.filter(record => record.clockIn).length;
       const totalBreaks = weeklyRecords.reduce((sum, record) => sum + record.breaks.length, 0);
 
       setWeeklyStats({
@@ -98,9 +96,9 @@ const EmployeeDashboardNew: React.FC = () => {
     } catch (error) {
       console.error('Error loading weekly stats:', error);
     }
-  };
+  }, [employee, user, getEmployeeName]);
 
-  const loadMeetings = async () => {
+  const loadMeetings = useCallback(async () => {
     if (!employee) return;
 
     try {
@@ -114,9 +112,9 @@ const EmployeeDashboardNew: React.FC = () => {
     } catch (error) {
       console.error('Error loading meetings:', error);
     }
-  };
+  }, [employee]);
 
-  const loadNotifications = async () => {
+  const loadNotifications = useCallback(async () => {
     if (!employee) return;
 
     try {
@@ -125,7 +123,7 @@ const EmployeeDashboardNew: React.FC = () => {
     } catch (error) {
       console.error('Error loading notifications:', error);
     }
-  };
+  }, [employee]);
 
   const markNotificationAsRead = async (notificationId: string) => {
     try {
@@ -165,6 +163,73 @@ const EmployeeDashboardNew: React.FC = () => {
   };
 
   const unreadNotificationsCount = notifications.filter(n => !n.isRead).length;
+
+  // Load all dashboard data when employee and user are available
+  useEffect(() => {
+    if (employee && user) {
+      console.log('🚀 Loading dashboard data...');
+      setLoading(true);
+      setError(null);
+      
+      Promise.all([
+        loadTodayRecord(),
+        loadWeeklyStats(),
+        loadMeetings(),
+        loadNotifications()
+      ]).then(() => {
+        console.log('✅ Dashboard data loaded successfully');
+        setLoading(false);
+      }).catch((err) => {
+        console.error('❌ Error loading dashboard data:', err);
+        setError(err.message || 'Failed to load dashboard data');
+        setLoading(false);
+      });
+    }
+  }, [employee, user]);
+
+  // Loading state
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-96">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Loading dashboard...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Error state
+  if (error) {
+    return (
+      <div className="flex items-center justify-center min-h-96">
+        <div className="text-center">
+          <div className="text-red-600 text-6xl mb-4">⚠️</div>
+          <h2 className="text-xl font-semibold text-gray-900 mb-2">Something went wrong</h2>
+          <p className="text-gray-600 mb-4">{error}</p>
+          <button 
+            onClick={() => window.location.reload()} 
+            className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
+          >
+            Reload Page
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // No employee data
+  if (!employee) {
+    return (
+      <div className="flex items-center justify-center min-h-96">
+        <div className="text-center">
+          <div className="text-gray-400 text-6xl mb-4">👤</div>
+          <h2 className="text-xl font-semibold text-gray-900 mb-2">No User Data</h2>
+          <p className="text-gray-600">Please log in to view your dashboard.</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -297,7 +362,7 @@ const EmployeeDashboardNew: React.FC = () => {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Clock In/Out Section */}
-        <div>
+        <div className="space-y-6">
           <ClockInOutNew />
         </div>
 
@@ -311,13 +376,13 @@ const EmployeeDashboardNew: React.FC = () => {
               <div className="flex items-center justify-between">
                 <span className="text-sm text-gray-600">Status</span>
                 <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                  !todayRecord?.loginTime 
+                  !todayRecord?.clockIn 
                     ? 'text-gray-600 bg-gray-100' 
                     : todayRecord?.isLate 
                       ? 'text-yellow-600 bg-yellow-100'
                       : 'text-green-600 bg-green-100'
                 }`}>
-                  {!todayRecord?.loginTime 
+                  {!todayRecord?.clockIn 
                     ? 'Not clocked in' 
                     : todayRecord?.isLate 
                       ? 'Late arrival'
@@ -326,20 +391,20 @@ const EmployeeDashboardNew: React.FC = () => {
                 </span>
               </div>
 
-              {todayRecord?.loginTime && (
+              {todayRecord?.clockIn && (
                 <>
                   <div className="flex items-center justify-between">
                     <span className="text-sm text-gray-600">Clock in time</span>
                     <span className="text-sm font-medium">
-                      {format(todayRecord.loginTime, 'HH:mm')}
+                      {format(todayRecord.clockIn, 'HH:mm')}
                     </span>
                   </div>
 
-                  {todayRecord.logoutTime && (
+                  {todayRecord.clockOut && (
                     <div className="flex items-center justify-between">
                       <span className="text-sm text-gray-600">Clock out time</span>
                       <span className="text-sm font-medium">
-                        {format(todayRecord.logoutTime, 'HH:mm')}
+                        {format(todayRecord.clockOut, 'HH:mm')}
                       </span>
                     </div>
                   )}
@@ -347,7 +412,7 @@ const EmployeeDashboardNew: React.FC = () => {
                   <div className="flex items-center justify-between">
                     <span className="text-sm text-gray-600">Hours worked</span>
                     <span className="text-sm font-medium">
-                      {formatDuration(todayRecord.workedHours)}
+                      {formatDuration(todayRecord.hoursWorked || 0)}
                     </span>
                   </div>
 

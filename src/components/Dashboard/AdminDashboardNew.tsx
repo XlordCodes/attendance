@@ -12,7 +12,7 @@ import {
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { userService } from '../../services/userService';
-import { attendanceServiceSubcollection } from '../../services/attendanceServiceSubcollection';
+import { globalAttendanceService } from '../../services/globalAttendanceService';
 
 interface AdminStats {
   totalEmployees: number;
@@ -64,7 +64,7 @@ const AdminDashboardNew: React.FC = () => {
       
       // Get today's attendance data
       const today = format(new Date(), 'yyyy-MM-dd');
-      const todayRecords = await attendanceServiceSubcollection.getAllAttendanceRecords(today, today);
+      const todayRecords = await globalAttendanceService.getAttendanceRange(today, today);
       
       const presentToday = todayRecords.filter(r => r.status === 'present').length;
       const lateEmployees = todayRecords.filter(r => r.status === 'late').length;

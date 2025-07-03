@@ -1,13 +1,14 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Clock, AlertCircle, Coffee, Play, Pause } from 'lucide-react';
-import { attendanceServiceNew, AttendanceDocumentDisplay } from '../../services/attendanceServiceNew';
+import { globalAttendanceService } from '../../services/globalAttendanceService';
+import { AttendanceRecord } from '../../types';
 import { useAuth } from '../../hooks/useAuth';
 import { format } from 'date-fns';
 import toast from 'react-hot-toast';
 
 const ClockInOutNew: React.FC = () => {
   const { employee } = useAuth();
-  const [todayRecord, setTodayRecord] = useState<AttendanceDocumentDisplay | null>(null);
+  const [todayRecord, setTodayRecord] = useState<AttendanceRecord | null>(null);
   const [loading, setLoading] = useState(false);
   const [currentTime, setCurrentTime] = useState(new Date());
   const [isOnBreak, setIsOnBreak] = useState(false);
@@ -21,14 +22,14 @@ const ClockInOutNew: React.FC = () => {
   }, []);
 
   const loadTodayRecord = useCallback(async () => {
-    if (!employee) return;
+    if (!employee?.id) return;
     
     try {
-      const record = await attendanceServiceNew.getTodayAttendance(employee.id);
+      const record = await globalAttendanceService.getTodayAttendance(employee.id);
       setTodayRecord(record);
       
       if (record) {
-        const onBreak = record.breaks.some(breakSession => !breakSession.end);
+        const onBreak = record.breaks.some(breakSession => !breakSession.endTime);
         setIsOnBreak(onBreak);
       }
     } catch (error) {
@@ -43,7 +44,7 @@ const ClockInOutNew: React.FC = () => {
   }, [employee, loadTodayRecord]);
 
   const handleClockIn = async () => {
-    if (!employee) return;
+    if (!employee?.id) return;
 
     // Check if it would be a late arrival (9:00 AM standard)
     const now = new Date();
@@ -63,11 +64,11 @@ const ClockInOutNew: React.FC = () => {
   };
 
   const performClockIn = async () => {
-    if (!employee) return;
+    if (!employee?.id) return;
 
     setLoading(true);
     try {
-      const record = await attendanceServiceNew.clockIn(employee.id, lateReason.trim() || undefined);
+      const record = await globalAttendanceService.clockIn(employee.id, lateReason.trim() || undefined);
       setTodayRecord(record);
       toast.success('Clocked in successfully!');
       
@@ -101,13 +102,13 @@ const ClockInOutNew: React.FC = () => {
   };
 
   const handleClockOut = async () => {
-    if (!employee) return;
+    if (!employee?.id) return;
 
     setLoading(true);
     try {
-      const record = await attendanceServiceNew.clockOut(employee.id);
+      const record = await globalAttendanceService.clockOut(employee.id);
       setTodayRecord(record);
-      toast.success(`Clocked out successfully! Worked ${record.workedHours.toFixed(2)} hours`);
+      toast.success(`Clocked out successfully! Worked ${(record.hoursWorked || 0).toFixed(2)} hours`);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Clock out failed');
     } finally {
@@ -116,11 +117,11 @@ const ClockInOutNew: React.FC = () => {
   };
 
   const handleStartBreak = async () => {
-    if (!employee) return;
+    if (!employee?.id) return;
 
     setLoading(true);
     try {
-      const record = await attendanceServiceNew.startBreak(employee.id);
+      const record = await globalAttendanceService.startBreak(employee.id);
       setTodayRecord(record);
       setIsOnBreak(true);
       toast.success('Break started');
@@ -132,11 +133,11 @@ const ClockInOutNew: React.FC = () => {
   };
 
   const handleEndBreak = async () => {
-    if (!employee) return;
+    if (!employee?.id) return;
 
     setLoading(true);
     try {
-      const record = await attendanceServiceNew.endBreak(employee.id);
+      const record = await globalAttendanceService.endBreak(employee.id);
       setTodayRecord(record);
       setIsOnBreak(false);
       toast.success('Break ended');
@@ -159,17 +160,17 @@ const ClockInOutNew: React.FC = () => {
   };
 
   const getWorkingHours = () => {
-    if (!todayRecord?.loginTime) return '0h 0m';
+    if (!todayRecord?.clockIn) return '0h 0m';
     
-    const endTime = todayRecord.logoutTime || currentTime;
-    const workingMs = endTime.getTime() - todayRecord.loginTime.getTime();
+    const endTime = todayRecord.clockOut || currentTime;
+    const workingMs = endTime.getTime() - todayRecord.clockIn.getTime();
     
     // Subtract break time
     const breakMs = todayRecord.breaks.reduce((total, breakSession) => {
-      if (breakSession.end) {
-        return total + (breakSession.end.getTime() - breakSession.start.getTime());
-      } else if (isOnBreak) {
-        return total + (currentTime.getTime() - breakSession.start.getTime());
+      if (breakSession.endTime && breakSession.startTime) {
+        return total + (breakSession.endTime.getTime() - breakSession.startTime.getTime());
+      } else if (isOnBreak && breakSession.startTime) {
+        return total + (currentTime.getTime() - breakSession.startTime.getTime());
       }
       return total;
     }, 0);
@@ -180,10 +181,10 @@ const ClockInOutNew: React.FC = () => {
   };
 
   const getCurrentBreakDuration = () => {
-    const currentBreak = todayRecord?.breaks.find(b => !b.end);
-    if (!currentBreak) return '0m';
+    const currentBreak = todayRecord?.breaks.find(b => !b.endTime);
+    if (!currentBreak || !currentBreak.startTime) return '0m';
     
-    const duration = (currentTime.getTime() - currentBreak.start.getTime()) / (1000 * 60);
+    const duration = (currentTime.getTime() - currentBreak.startTime.getTime()) / (1000 * 60);
     return `${Math.floor(duration)}m`;
   };
 
@@ -214,7 +215,7 @@ const ClockInOutNew: React.FC = () => {
             <div>
               <p className="text-sm font-medium text-blue-900">Clock In</p>
               <p className="text-lg font-semibold text-blue-700">
-                {formatTime(todayRecord?.loginTime || null)}
+                {formatTime(todayRecord?.clockIn || null)}
               </p>
             </div>
           </div>
@@ -226,7 +227,7 @@ const ClockInOutNew: React.FC = () => {
             <div>
               <p className="text-sm font-medium text-green-900">Clock Out</p>
               <p className="text-lg font-semibold text-green-700">
-                {formatTime(todayRecord?.logoutTime || null)}
+                {formatTime(todayRecord?.clockOut || null)}
               </p>
             </div>
           </div>
@@ -262,7 +263,7 @@ const ClockInOutNew: React.FC = () => {
 
       {/* Action Buttons */}
       <div className="space-y-4">
-        {!todayRecord?.loginTime ? (
+        {!todayRecord?.clockIn ? (
           <button
             onClick={handleClockIn}
             disabled={loading}
@@ -271,7 +272,7 @@ const ClockInOutNew: React.FC = () => {
             <Play className="mr-2 h-5 w-5" />
             {loading ? 'Clocking In...' : 'Clock In'}
           </button>
-        ) : !todayRecord?.logoutTime ? (
+        ) : !todayRecord?.clockOut ? (
           <div className="space-y-3">
             {/* Break Controls */}
             <div className="flex space-x-3">
@@ -312,7 +313,7 @@ const ClockInOutNew: React.FC = () => {
               ✅ Work completed for today!
             </p>
             <p className="text-sm text-gray-600 mt-1">
-              Total worked: {formatDuration(todayRecord.workedHours)}
+              Total worked: {formatDuration(todayRecord.hoursWorked || 0)}
             </p>
           </div>
         )}
@@ -327,10 +328,10 @@ const ClockInOutNew: React.FC = () => {
               <div key={index} className="flex justify-between items-center text-sm bg-gray-50 rounded p-2">
                 <span>Break {index + 1}</span>
                 <span className="font-mono">
-                  {formatTime(breakSession.start)} - {formatTime(breakSession.end)}
-                  {breakSession.end && (
+                  {formatTime(breakSession.startTime || null)} - {formatTime(breakSession.endTime || null)}
+                  {breakSession.endTime && breakSession.startTime && (
                     <span className="ml-2 text-gray-500">
-                      ({Math.floor((breakSession.end.getTime() - breakSession.start.getTime()) / (1000 * 60))}m)
+                      ({Math.floor((breakSession.endTime.getTime() - breakSession.startTime.getTime()) / (1000 * 60))}m)
                     </span>
                   )}
                 </span>

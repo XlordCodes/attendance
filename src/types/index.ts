@@ -27,12 +27,16 @@ export interface AttendanceRecord {
   clockOut?: Date;
   lunchStart?: Date;
   lunchEnd?: Date;
-  breakTimes: BreakTime[];
+  breaks: BreakTime[]; // Updated field name for consistency
+  breakTimes?: BreakTime[]; // For backward compatibility
   location?: GeolocationData;
   earlyLogoutReason?: string;
+  lateReason?: string; // Added for late arrival reasons
+  isLate?: boolean; // Added for late status
   overtime: number;
   status: 'present' | 'absent' | 'late' | 'partial' | 'half-day';
   totalHours: number;
+  hoursWorked?: number; // Alternative field name used in components
   totalBreakHours?: number;
   createdAt: Date;
   updatedAt?: Date;
@@ -40,8 +44,10 @@ export interface AttendanceRecord {
 
 export interface BreakTime {
   id?: string;
-  start: Date;
+  start?: Date;
+  startTime?: Date; // Alternative field name for consistency
   end?: Date;
+  endTime?: Date; // Alternative field name for consistency
   reason?: string;
   type?: 'break' | 'lunch';
   duration?: number;

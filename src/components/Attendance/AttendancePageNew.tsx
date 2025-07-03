@@ -8,7 +8,8 @@ import {
   ChevronLeft,
   ChevronRight
 } from 'lucide-react';
-import { attendanceServiceNew, AttendanceDocumentDisplay } from '../../services/attendanceServiceNew';
+import { globalAttendanceService } from '../../services/globalAttendanceService';
+import { AttendanceRecord } from '../../types';
 import { format, startOfMonth, endOfMonth, addMonths, subMonths } from 'date-fns';
 import { useAuth } from '../../hooks/useAuth';
 import toast from 'react-hot-toast';
@@ -21,12 +22,11 @@ interface AttendanceStats {
   attendancePercentage: number;
   averageHours: number;
   totalHours: number;
-  totalAfkTime: number;
 }
 
 const AttendancePageNew: React.FC = () => {
   const { employee } = useAuth();
-  const [records, setRecords] = useState<AttendanceDocumentDisplay[]>([]);
+  const [records, setRecords] = useState<AttendanceRecord[]>([]);
   const [stats, setStats] = useState<AttendanceStats>({
     totalDays: 0,
     presentDays: 0,
@@ -34,8 +34,7 @@ const AttendancePageNew: React.FC = () => {
     absentDays: 0,
     attendancePercentage: 0,
     averageHours: 0,
-    totalHours: 0,
-    totalAfkTime: 0
+    totalHours: 0
   });
   const [loading, setLoading] = useState(true);
   const [selectedMonth, setSelectedMonth] = useState(new Date());
@@ -53,13 +52,14 @@ const AttendancePageNew: React.FC = () => {
     try {
       const monthStart = startOfMonth(selectedMonth);
       const monthEnd = endOfMonth(selectedMonth);
+      // Load attendance data for the employee
       const startDate = format(monthStart, 'yyyy-MM-dd');
       const endDate = format(monthEnd, 'yyyy-MM-dd');
 
-      const attendanceRecords = await attendanceServiceNew.getAttendanceRange(
+      const attendanceRecords = await globalAttendanceService.getAttendanceRange(
         employee.id,
-        startDate,
-        endDate
+        monthStart,
+        monthEnd
       );
       
       setRecords(attendanceRecords);
@@ -72,13 +72,12 @@ const AttendancePageNew: React.FC = () => {
     }
   };
 
-  const calculateStats = (attendanceRecords: AttendanceDocumentDisplay[]) => {
+  const calculateStats = (attendanceRecords: AttendanceRecord[]) => {
     const totalDays = attendanceRecords.length;
-    const presentDays = attendanceRecords.filter(r => r.loginTime).length;
+    const presentDays = attendanceRecords.filter(r => r.clockIn).length;
     const lateDays = attendanceRecords.filter(r => r.isLate).length;
     const absentDays = totalDays - presentDays;
-    const totalHours = attendanceRecords.reduce((sum, r) => sum + r.workedHours, 0);
-    const totalAfkTime = attendanceRecords.reduce((sum, r) => sum + r.afkTime, 0);
+    const totalHours = attendanceRecords.reduce((sum, r) => sum + (r.hoursWorked || 0), 0);
     
     setStats({
       totalDays,
@@ -87,18 +86,17 @@ const AttendancePageNew: React.FC = () => {
       absentDays,
       attendancePercentage: totalDays > 0 ? (presentDays / totalDays) * 100 : 0,
       averageHours: presentDays > 0 ? totalHours / presentDays : 0,
-      totalHours,
-      totalAfkTime
+      totalHours
     });
   };
 
-  const getRecordStatus = (record: AttendanceDocumentDisplay): string => {
-    if (!record.loginTime) return 'absent';
+  const getRecordStatus = (record: AttendanceRecord): string => {
+    if (!record.clockIn) return 'absent';
     if (record.isLate) return 'late';
     return 'present';
   };
 
-  const getStatusIcon = (record: AttendanceDocumentDisplay) => {
+  const getStatusIcon = (record: AttendanceRecord) => {
     const status = getRecordStatus(record);
     switch (status) {
       case 'present':
@@ -112,7 +110,7 @@ const AttendancePageNew: React.FC = () => {
     }
   };
 
-  const getStatusColor = (record: AttendanceDocumentDisplay) => {
+  const getStatusColor = (record: AttendanceRecord) => {
     const status = getRecordStatus(record);
     switch (status) {
       case 'present':
@@ -170,8 +168,7 @@ const AttendancePageNew: React.FC = () => {
         <div>
           <h1 className="text-2xl font-bold text-gray-900">My Attendance</h1>
           <p className="text-gray-600 mt-1">View your attendance history and statistics</p>
-        </div>
-        
+        </div>        
         {/* Month Navigation */}
         <div className="flex items-center space-x-4">
           <button
@@ -233,7 +230,6 @@ const AttendancePageNew: React.FC = () => {
             <div className="ml-4">
               <p className="text-sm font-medium text-gray-600">Late Days</p>
               <p className="text-2xl font-bold text-gray-900">{stats.lateDays}</p>
-              <p className="text-xs text-gray-500">AFK: {formatMinutes(stats.totalAfkTime)}</p>
             </div>
           </div>
         </div>
@@ -267,9 +263,6 @@ const AttendancePageNew: React.FC = () => {
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Breaks
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  AFK Time
-                </th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
@@ -293,31 +286,28 @@ const AttendancePageNew: React.FC = () => {
                         </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {record.loginTime ? format(record.loginTime, 'HH:mm') : '--:--'}
+                        {record.clockIn ? format(record.clockIn, 'HH:mm') : '--:--'}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {record.logoutTime ? format(record.logoutTime, 'HH:mm') : '--:--'}
+                        {record.clockOut ? format(record.clockOut, 'HH:mm') : '--:--'}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {formatDuration(record.workedHours)}
+                        {formatDuration(record.hoursWorked || 0)}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                         {record.breaks.length} ({formatMinutes(record.breaks.reduce((sum, b) => {
-                          const duration = b.end && b.start 
-                            ? Math.floor((b.end.getTime() - b.start.getTime()) / (1000 * 60))
+                          const duration = b.endTime && b.startTime 
+                            ? Math.floor((b.endTime.getTime() - b.startTime.getTime()) / (1000 * 60))
                             : 0;
                           return sum + duration;
                         }, 0))})
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {formatMinutes(record.afkTime)}
                       </td>
                     </tr>
                   );
                 })
               ) : (
                 <tr>
-                  <td colSpan={7} className="px-6 py-12 text-center">
+                  <td colSpan={6} className="px-6 py-12 text-center">
                     <div className="text-gray-500">
                       <Calendar className="h-12 w-12 mx-auto mb-4 text-gray-300" />
                       <h3 className="text-lg font-medium text-gray-900 mb-2">No attendance records</h3>

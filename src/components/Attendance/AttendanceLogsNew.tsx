@@ -13,9 +13,9 @@ import {
   AlertCircle,
   Coffee
 } from 'lucide-react';
-import { attendanceServiceNew, AttendanceDocumentDisplay } from '../../services/attendanceServiceNew';
+import { globalAttendanceService } from '../../services/globalAttendanceService';
 import { userService } from '../../services/userService';
-import { Employee } from '../../types';
+import { AttendanceRecord, Employee } from '../../types';
 import { format, startOfMonth, endOfMonth, subMonths, addMonths, eachDayOfInterval } from 'date-fns';
 import toast from 'react-hot-toast';
 import * as XLSX from 'xlsx';
@@ -30,13 +30,12 @@ interface AttendanceStats {
   averageHours: number;
   totalHours: number;
   totalBreaks: number;
-  afkTime: number;
 }
 
 interface EmployeeAttendanceData {
   employee: Employee;
   stats: AttendanceStats;
-  records: AttendanceDocumentDisplay[];
+  records: AttendanceRecord[];
 }
 
 const AttendanceLogsNew: React.FC = () => {
@@ -72,6 +71,7 @@ const AttendanceLogsNew: React.FC = () => {
     try {
       const monthStart = startOfMonth(selectedMonth);
       const monthEnd = endOfMonth(selectedMonth);
+      // Load attendance data for all employees
       const startDate = format(monthStart, 'yyyy-MM-dd');
       const endDate = format(monthEnd, 'yyyy-MM-dd');
 
@@ -81,10 +81,10 @@ const AttendanceLogsNew: React.FC = () => {
 
       const attendanceDataPromises = employeesToLoad.map(async (employee) => {
         try {
-          const records = await attendanceServiceNew.getAttendanceRange(
+          const records = await globalAttendanceService.getAttendanceRange(
             employee.id,
-            startDate,
-            endDate
+            monthStart,
+            monthEnd
           );
 
           const stats = calculateAttendanceStats(records, monthStart, monthEnd);
@@ -115,7 +115,7 @@ const AttendanceLogsNew: React.FC = () => {
   };
 
   const calculateAttendanceStats = (
-    records: AttendanceDocumentDisplay[], 
+    records: AttendanceRecord[], 
     monthStart: Date, 
     monthEnd: Date
   ): AttendanceStats => {
@@ -123,13 +123,12 @@ const AttendanceLogsNew: React.FC = () => {
       .filter(day => day.getDay() !== 0 && day.getDay() !== 6) // Exclude weekends
       .length;
 
-    const presentDays = records.filter(r => r.loginTime).length;
+    const presentDays = records.filter(r => r.clockIn).length;
     const lateDays = records.filter(r => r.isLate).length;
     const absentDays = workingDays - presentDays;
 
-    const totalHours = records.reduce((sum, r) => sum + r.workedHours, 0);
+    const totalHours = records.reduce((sum, r) => sum + (r.hoursWorked || 0), 0);
     const totalBreaks = records.reduce((sum, r) => sum + r.breaks.length, 0);
-    const afkTime = records.reduce((sum, r) => sum + r.afkTime, 0);
 
     return {
       totalDays: workingDays,
@@ -139,8 +138,7 @@ const AttendanceLogsNew: React.FC = () => {
       attendancePercentage: workingDays > 0 ? (presentDays / workingDays) * 100 : 0,
       averageHours: presentDays > 0 ? totalHours / presentDays : 0,
       totalHours,
-      totalBreaks,
-      afkTime
+      totalBreaks
     };
   };
 
@@ -152,8 +150,7 @@ const AttendanceLogsNew: React.FC = () => {
     attendancePercentage: 0,
     averageHours: 0,
     totalHours: 0,
-    totalBreaks: 0,
-    afkTime: 0
+    totalBreaks: 0
   });
 
   const filteredData = attendanceData.filter(data =>
@@ -199,14 +196,13 @@ const AttendanceLogsNew: React.FC = () => {
           'Email': data.employee.email,
           'Department': data.employee.department,
           'Date': record.date,
-          'Login Time': formatTime(record.loginTime),
-          'Logout Time': formatTime(record.logoutTime),
-          'Hours Worked': formatDuration(record.workedHours),
+          'Login Time': formatTime(record.clockIn || null),
+          'Logout Time': formatTime(record.clockOut || null),
+          'Hours Worked': formatDuration(record.hoursWorked || 0),
           'Is Late': record.isLate ? 'Yes' : 'No',
           'Late Reason': record.lateReason,
           'Breaks Count': record.breaks.length,
-          'AFK Time (minutes)': record.afkTime,
-          'Status': record.loginTime ? (record.isLate ? 'Late' : 'Present') : 'Absent'
+          'Status': record.clockIn ? (record.isLate ? 'Late' : 'Present') : 'Absent'
         }))
       );
 
@@ -409,10 +405,6 @@ const AttendanceLogsNew: React.FC = () => {
                     <p className="text-gray-600">Total Hours</p>
                     <p className="font-semibold text-blue-600">{formatDuration(data.stats.totalHours)}</p>
                   </div>
-                  <div className="text-center">
-                    <p className="text-gray-600">AFK Time</p>
-                    <p className="font-semibold text-purple-600">{data.stats.afkTime}m</p>
-                  </div>
                 </div>
               </div>
 
@@ -428,28 +420,26 @@ const AttendanceLogsNew: React.FC = () => {
                           <th className="pb-2">Logout</th>
                           <th className="pb-2">Hours</th>
                           <th className="pb-2">Breaks</th>
-                          <th className="pb-2">AFK</th>
                           <th className="pb-2">Status</th>
                         </tr>
                       </thead>
                       <tbody className="text-sm">
                         {data.records.map((record) => {
-                          const status = !record.loginTime ? 'absent' : record.isLate ? 'late' : 'present';
+                          const status = !record.clockIn ? 'absent' : record.isLate ? 'late' : 'present';
                           return (
                             <tr key={record.date} className="border-t">
                               <td className="py-2 font-medium">
                                 {format(new Date(record.date), 'MMM dd, yyyy')}
                               </td>
-                              <td className="py-2">{formatTime(record.loginTime)}</td>
-                              <td className="py-2">{formatTime(record.logoutTime)}</td>
-                              <td className="py-2">{formatDuration(record.workedHours)}</td>
+                              <td className="py-2">{formatTime(record.clockIn || null)}</td>
+                              <td className="py-2">{formatTime(record.clockOut || null)}</td>
+                              <td className="py-2">{formatDuration(record.hoursWorked || 0)}</td>
                               <td className="py-2">
                                 <div className="flex items-center">
                                   <Coffee className="h-3 w-3 mr-1 text-gray-400" />
                                   {record.breaks.length}
                                 </div>
                               </td>
-                              <td className="py-2">{record.afkTime}m</td>
                               <td className="py-2">
                                 <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(status)}`}>
                                   {getStatusIcon(status)}
