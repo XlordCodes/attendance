@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Search, Edit, UserCheck, UserX } from 'lucide-react';
+import { Plus, Search, Edit, UserCheck, UserX, RefreshCw } from 'lucide-react';
 import { userService } from '../../services/userService';
 import { Employee } from '../../types';
 import toast from 'react-hot-toast';
@@ -12,8 +12,25 @@ const EmployeeManagement: React.FC = () => {
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
 
   useEffect(() => {
-    console.log('🚀 Initializing Employee Management component...');
-    loadEmployees();
+    const initializeAndLoadEmployees = async () => {
+      console.log('🚀 Initializing Employee Management component...');
+      
+      try {
+        // First, clean up any existing password fields in Firestore (security issue)
+        console.log('🧹 Running user document cleanup...');
+        await userService.cleanupUserDocuments();
+        
+        // Then load employees
+        console.log('📋 Loading employees...');
+        await loadEmployees();
+      } catch (error) {
+        console.error('❌ Failed to initialize Employee Management:', error);
+        toast.error(`Initialization failed: ${(error as Error).message}`);
+        setLoading(false);
+      }
+    };
+    
+    initializeAndLoadEmployees();
   }, []);
 
   const loadEmployees = async () => {
@@ -49,17 +66,45 @@ const EmployeeManagement: React.FC = () => {
     }
   };
 
+  const manualRefresh = async () => {
+    try {
+      setLoading(true);
+      console.log('🔄 Manual refresh triggered...');
+      
+      // Clean up documents first
+      await userService.cleanupUserDocuments();
+      
+      // Then reload employees
+      await loadEmployees();
+      
+      toast.success('Employee data refreshed successfully!');
+    } catch (error) {
+      console.error('❌ Manual refresh failed:', error);
+      toast.error(`Refresh failed: ${(error as Error).message}`);
+    }
+  };
+
   return (
     <div className="p-6">
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-semibold text-gray-900">Employee Management</h1>
-        <button
-          onClick={() => setShowAddModal(true)}
-          className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center space-x-2"
-        >
-          <Plus className="w-4 h-4" />
-          <span>Add Employee</span>
-        </button>
+        <div className="flex space-x-3">
+          <button
+            onClick={manualRefresh}
+            disabled={loading}
+            className="bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700 flex items-center space-x-2 disabled:opacity-50"
+          >
+            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+            <span>Refresh</span>
+          </button>
+          <button
+            onClick={() => setShowAddModal(true)}
+            className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center space-x-2"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Add Employee</span>
+          </button>
+        </div>
       </div>
 
       {/* Search Bar */}
