@@ -6,6 +6,8 @@ import Sidebar from './components/Layout/Sidebar';
 import UnifiedDashboardNew from './components/Dashboard/UnifiedDashboardNew';
 import EmployeeDashboardNew from './components/Dashboard/EmployeeDashboardNew';
 import AdminDashboardNew from './components/Dashboard/AdminDashboardNew';
+import AdminModePage from './components/Admin/AdminModePage';
+import OverallAttendancePage from './components/Admin/OverallAttendancePage';
 import EmployeeManagement from './components/Admin/EmployeeManagement';
 import AdminSetup from './components/Admin/AdminSetup';
 import AssignMeeting from './components/Admin/AssignMeeting';
@@ -85,8 +87,18 @@ const AppContent: React.FC = () => {
       } />
       
       {/* Admin-only Routes */}
-      {employee?.role?.toLowerCase() === 'admin' && (
+      {(employee?.Role === 'Admin' || employee?.role?.toLowerCase() === 'admin') && (
         <>
+          <Route path="/admin-mode" element={
+            <ProtectedRoute>
+              <AdminModePage />
+            </ProtectedRoute>
+          } />
+          <Route path="/overall-attendance" element={
+            <ProtectedRoute>
+              <OverallAttendancePage />
+            </ProtectedRoute>
+          } />
           <Route path="/legacy-admin" element={
             <ProtectedRoute>
               <AdminDashboardNew />

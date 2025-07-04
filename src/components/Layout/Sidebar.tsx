@@ -6,10 +6,14 @@ import {
   Calendar,
   LogOut,
   ChevronDown,
+  ChevronRight,
   Menu,
   X,
   Play,
-  CalendarPlus
+  CalendarPlus,
+  BarChart3,
+  UserCheck,
+  Clock
 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { useState } from 'react';
@@ -20,6 +24,7 @@ const Sidebar: React.FC = () => {
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
+  const [expandedMenu, setExpandedMenu] = useState<string | null>(null);
 
   const handleLogout = async () => {
     try {
@@ -33,21 +38,49 @@ const Sidebar: React.FC = () => {
     setIsExpanded(!isExpanded);
   };
 
-  const employeeNavItems = [
-    { to: '/dashboard', icon: Home, label: 'Dashboard' },
-    { to: '/attendance-logs', icon: Calendar, label: 'My Attendance' },
-  ];
+  const toggleMenu = (menuKey: string) => {
+    setExpandedMenu(expandedMenu === menuKey ? null : menuKey);
+  };
 
-  const adminNavItems = [
-    { to: '/employees', icon: Users, label: 'Manage Employees' },
-    { to: '/admin-attendance', icon: Calendar, label: 'All Attendance' },
-    { to: '/assign-meeting', icon: CalendarPlus, label: 'Assign Meeting' },
-    { to: '/kiosk', icon: Play, label: 'Kiosk Mode' },
-    { to: '/setup', icon: Settings, label: 'Setup' },
-  ];
+  const isAdmin = employee?.Role === 'Admin' || employee?.role?.toLowerCase() === 'admin';
 
-  // For admin users, show both admin and employee sections
-  const isAdmin = employee?.role?.toLowerCase() === 'admin';
+  // New navigation structure
+  const navigationItems = [
+    {
+      key: 'employee-mode',
+      label: 'Employee Mode',
+      icon: UserCheck,
+      hasSubItems: true,
+      subItems: [
+        { to: '/employee-dashboard', icon: Home, label: 'Dashboard' },
+        { to: '/attendance-logs', icon: Calendar, label: 'Attendance Logs' },
+      ]
+    },
+    ...(isAdmin ? [{
+      key: 'admin-mode',
+      label: 'Admin Mode',
+      icon: Settings,
+      to: '/admin-mode'
+    }] : []),
+    ...(isAdmin ? [{
+      key: 'overall-attendance',
+      label: 'Overall Attendance',
+      icon: BarChart3,
+      to: '/overall-attendance'
+    }] : []),
+    ...(isAdmin ? [{
+      key: 'kiosk-mode',
+      label: 'Kiosk Mode',
+      icon: Play,
+      to: '/kiosk'
+    }] : []),
+    ...(isAdmin ? [{
+      key: 'employees',
+      label: 'Employees',
+      icon: Users,
+      to: '/employees'
+    }] : []),
+  ];
 
   return (
     <div 
@@ -82,99 +115,85 @@ const Sidebar: React.FC = () => {
       </div>
 
       {/* Navigation */}
-      <nav className="px-2 py-3 space-y-1 border-b border-gray-200">
-        {isAdmin ? (
-          <>
-            {/* Admin Section */}
-            {isExpanded && (
-              <div className="px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                Admin Panel
-              </div>
-            )}
-            {adminNavItems.map((item) => {
-              const Icon = item.icon;
-              const isActive = location.pathname === item.to;
-              
-              return (
-                <NavLink
-                  key={item.to}
-                  to={item.to}
-                  className={`flex items-center px-3 py-3 text-sm font-medium rounded-lg transition-all duration-200 ${
-                    isActive
-                      ? 'bg-gray-900 text-white'
+      <nav className="px-2 py-3 space-y-1 flex-1 overflow-y-auto">
+        {navigationItems.map((item) => {
+          const Icon = item.icon;
+          const isActive = item.to ? location.pathname === item.to : false;
+          const isMenuExpanded = expandedMenu === item.key;
+          const hasActiveSubItem = item.subItems?.some(subItem => location.pathname === subItem.to);
+          
+          if (item.hasSubItems) {
+            return (
+              <div key={item.key}>
+                <button
+                  onClick={() => toggleMenu(item.key)}
+                  className={`w-full flex items-center px-3 py-3 text-sm font-medium rounded-lg transition-all duration-200 ${
+                    hasActiveSubItem || isMenuExpanded
+                      ? 'bg-blue-50 text-blue-700'
                       : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
                   } ${!isExpanded ? 'justify-center h-10 w-10' : 'h-10'}`}
                   title={!isExpanded ? item.label : undefined}
                 >
                   <Icon className="w-4 h-4 flex-shrink-0" />
                   {isExpanded && (
-                    <span className="ml-2 whitespace-nowrap transition-opacity duration-300">{item.label}</span>
+                    <>
+                      <span className="ml-2 whitespace-nowrap flex-1 text-left">{item.label}</span>
+                      {isMenuExpanded ? (
+                        <ChevronDown className="w-4 h-4" />
+                      ) : (
+                        <ChevronRight className="w-4 h-4" />
+                      )}
+                    </>
                   )}
-                </NavLink>
-              );
-            })}
-            
-            {/* Employee Section for Admin */}
-            {isExpanded && (
-              <div className="px-3 py-2 pt-4 text-xs font-semibold text-gray-500 uppercase tracking-wide border-t border-gray-100 mt-3">
-                Employee Features
+                </button>
+                
+                {/* Sub-menu items */}
+                {isExpanded && isMenuExpanded && item.subItems && (
+                  <div className="ml-6 mt-1 space-y-1">
+                    {item.subItems.map((subItem) => {
+                      const SubIcon = subItem.icon;
+                      const isSubActive = location.pathname === subItem.to;
+                      
+                      return (
+                        <NavLink
+                          key={subItem.to}
+                          to={subItem.to}
+                          className={`flex items-center px-3 py-2 text-sm font-medium rounded-lg transition-all duration-200 ${
+                            isSubActive
+                              ? 'bg-blue-600 text-white'
+                              : 'text-gray-600 hover:bg-blue-50 hover:text-blue-700'
+                          }`}
+                        >
+                          <SubIcon className="w-4 h-4 flex-shrink-0" />
+                          <span className="ml-2 whitespace-nowrap">{subItem.label}</span>
+                        </NavLink>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
-            )}
-            {!isExpanded && <div className="border-t border-gray-200 my-2"></div>}
-            {employeeNavItems.map((item) => {
-              const Icon = item.icon;
-              const isActive = location.pathname === item.to;
-              
-              return (
-                <NavLink
-                  key={item.to}
-                  to={item.to}
-                  className={`flex items-center px-3 py-3 text-sm font-medium rounded-lg transition-all duration-200 ${
-                    isActive
-                      ? 'bg-blue-600 text-white'
-                      : 'text-gray-600 hover:bg-blue-50 hover:text-blue-700'
-                  } ${!isExpanded ? 'justify-center h-10 w-10' : 'h-10'}`}
-                  title={!isExpanded ? item.label : undefined}
-                >
-                  <Icon className="w-4 h-4 flex-shrink-0" />
-                  {isExpanded && (
-                    <span className="ml-2 whitespace-nowrap transition-opacity duration-300">{item.label}</span>
-                  )}
-                </NavLink>
-              );
-            })}
-          </>
-        ) : (
-          // Regular employee navigation
-          <>
-            {employeeNavItems.map((item) => {
-              const Icon = item.icon;
-              const isActive = location.pathname === item.to;
-              
-              return (
-                <NavLink
-                  key={item.to}
-                  to={item.to}
-                  className={`flex items-center px-3 py-3 text-sm font-medium rounded-lg transition-all duration-200 ${
-                    isActive
-                      ? 'bg-gray-900 text-white'
-                      : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
-                  } ${!isExpanded ? 'justify-center h-10 w-10' : 'h-10'}`}
-                  title={!isExpanded ? item.label : undefined}
-                >
-                  <Icon className="w-4 h-4 flex-shrink-0" />
-                  {isExpanded && (
-                    <span className="ml-2 whitespace-nowrap transition-opacity duration-300">{item.label}</span>
-                  )}
-                </NavLink>
-              );
-            })}
-          </>
-        )}
+            );
+          } else {
+            return (
+              <NavLink
+                key={item.key}
+                to={item.to!}
+                className={`flex items-center px-3 py-3 text-sm font-medium rounded-lg transition-all duration-200 ${
+                  isActive
+                    ? 'bg-gray-900 text-white'
+                    : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+                } ${!isExpanded ? 'justify-center h-10 w-10' : 'h-10'}`}
+                title={!isExpanded ? item.label : undefined}
+              >
+                <Icon className="w-4 h-4 flex-shrink-0" />
+                {isExpanded && (
+                  <span className="ml-2 whitespace-nowrap">{item.label}</span>
+                )}
+              </NavLink>
+            );
+          }
+        })}
       </nav>
-
-      {/* Spacer */}
-      <div className="flex-1"></div>
 
       {/* Date & Time - Single line format */}
       <div className="px-3 py-2 border-t border-gray-200 flex-shrink-0">

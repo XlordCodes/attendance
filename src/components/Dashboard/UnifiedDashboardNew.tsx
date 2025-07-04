@@ -1,13 +1,31 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '../../hooks/useAuth';
 import EmployeeDashboardNew from './EmployeeDashboardNew';
-import AttendanceLogsNew from '../Attendance/AttendanceLogsNew';
+import AdminDashboardNew from './AdminDashboardNew';
 
 const UnifiedDashboard: React.FC = () => {
   const { employee } = useAuth();
   const [activeTab, setActiveTab] = useState<'employee' | 'admin'>('employee');
   
-  const isAdmin = employee?.role?.toLowerCase() === 'admin';
+  // Check both possible role field names (Role and role) for compatibility
+  const isAdmin = employee?.Role === 'Admin' || 
+                  employee?.role?.toLowerCase() === 'admin';
+
+  // Debug logging to see what's happening
+  useEffect(() => {
+    console.log('🔍 Employee data:', employee);
+    console.log('🔍 Role field:', employee?.Role);
+    console.log('🔍 role field:', employee?.role);
+    console.log('🔍 isAdmin:', isAdmin);
+  }, [employee, isAdmin]);
+
+  // Automatically switch to admin mode when admin logs in
+  useEffect(() => {
+    if (isAdmin) {
+      console.log('✅ Switching to admin mode');
+      setActiveTab('admin');
+    }
+  }, [isAdmin]);
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -24,7 +42,7 @@ const UnifiedDashboard: React.FC = () => {
                     : 'text-gray-600 hover:text-gray-900'
                 }`}
               >
-                My Attendance
+                Employee View
               </button>
               <button
                 onClick={() => setActiveTab('admin')}
@@ -34,7 +52,7 @@ const UnifiedDashboard: React.FC = () => {
                     : 'text-gray-600 hover:text-gray-900'
                 }`}
               >
-                Admin Overview
+                Admin Dashboard
               </button>
             </div>
           </div>
@@ -47,7 +65,7 @@ const UnifiedDashboard: React.FC = () => {
 
         {/* Admin View (Only for admins) */}
         {isAdmin && activeTab === 'admin' && (
-          <AttendanceLogsNew />
+          <AdminDashboardNew />
         )}
       </div>
     </div>
