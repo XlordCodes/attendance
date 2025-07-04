@@ -154,9 +154,6 @@ const ClockInOutNew: React.FC<ClockInOutNewProps> = ({ onAttendanceChange }) => 
       setTodayRecord(record);
       setIsOnBreak(false);
       toast.success('Break ended');
-      
-      // Notify parent component of change
-      onAttendanceChange?.();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'End break failed');
     } finally {
