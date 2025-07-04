@@ -12,15 +12,20 @@ const EmployeeManagement: React.FC = () => {
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
 
   useEffect(() => {
+    console.log('🚀 Initializing Employee Management component...');
     loadEmployees();
   }, []);
 
   const loadEmployees = async () => {
     try {
+      console.log('🔄 Starting to load employees...');
+      setLoading(true);
       const userList = await userService.getAllEmployees();
+      console.log('✅ Employees loaded in component:', userList);
       setEmployees(userList);
     } catch (error) {
-      toast.error('Failed to load employees');
+      console.error('❌ Failed to load employees in component:', error);
+      toast.error(`Failed to load employees: ${(error as Error).message}`);
     } finally {
       setLoading(false);
     }
@@ -215,19 +220,27 @@ const EmployeeModal: React.FC<{
     setLoading(true);
 
     try {
+      console.log('🔄 Submitting form data:', formData);
+      
       if (employee) {
         // Update existing employee
         await userService.updateUser(employee.id, formData);
         toast.success('Employee updated successfully');
       } else {
         // Create new employee
+        console.log('🔄 Creating new employee...');
         await userService.createUser(formData);
         toast.success('Employee created successfully! Password reset email sent to ' + formData.email);
       }
       onSave();
       onClose();
     } catch (error) {
-      toast.error(employee ? 'Failed to update employee' : 'Failed to create employee');
+      console.error('❌ Form submission error:', error);
+      const errorMessage = (error as Error).message || 'Unknown error occurred';
+      toast.error(employee 
+        ? `Failed to update employee: ${errorMessage}` 
+        : `Failed to create employee: ${errorMessage}`
+      );
     } finally {
       setLoading(false);
     }
