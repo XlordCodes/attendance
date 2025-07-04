@@ -10,10 +10,8 @@ import {
   Menu,
   X,
   Play,
-  CalendarPlus,
   BarChart3,
-  UserCheck,
-  Clock
+  UserCheck
 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { useState } from 'react';
@@ -42,7 +40,7 @@ const Sidebar: React.FC = () => {
     setExpandedMenu(expandedMenu === menuKey ? null : menuKey);
   };
 
-  const isAdmin = employee?.Role === 'Admin' || employee?.role?.toLowerCase() === 'admin';
+  const isAdmin = employee?.role?.toLowerCase() === 'admin';
 
   // New navigation structure
   const navigationItems = [
