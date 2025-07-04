@@ -13,6 +13,7 @@ import { AttendanceRecord } from '../../types';
 import { format, startOfMonth, endOfMonth, addMonths, subMonths } from 'date-fns';
 import { useAuth } from '../../hooks/useAuth';
 import toast from 'react-hot-toast';
+import { parseDDMMYYYY } from '../../utils/dateUtils';
 
 interface AttendanceStats {
   totalDays: number;
@@ -52,10 +53,7 @@ const AttendancePageNew: React.FC = () => {
     try {
       const monthStart = startOfMonth(selectedMonth);
       const monthEnd = endOfMonth(selectedMonth);
-      // Load attendance data for the employee
-      const startDate = format(monthStart, 'yyyy-MM-dd');
-      const endDate = format(monthEnd, 'yyyy-MM-dd');
-
+      
       const attendanceRecords = await globalAttendanceService.getAttendanceRange(
         employee.id,
         monthStart,
@@ -267,9 +265,15 @@ const AttendancePageNew: React.FC = () => {
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
               {records.length > 0 ? (
-                records.map((record) => {
-                  const recordDate = new Date(record.date);
-                  return (
+                records
+                  .map((record) => {
+                    // Parse dd-MM-yyyy format correctly
+                    const recordDate = parseDDMMYYYY(record.date);
+                    if (!recordDate) {
+                      console.error('Invalid date format:', record.date);
+                      return null;
+                    }
+                    return (
                     <tr key={record.date} className="hover:bg-gray-50">
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="text-sm font-medium text-gray-900">
@@ -305,6 +309,7 @@ const AttendancePageNew: React.FC = () => {
                     </tr>
                   );
                 })
+                .filter(Boolean) // Remove null entries
               ) : (
                 <tr>
                   <td colSpan={6} className="px-6 py-12 text-center">

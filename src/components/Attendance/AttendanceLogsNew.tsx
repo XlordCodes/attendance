@@ -72,8 +72,6 @@ const AttendanceLogsNew: React.FC = () => {
       const monthStart = startOfMonth(selectedMonth);
       const monthEnd = endOfMonth(selectedMonth);
       // Load attendance data for all employees
-      const startDate = format(monthStart, 'yyyy-MM-dd');
-      const endDate = format(monthEnd, 'yyyy-MM-dd');
 
       const employeesToLoad = selectedEmployee === 'all' 
         ? employees 
@@ -195,12 +193,12 @@ const AttendanceLogsNew: React.FC = () => {
           'Employee Name': data.employee.name,
           'Email': data.employee.email,
           'Department': data.employee.department,
-          'Date': record.date,
+          'Date': record.date, // Already in dd-MM-yyyy format
           'Login Time': formatTime(record.clockIn || null),
           'Logout Time': formatTime(record.clockOut || null),
           'Hours Worked': formatDuration(record.hoursWorked || 0),
           'Is Late': record.isLate ? 'Yes' : 'No',
-          'Late Reason': record.lateReason,
+          'Late Reason': record.lateReason || '',
           'Breaks Count': record.breaks.length,
           'Status': record.clockIn ? (record.isLate ? 'Late' : 'Present') : 'Absent'
         }))
@@ -429,7 +427,7 @@ const AttendanceLogsNew: React.FC = () => {
                           return (
                             <tr key={record.date} className="border-t">
                               <td className="py-2 font-medium">
-                                {format(new Date(record.date), 'MMM dd, yyyy')}
+                                {record.date}
                               </td>
                               <td className="py-2">{formatTime(record.clockIn || null)}</td>
                               <td className="py-2">{formatTime(record.clockOut || null)}</td>

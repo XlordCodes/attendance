@@ -1,5 +1,6 @@
 import { AttendanceRecord, BreakTime, GeolocationData } from '../types';
 import { format } from 'date-fns';
+import { parseDDMMYYYY, compareDDMMYYYY } from '../utils/dateUtils';
 import { 
   doc, 
   getDoc,
@@ -233,7 +234,7 @@ class GlobalAttendanceService {
       for (let i = 0; i < days; i++) {
         const date = new Date();
         date.setDate(date.getDate() - i);
-        dates.push(format(date, 'yyyy-MM-dd'));
+        dates.push(format(date, 'dd-MM-yyyy')); // Use consistent dd-MM-yyyy format
       }
 
       // Fetch attendance records for each date
@@ -252,7 +253,7 @@ class GlobalAttendanceService {
         }
       }
 
-      return records.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      return records.sort((a, b) => compareDDMMYYYY(b.date, a.date));
     } catch (error) {
       console.error('Error getting attendance history:', error);
       return [];
@@ -287,7 +288,7 @@ class GlobalAttendanceService {
         }
       }
 
-      return records.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      return records.sort((a, b) => compareDDMMYYYY(b.date, a.date));
     } catch (error) {
       console.error('Error getting attendance range:', error);
       return [];
@@ -305,7 +306,7 @@ class GlobalAttendanceService {
         const end = new Date(endDate);
         const currentDate = new Date(start);
         while (currentDate <= end) {
-          dates.push(format(currentDate, 'yyyy-MM-dd'));
+          dates.push(format(currentDate, 'dd-MM-yyyy')); // Use consistent dd-MM-yyyy format
           currentDate.setDate(currentDate.getDate() + 1);
         }
       } else {
@@ -313,7 +314,7 @@ class GlobalAttendanceService {
         for (let i = 0; i < 30; i++) {
           const date = new Date();
           date.setDate(date.getDate() - i);
-          dates.push(format(date, 'yyyy-MM-dd'));
+          dates.push(format(date, 'dd-MM-yyyy')); // Use consistent dd-MM-yyyy format
         }
       }
 
@@ -328,7 +329,7 @@ class GlobalAttendanceService {
         });
       }
 
-      return allRecords.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      return allRecords.sort((a, b) => compareDDMMYYYY(b.date, a.date));
     } catch (error) {
       console.error('Error getting all attendance records:', error);
       return [];
@@ -337,7 +338,7 @@ class GlobalAttendanceService {
 
   async getAttendanceForDate(userId: string, date: Date): Promise<AttendanceRecord | null> {
     try {
-      const dateStr = format(date, 'yyyy-MM-dd');
+      const dateStr = format(date, 'dd-MM-yyyy'); // Use consistent dd-MM-yyyy format
       const attendanceRef = doc(
         db, 
         this.GLOBAL_ATTENDANCE_COLLECTION, 
@@ -359,9 +360,9 @@ class GlobalAttendanceService {
   }
 
   private isLateArrival(clockInTime: Date): boolean {
-    // Consider 9:00 AM as the standard start time
+    // Consider 10:00 AM as the standard start time
     const standardStartTime = new Date(clockInTime);
-    standardStartTime.setHours(9, 0, 0, 0);
+    standardStartTime.setHours(10, 0, 0, 0);
     
     return clockInTime > standardStartTime;
   }
@@ -369,7 +370,7 @@ class GlobalAttendanceService {
   private determineStatus(clockInTime: Date): 'present' | 'absent' | 'late' | 'partial' | 'half-day' {
     const hour = clockInTime.getHours();
     
-    if (hour > 9 || (hour === 9 && clockInTime.getMinutes() > 0)) {
+    if (hour > 10 || (hour === 10 && clockInTime.getMinutes() > 0)) {
       return 'late';
     }
     return 'present';
@@ -490,6 +491,121 @@ class GlobalAttendanceService {
       start: breakTime.start ? Timestamp.fromDate(breakTime.start) : null,
       end: breakTime.end ? Timestamp.fromDate(breakTime.end) : null
     };
+  }
+
+  async startLunchBreak(userId: string): Promise<AttendanceRecord> {
+    try {
+      const today = format(new Date(), 'dd-MM-yyyy');
+      const attendanceRef = doc(
+        db, 
+        this.GLOBAL_ATTENDANCE_COLLECTION, 
+        today, 
+        this.RECORDS_SUBCOLLECTION, 
+        userId
+      );
+      const attendanceDoc = await getDoc(attendanceRef);
+
+      if (!attendanceDoc.exists()) {
+        throw new Error('Please clock in first');
+      }
+
+      const attendanceData = attendanceDoc.data();
+      if (!attendanceData.clockIn) {
+        throw new Error('Please clock in first');
+      }
+
+      if (attendanceData.lunchStart) {
+        throw new Error('Lunch break already started');
+      }
+
+      const lunchStartTime = new Date();
+      
+      await updateDoc(attendanceRef, {
+        lunchStart: Timestamp.fromDate(lunchStartTime),
+        updatedAt: Timestamp.now()
+      });
+
+      const updatedData = {
+        ...attendanceData,
+        lunchStart: Timestamp.fromDate(lunchStartTime),
+        updatedAt: Timestamp.now()
+      };
+
+      return this.convertFirestoreToAttendance(updatedData, today);
+    } catch (error) {
+      console.error('Error starting lunch break:', error);
+      throw error;
+    }
+  }
+
+  async endLunchBreak(userId: string, isLate?: boolean): Promise<AttendanceRecord> {
+    try {
+      const today = format(new Date(), 'dd-MM-yyyy');
+      const attendanceRef = doc(
+        db, 
+        this.GLOBAL_ATTENDANCE_COLLECTION, 
+        today, 
+        this.RECORDS_SUBCOLLECTION, 
+        userId
+      );
+      const attendanceDoc = await getDoc(attendanceRef);
+
+      if (!attendanceDoc.exists()) {
+        throw new Error('No attendance record found for today');
+      }
+
+      const attendanceData = attendanceDoc.data();
+      if (!attendanceData.lunchStart) {
+        throw new Error('Lunch break not started');
+      }
+
+      if (attendanceData.lunchEnd) {
+        throw new Error('Lunch break already ended');
+      }
+
+      const lunchEndTime = new Date();
+      const updateData: any = {
+        lunchEnd: Timestamp.fromDate(lunchEndTime),
+        updatedAt: Timestamp.now()
+      };
+
+      // If returning late from lunch (after 3:00 PM), mark as late
+      if (isLate) {
+        updateData.isLateFromLunch = true;
+        updateData.lunchLateReason = 'Late return from lunch break';
+      }
+
+      await updateDoc(attendanceRef, updateData);
+
+      const updatedData = {
+        ...attendanceData,
+        ...updateData
+      };
+
+      return this.convertFirestoreToAttendance(updatedData, today);
+    } catch (error) {
+      console.error('Error ending lunch break:', error);
+      throw error;
+    }
+  }
+
+  // Helper method to check if it's lunch time
+  isLunchTime(): boolean {
+    const now = new Date();
+    const currentHour = now.getHours();
+    const currentMinute = now.getMinutes();
+    
+    // Lunch time is 2:00 PM to 3:00 PM (14:00 to 15:00)
+    return (currentHour === 14) || (currentHour === 15 && currentMinute === 0);
+  }
+
+  // Helper method to check if user is late returning from lunch
+  isLateFromLunch(): boolean {
+    const now = new Date();
+    const currentHour = now.getHours();
+    
+    // Late if it's after 3:00 PM (15:00)
+    return currentHour > 15;
   }
 }
 

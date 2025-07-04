@@ -8,6 +8,7 @@ import { Meeting, Notification, AttendanceRecord } from '../../types';
 import { format, startOfWeek, endOfWeek, isToday, isFuture } from 'date-fns';
 import toast from 'react-hot-toast';
 import ClockInOutNew from '../Employee/ClockInOutNew';
+import { parseDDMMYYYY } from '../../utils/dateUtils';
 
 const EmployeeDashboardNew: React.FC = () => {
   console.log('🔄 EmployeeDashboardNew rendering...');
@@ -46,8 +47,31 @@ const EmployeeDashboardNew: React.FC = () => {
     
     // Safely get employee name with fallbacks
     return employee.name || 
+           employee.Name || // Alternative field name
            employee.email?.split('@')[0] || 
            'User';
+  }, [employee]);
+
+  // Helper function to get employee designation/role
+  const getEmployeeDesignation = useCallback(() => {
+    if (!employee) return 'Employee';
+    
+    // Safely get employee designation with fallbacks (check both cases)
+    const designation = (employee as any).Designation || // Firestore field (capital D)
+                       employee.designation ||          // lowercase field
+                       employee.position || 
+                       employee.role || 
+                       'Employee';
+    
+    console.log('🏷️ Employee designation data:', {
+      Designation: (employee as any).Designation,
+      designation: employee.designation,
+      position: employee.position,
+      role: employee.role,
+      selected: designation
+    });
+    
+    return designation;
   }, [employee]);
 
   useEffect(() => {
@@ -68,7 +92,7 @@ const EmployeeDashboardNew: React.FC = () => {
       console.error('❌ Error loading today record:', error);
       // Don't throw, just log the error
     }
-  }, [employee, user, getEmployeeName]);
+  }, [employee, user]);
 
   const loadWeeklyStats = useCallback(async () => {
     if (!employee || !user) return;
@@ -96,7 +120,7 @@ const EmployeeDashboardNew: React.FC = () => {
     } catch (error) {
       console.error('Error loading weekly stats:', error);
     }
-  }, [employee, user, getEmployeeName]);
+  }, [employee, user]);
 
   const loadMeetings = useCallback(async () => {
     if (!employee) return;
@@ -105,8 +129,8 @@ const EmployeeDashboardNew: React.FC = () => {
       const allMeetings = await meetingService.getMeetingsForEmployee(employee.id);
       // Filter for today and future meetings
       const upcomingMeetings = allMeetings.filter(meeting => {
-        const meetingDate = new Date(meeting.date);
-        return isToday(meetingDate) || isFuture(meetingDate);
+        const meetingDate = parseDDMMYYYY(meeting.date);
+        return meetingDate && (isToday(meetingDate) || isFuture(meetingDate));
       });
       setMeetings(upcomingMeetings.slice(0, 5)); // Show only next 5 meetings
     } catch (error) {
@@ -249,10 +273,10 @@ const EmployeeDashboardNew: React.FC = () => {
               Welcome back, {getEmployeeName()}!
             </h1>
             <p className="text-blue-100">
-              {format(currentTime, 'EEEE, MMMM d, yyyy')} • {getEmployeeName()} • {format(currentTime, 'HH:mm:ss')}
+              {format(currentTime, 'EEEE, MMMM d, yyyy')} • {employee?.role || 'Employee'} • {getEmployeeDesignation()}
             </p>
             <p className="text-blue-100 text-sm mt-1">
-              {employee?.department} • {employee?.position}
+              {employee?.department}
             </p>
           </div>
           <div className="relative">
@@ -442,8 +466,17 @@ const EmployeeDashboardNew: React.FC = () => {
             {meetings.length > 0 ? (
               <div className="space-y-3">
                 {meetings.map((meeting) => {
-                  const meetingDate = new Date(meeting.date);
-                  const meetingTime = new Date(`${meeting.date}T${meeting.time}`);
+                  const meetingDate = parseDDMMYYYY(meeting.date);
+                  
+                  if (!meetingDate) {
+                    console.error('Invalid meeting date format:', meeting.date);
+                    return null;
+                  }
+                  
+                  // Create time object for the meeting
+                  const [hours, minutes] = meeting.time.split(':').map(Number);
+                  const meetingTime = new Date(meetingDate);
+                  meetingTime.setHours(hours, minutes, 0, 0);
                   
                   return (
                     <div key={meeting.id} className="border-l-4 border-blue-500 pl-3 py-2">
@@ -455,7 +488,7 @@ const EmployeeDashboardNew: React.FC = () => {
                       </div>
                     </div>
                   );
-                })}
+                }).filter(Boolean)}
               </div>
             ) : (
               <p className="text-gray-500 text-sm">No upcoming meetings</p>

@@ -62,9 +62,11 @@ const AdminDashboardNew: React.FC = () => {
       const employees = await userService.getAllUsers();
       const totalEmployees = employees.length;
       
-      // Get today's attendance data
-      const today = format(new Date(), 'yyyy-MM-dd');
-      const todayRecords = await globalAttendanceService.getAttendanceRange(today, today);
+      // Get today's attendance data  
+      const today = new Date();
+      const todayStart = format(today, 'dd-MM-yyyy');
+      const todayEnd = format(today, 'dd-MM-yyyy');
+      const todayRecords = await globalAttendanceService.getAllAttendanceRecords(todayStart, todayEnd);
       
       const presentToday = todayRecords.filter(r => r.status === 'present').length;
       const lateEmployees = todayRecords.filter(r => r.status === 'late').length;

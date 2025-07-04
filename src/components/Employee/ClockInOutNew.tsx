@@ -19,6 +19,8 @@ const ClockInOutNew: React.FC<ClockInOutNewProps> = ({ onAttendanceChange }) => 
   const [showLateReasonModal, setShowLateReasonModal] = useState(false);
   const [lateReason, setLateReason] = useState('');
   const [pendingClockIn, setPendingClockIn] = useState(false);
+  const [currentLocation, setCurrentLocation] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [locationError, setLocationError] = useState<string | null>(null);
 
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
@@ -50,10 +52,10 @@ const ClockInOutNew: React.FC<ClockInOutNewProps> = ({ onAttendanceChange }) => 
   const handleClockIn = async () => {
     if (!employee?.id) return;
 
-    // Check if it would be a late arrival (9:00 AM standard)
+    // Check if it would be a late arrival (10:00 AM standard)
     const now = new Date();
     const workStartTime = new Date();
-    workStartTime.setHours(9, 0, 0, 0);
+    workStartTime.setHours(10, 0, 0, 0);
     
     const isLateArrival = now > workStartTime;
     
@@ -72,7 +74,16 @@ const ClockInOutNew: React.FC<ClockInOutNewProps> = ({ onAttendanceChange }) => 
 
     setLoading(true);
     try {
-      const record = await globalAttendanceService.clockIn(employee.id, lateReason.trim() || undefined);
+      const record = await globalAttendanceService.clockIn(
+        employee.id, 
+        lateReason.trim() || undefined,
+        currentLocation ? {
+          latitude: currentLocation.latitude,
+          longitude: currentLocation.longitude,
+          accuracy: 0,
+          timestamp: new Date()
+        } : undefined
+      );
       setTodayRecord(record);
       toast.success('Clocked in successfully!');
       
@@ -201,7 +212,98 @@ const ClockInOutNew: React.FC<ClockInOutNewProps> = ({ onAttendanceChange }) => 
     return `${Math.floor(duration)}m`;
   };
 
+  // Get user location
+  useEffect(() => {
+    const requestLocation = () => {
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+          (position) => {
+            setCurrentLocation({
+              latitude: position.coords.latitude,
+              longitude: position.coords.longitude,
+            });
+            setLocationError(null);
+            console.log('📍 Location obtained:', position.coords.latitude, position.coords.longitude);
+          },
+          (error) => {
+            console.error('📍 Location error:', error);
+            setLocationError(`Location access denied: ${error.message}`);
+          },
+          { enableHighAccuracy: true, timeout: 10000, maximumAge: 300000 }
+        );
+      } else {
+        setLocationError('Geolocation is not supported by this browser');
+      }
+    };
 
+    requestLocation();
+    
+    // Update location every 5 minutes
+    const locationInterval = setInterval(requestLocation, 5 * 60 * 1000);
+    
+    return () => clearInterval(locationInterval);
+  }, []);
+
+  // Check for automatic lunch break
+  useEffect(() => {
+    if (!todayRecord?.clockIn || todayRecord?.clockOut || todayRecord?.lunchStart) return;
+
+    const checkLunchTime = () => {
+      const now = new Date();
+      const lunchStartTime = new Date();
+      lunchStartTime.setHours(14, 0, 0, 0); // 2:00 PM
+
+      // Automatically start lunch break at 2:00 PM
+      if (now >= lunchStartTime && !todayRecord.lunchStart) {
+        handleAutomaticLunchStart();
+      }
+    };
+
+    const lunchTimer = setInterval(checkLunchTime, 60000); // Check every minute
+    
+    return () => clearInterval(lunchTimer);
+  }, [todayRecord]);
+
+  const handleAutomaticLunchStart = async () => {
+    if (!employee?.id) return;
+
+    try {
+      const record = await globalAttendanceService.startLunchBreak(employee.id);
+      setTodayRecord(record);
+      toast.success('🍽️ Lunch break started automatically at 2:00 PM');
+      onAttendanceChange?.();
+    } catch (error) {
+      console.error('Error starting automatic lunch break:', error);
+    }
+  };
+
+  const handleLunchReturn = async () => {
+    if (!employee?.id) return;
+
+    const now = new Date();
+    const lunchEndTime = new Date();
+    lunchEndTime.setHours(15, 0, 0, 0); // 3:00 PM
+    
+    const isLate = now > lunchEndTime;
+
+    setLoading(true);
+    try {
+      const record = await globalAttendanceService.endLunchBreak(employee.id, isLate);
+      setTodayRecord(record);
+      
+      if (isLate) {
+        toast.error('⏰ Late return from lunch break!');
+      } else {
+        toast.success('🍽️ Lunch break ended');
+      }
+      
+      onAttendanceChange?.();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to end lunch break');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
@@ -272,6 +374,36 @@ const ClockInOutNew: React.FC<ClockInOutNewProps> = ({ onAttendanceChange }) => 
         </div>
       )}
 
+      {/* Lunch Break Status */}
+      {todayRecord?.lunchStart && !todayRecord?.lunchEnd && (
+        <div className="bg-orange-50 border border-orange-200 rounded-lg p-4 mb-4">
+          <div className="flex items-center">
+            <Coffee className="h-5 w-5 text-orange-600 mr-2" />
+            <div>
+              <p className="text-sm font-medium text-orange-900">Lunch Break Active</p>
+              <p className="text-sm text-orange-700">
+                Started at {formatTime(todayRecord.lunchStart)} • Return before 3:00 PM
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Location Status */}
+      <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 mb-4">
+        <div className="flex items-center">
+          <div className={`h-2 w-2 rounded-full mr-2 ${currentLocation ? 'bg-green-500' : 'bg-red-500'}`}></div>
+          <div>
+            <p className="text-sm font-medium text-gray-900">Location Status</p>
+            <p className="text-sm text-gray-600">
+              {currentLocation 
+                ? `📍 Location detected (${currentLocation.latitude.toFixed(6)}, ${currentLocation.longitude.toFixed(6)})` 
+                : locationError || 'Location access required for attendance'}
+            </p>
+          </div>
+        </div>
+      </div>
+
 
 
       {/* Action Buttons */}
@@ -287,37 +419,53 @@ const ClockInOutNew: React.FC<ClockInOutNewProps> = ({ onAttendanceChange }) => 
           </button>
         ) : !todayRecord?.clockOut ? (
           <div className="space-y-3">
-            {/* Break Controls */}
-            <div className="flex space-x-3">
-              {!isOnBreak ? (
-                <button
-                  onClick={handleStartBreak}
-                  disabled={loading}
-                  className="flex-1 bg-yellow-600 hover:bg-yellow-700 disabled:bg-yellow-400 text-white font-medium py-3 px-4 rounded-lg transition-colors flex items-center justify-center"
-                >
-                  <Coffee className="mr-2 h-4 w-4" />
-                  {loading ? 'Starting...' : 'Start Break'}
-                </button>
-              ) : (
-                <button
-                  onClick={handleEndBreak}
-                  disabled={loading}
-                  className="flex-1 bg-orange-600 hover:bg-orange-700 disabled:bg-orange-400 text-white font-medium py-3 px-4 rounded-lg transition-colors flex items-center justify-center"
-                >
-                  <Pause className="mr-2 h-4 w-4" />
-                  {loading ? 'Ending...' : `End Break (${getCurrentBreakDuration()})`}
-                </button>
-              )}
-            </div>
+            {/* Lunch Break Return Button - Show if lunch started but not ended */}
+            {todayRecord?.lunchStart && !todayRecord?.lunchEnd && (
+              <button
+                onClick={handleLunchReturn}
+                disabled={loading}
+                className="w-full bg-orange-600 hover:bg-orange-700 disabled:bg-orange-400 text-white font-medium py-3 px-4 rounded-lg transition-colors flex items-center justify-center"
+              >
+                <Coffee className="mr-2 h-5 w-5" />
+                {loading ? 'Returning...' : 'Return from Lunch'}
+              </button>
+            )}
 
-            {/* Clock Out */}
+            {/* Break Controls - Only show if not on lunch break */}
+            {(!todayRecord?.lunchStart || todayRecord?.lunchEnd) && (
+              <div className="flex space-x-3">
+                {!isOnBreak ? (
+                  <button
+                    onClick={handleStartBreak}
+                    disabled={loading}
+                    className="flex-1 bg-yellow-600 hover:bg-yellow-700 disabled:bg-yellow-400 text-white font-medium py-3 px-4 rounded-lg transition-colors flex items-center justify-center"
+                  >
+                    <Coffee className="mr-2 h-4 w-4" />
+                    {loading ? 'Starting...' : 'Start Break'}
+                  </button>
+                ) : (
+                  <button
+                    onClick={handleEndBreak}
+                    disabled={loading}
+                    className="flex-1 bg-orange-600 hover:bg-orange-700 disabled:bg-orange-400 text-white font-medium py-3 px-4 rounded-lg transition-colors flex items-center justify-center"
+                  >
+                    <Pause className="mr-2 h-4 w-4" />
+                    {loading ? 'Ending...' : `End Break (${getCurrentBreakDuration()})`}
+                  </button>
+                )}
+              </div>
+            )}
+
+            {/* Clock Out - Disable if on lunch break or regular break */}
             <button
               onClick={handleClockOut}
-              disabled={loading || isOnBreak}
+              disabled={loading || isOnBreak || (todayRecord?.lunchStart && !todayRecord?.lunchEnd)}
               className="w-full bg-red-600 hover:bg-red-700 disabled:bg-gray-400 text-white font-medium py-3 px-4 rounded-lg transition-colors flex items-center justify-center"
             >
               <Pause className="mr-2 h-5 w-5" />
-              {loading ? 'Clocking Out...' : isOnBreak ? 'End Break First' : 'Clock Out'}
+              {loading ? 'Clocking Out...' : 
+               isOnBreak ? 'End Break First' : 
+               (todayRecord?.lunchStart && !todayRecord?.lunchEnd) ? 'Return from Lunch First' : 'Clock Out'}
             </button>
           </div>
         ) : (
@@ -363,6 +511,28 @@ const ClockInOutNew: React.FC<ClockInOutNewProps> = ({ onAttendanceChange }) => 
               <span className="text-gray-600">Breaks:</span>
               <span className="ml-2 font-medium">{todayRecord.breaks.length}</span>
             </div>
+            <div>
+              <span className="text-gray-600">Lunch Break:</span>
+              <span className="ml-2 font-medium">
+                {todayRecord.lunchStart ? 
+                  (todayRecord.lunchEnd ? 'Completed' : 'Active') : 
+                  'Not taken'}
+              </span>
+            </div>
+            {todayRecord.lunchStart && (
+              <>
+                <div>
+                  <span className="text-gray-600">Lunch Start:</span>
+                  <span className="ml-2 font-medium">{formatTime(todayRecord.lunchStart)}</span>
+                </div>
+                {todayRecord.lunchEnd && (
+                  <div>
+                    <span className="text-gray-600">Lunch End:</span>
+                    <span className="ml-2 font-medium">{formatTime(todayRecord.lunchEnd)}</span>
+                  </div>
+                )}
+              </>
+            )}
           </div>
         </div>
       )}
@@ -373,7 +543,7 @@ const ClockInOutNew: React.FC<ClockInOutNewProps> = ({ onAttendanceChange }) => 
           <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">Late Arrival</h3>
             <p className="text-gray-600 mb-4">
-              You're arriving after 9:00 AM. Please provide a reason for your late arrival:
+              You're arriving after 10:00 AM. Please provide a reason for your late arrival:
             </p>
             <textarea
               value={lateReason}

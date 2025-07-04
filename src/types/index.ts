@@ -8,6 +8,8 @@ export interface Employee {
   role: 'employee' | 'admin';
   department: string;
   position: string;
+  designation?: string; // Additional field for job title/designation
+  Designation?: string; // Alternative field name used in Firestore (capital D)
   isActive: boolean;
   joinDate?: string;
   createdAt: Date;
