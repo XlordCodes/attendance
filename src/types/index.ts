@@ -1,10 +1,11 @@
 export interface Employee {
   id: string;
+  uid?: string; // Firebase Auth UID (same as id, but kept for clarity)
   employeeId?: string;
   name: string;
   Name?: string; // Alternative field name used in Firestore
   email: string;
-  password: string;
+  // NO password field - handled entirely by Firebase Auth with reset emails
   role: 'employee' | 'admin';
   department: string;
   position: string;

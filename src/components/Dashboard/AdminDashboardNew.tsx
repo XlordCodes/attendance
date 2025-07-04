@@ -59,7 +59,7 @@ const AdminDashboardNew: React.FC = () => {
       setLoading(true);
       
       // Get all employees
-      const employees = await userService.getAllUsers();
+      const employees = await userService.getAllEmployees();
       const totalEmployees = employees.length;
       
       // Get today's attendance data  
