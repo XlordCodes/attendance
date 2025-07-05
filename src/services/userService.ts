@@ -174,6 +174,114 @@ class UserService {
       throw error;
     }
   }
+
+  // Alias for getAllUsers to maintain compatibility
+  async getAllEmployees(): Promise<Employee[]> {
+    return this.getAllUsers();
+  }
+
+  // Cleanup user documents by removing password fields and other sensitive data
+  async cleanupUserDocuments(): Promise<void> {
+    try {
+      console.log('🧹 Starting user document cleanup...');
+      
+      const usersRef = collection(db, this.COLLECTION_NAME);
+      const querySnapshot = await getDocs(usersRef);
+      
+      let cleanedCount = 0;
+      
+      for (const docSnap of querySnapshot.docs) {
+        const userData = docSnap.data();
+        
+        // Check if cleanup is needed
+        if (userData.password || userData.hashedPassword || userData.authPassword) {
+          const cleanedData = { ...userData };
+          
+          // Remove password-related fields
+          delete cleanedData.password;
+          delete cleanedData.hashedPassword;
+          delete cleanedData.authPassword;
+          
+          // Ensure proper field structure
+          if (!cleanedData.isActive && cleanedData.isActive !== false) {
+            cleanedData.isActive = true;
+          }
+          
+          // Update the document
+          await updateDoc(doc(db, this.COLLECTION_NAME, docSnap.id), cleanedData);
+          cleanedCount++;
+          
+          console.log(`✅ Cleaned document: ${docSnap.id}`);
+        }
+      }
+      
+      console.log(`🎉 Cleanup completed! ${cleanedCount} documents cleaned out of ${querySnapshot.docs.length} total.`);
+    } catch (error) {
+      console.error('❌ Error during cleanup:', error);
+      throw error;
+    }
+  }
+
+  // Verify that all users have proper designation field
+  async verifyDesignationFix(): Promise<void> {
+    try {
+      console.log('🔍 Verifying designation fields...');
+      
+      const usersRef = collection(db, this.COLLECTION_NAME);
+      const querySnapshot = await getDocs(usersRef);
+      
+      let fixedCount = 0;
+      
+      for (const docSnap of querySnapshot.docs) {
+        const userData = docSnap.data();
+        
+        // Check if designation field needs fixing
+        if (userData.Designation && !userData.designation) {
+          const updates = {
+            designation: userData.Designation
+          };
+          
+          await updateDoc(doc(db, this.COLLECTION_NAME, docSnap.id), updates);
+          fixedCount++;
+          
+          console.log(`✅ Fixed designation for: ${userData.name || docSnap.id}`);
+        }
+      }
+      
+      console.log(`🎉 Designation verification completed! ${fixedCount} documents fixed.`);
+    } catch (error) {
+      console.error('❌ Error during designation verification:', error);
+      throw error;
+    }
+  }
+
+  // Get user statistics
+  async getUserStats(): Promise<{
+    total: number;
+    active: number;
+    inactive: number;
+    admins: number;
+    employees: number;
+    departments: string[];
+  }> {
+    try {
+      const users = await this.getAllUsers();
+      
+      const stats = {
+        total: users.length,
+        active: users.filter(u => u.isActive !== false).length,
+        inactive: users.filter(u => u.isActive === false).length,
+        admins: users.filter(u => u.role === 'admin').length,
+        employees: users.filter(u => u.role === 'employee').length,
+        departments: [...new Set(users.map(u => u.department).filter(Boolean))]
+      };
+      
+      return stats;
+    } catch (error) {
+      console.error('Error getting user stats:', error);
+      throw error;
+    }
+  }
 }
 
 export const userService = new UserService();
