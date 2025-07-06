@@ -27,7 +27,6 @@ class UserService {
       const user: Employee = {
         id: userId,
         ...userData,
-        password: userData.email, // Password is same as email
         createdAt: new Date(),
       };
 
@@ -67,14 +66,26 @@ class UserService {
 
   async getAllUsers(): Promise<Employee[]> {
     try {
+      console.log('📋 Fetching all users from Firestore...');
       const usersRef = collection(db, this.COLLECTION_NAME);
       const q = query(usersRef, orderBy('createdAt', 'desc'));
       const querySnapshot = await getDocs(q);
       
-      return querySnapshot.docs.map(doc => ({
+      const users = querySnapshot.docs.map(doc => ({
         id: doc.id,
+        uid: doc.id, // Ensure uid is set to the document ID (Firebase Auth UID)
         ...doc.data()
       } as Employee));
+      
+      console.log(`👥 Found ${users.length} users in Firestore:`, users.map(u => ({
+        id: u.id,
+        name: u.name || u.Name,
+        email: u.email,
+        role: u.role,
+        isActive: u.isActive
+      })));
+      
+      return users;
     } catch (error) {
       console.error('Error getting users:', error);
       throw error;

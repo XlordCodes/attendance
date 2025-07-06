@@ -193,6 +193,9 @@ class GlobalAttendanceService {
 
       // Get the updated document to return
       const updatedDoc = await getDoc(attendanceRef);
+      if (!updatedDoc.exists()) {
+        throw new Error('Failed to retrieve updated attendance record');
+      }
       const updatedRecord = this.convertFirestoreToAttendance(updatedDoc.data(), today);
       console.log('✅ Clock out successful:', updatedRecord);
       return updatedRecord;
@@ -356,6 +359,86 @@ class GlobalAttendanceService {
     } catch (error) {
       console.error('Error getting attendance for date:', error);
       return null;
+    }
+  }
+
+  // Get all attendance records for a specific date (for admin overview)
+  async getAllAttendanceForDate(date: string): Promise<{ [userId: string]: AttendanceRecord }> {
+    try {
+      console.log(`🔍 Fetching all attendance for date: ${date}`);
+      
+      const recordsRef = collection(
+        db, 
+        this.GLOBAL_ATTENDANCE_COLLECTION, 
+        date, 
+        this.RECORDS_SUBCOLLECTION
+      );
+      
+      const recordsSnapshot = await getDocs(recordsRef);
+      const attendanceByUser: { [userId: string]: AttendanceRecord } = {};
+      
+      recordsSnapshot.docs.forEach(doc => {
+        const userId = doc.id;
+        const attendanceData = doc.data();
+        attendanceByUser[userId] = this.convertFirestoreToAttendance(attendanceData, date);
+      });
+      
+      console.log(`📊 Found attendance for ${Object.keys(attendanceByUser).length} users on ${date}`);
+      return attendanceByUser;
+    } catch (error) {
+      console.error(`❌ Error fetching attendance for date ${date}:`, error);
+      return {};
+    }
+  }
+
+  // Get attendance records for a specific employee across all dates
+  async getAttendanceRecords(employeeId: string): Promise<AttendanceRecord[]> {
+    try {
+      console.log(`🔍 Fetching attendance records for employee: ${employeeId}`);
+      
+      // Query all date documents and check their records subcollections
+      const collectionRef = collection(db, this.GLOBAL_ATTENDANCE_COLLECTION);
+      const snapshot = await getDocs(collectionRef);
+      
+      const employeeRecords: AttendanceRecord[] = [];
+      
+      for (const dateDoc of snapshot.docs) {
+        const dateStr = dateDoc.id; // This is the date (e.g., "06-07-2025")
+        
+        try {
+          // Check if there's a record for this employee on this date
+          const recordRef = doc(
+            db, 
+            this.GLOBAL_ATTENDANCE_COLLECTION, 
+            dateStr, 
+            this.RECORDS_SUBCOLLECTION, 
+            employeeId
+          );
+          
+          const recordDoc = await getDoc(recordRef);
+          
+          if (recordDoc.exists()) {
+            const attendanceRecord = this.convertFirestoreToAttendance(recordDoc.data(), dateStr);
+            employeeRecords.push(attendanceRecord);
+          }
+        } catch (error) {
+          console.error(`Error fetching record for ${employeeId} on ${dateStr}:`, error);
+        }
+      }
+      
+      // Sort records by date (newest first)
+      employeeRecords.sort((a, b) => {
+        const dateA = parseDDMMYYYY(a.date);
+        const dateB = parseDDMMYYYY(b.date);
+        if (!dateA || !dateB) return 0;
+        return dateB.getTime() - dateA.getTime();
+      });
+      
+      console.log(`📊 Found ${employeeRecords.length} records for ${employeeId}`);
+      return employeeRecords;
+    } catch (error) {
+      console.error(`❌ Error fetching attendance for ${employeeId}:`, error);
+      return [];
     }
   }
 

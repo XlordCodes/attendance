@@ -2,19 +2,14 @@ import { useState, useEffect } from 'react';
 import { 
   BarChart3, 
   Download, 
-  Calendar,
   Users,
   CheckCircle,
   XCircle,
   Clock,
   Search,
-  Filter,
-  TrendingUp,
-  TrendingDown,
-  User,
-  Eye
+  User
 } from 'lucide-react';
-import { format, startOfMonth, endOfMonth, eachDayOfInterval, subMonths } from 'date-fns';
+import { format, startOfMonth, endOfMonth, eachDayOfInterval } from 'date-fns';
 import { userService } from '../../services/userService';
 import { globalAttendanceService } from '../../services/globalAttendanceService';
 import { Employee } from '../../types';
@@ -65,79 +60,123 @@ const OverallAttendancePage: React.FC = () => {
   const loadAttendanceData = async () => {
     try {
       setLoading(true);
+      console.log(`🔄 Loading attendance data for ${selectedDate} in ${viewMode} mode`);
       
       // Get all employees
       const employees = await userService.getAllEmployees();
+      console.log(`👥 Found ${employees.length} employees:`, employees.map(emp => ({
+        uid: emp.uid,
+        id: emp.id,
+        name: emp.name,
+        email: emp.email,
+        role: emp.role
+      })));
       
       if (viewMode === 'today') {
-        // Load today's attendance
-        const attendancePromises = employees.map(async (employee) => {
-          try {
-            const records = await globalAttendanceService.getAttendanceRecords(employee.uid);
-            const todayRecord = records.find(record => 
-              record.date === selectedDate
-            );
-            
-            if (todayRecord) {
-              const clockInTime = todayRecord.clockIn ? 
-                new Date(`2000-01-01T${todayRecord.clockIn}:00`) : null;
-              const lateThreshold = new Date(`2000-01-01T09:30:00`); // 9:30 AM
-              
-              const status = clockInTime && clockInTime > lateThreshold ? 'late' : 'present';
-              
-              return {
-                employee,
-                status: status as 'present' | 'absent' | 'late' | 'on-leave',
-                clockInTime: todayRecord.clockIn,
-                clockOutTime: todayRecord.clockOut,
-                totalHours: todayRecord.totalHours || 0,
-                breakDuration: todayRecord.breakDuration || 0
-              };
-            } else {
-              return {
-                employee,
-                status: 'absent' as const
-              };
-            }
-          } catch (error) {
-            console.error(`Error loading attendance for ${employee.name}:`, error);
-            return {
-              employee,
-              status: 'absent' as const
-            };
-          }
-        });
-        
-        const attendance = await Promise.all(attendancePromises);
-        setEmployeeAttendance(attendance);
-        
-        // Calculate stats
-        const present = attendance.filter(a => a.status === 'present').length;
-        const late = attendance.filter(a => a.status === 'late').length;
-        const absent = attendance.filter(a => a.status === 'absent').length;
-        const total = employees.length;
-        
-        setAttendanceStats({
-          totalEmployees: total,
-          presentToday: present + late, // Include late as present
-          absentToday: absent,
-          lateToday: late,
-          attendanceRate: total > 0 ? Math.round(((present + late) / total) * 100) : 0
-        });
+        await loadTodayAttendance(employees);
       } else {
-        // Load monthly data
         await loadMonthlyData(employees);
       }
     } catch (error) {
-      console.error('Failed to load attendance data:', error);
+      console.error('❌ Failed to load attendance data:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadTodayAttendance = async (employees: Employee[]) => {
+    try {
+      console.log(`📅 Loading attendance for date: ${selectedDate}`);
+      
+      // Get all attendance records for the selected date
+      const attendanceByUser = await globalAttendanceService.getAllAttendanceForDate(selectedDate);
+      console.log('📊 Attendance data by user:', attendanceByUser);
+      
+      const employeeAttendanceData: EmployeeAttendance[] = [];
+      let presentCount = 0;
+      let absentCount = 0;
+      let lateCount = 0;
+      
+      for (const employee of employees) {
+        const employeeId = employee.uid || employee.id; // Use uid if available, otherwise use id
+        if (!employeeId) continue; // Skip employees without UID/ID
+        
+        const attendanceRecord = attendanceByUser[employeeId];
+        
+        if (attendanceRecord && attendanceRecord.clockIn) {
+          // Employee has attendance record for this date
+          let status: 'present' | 'absent' | 'late' = 'present';
+          
+          // Use existing status from database or calculate based on clock-in time
+          if (attendanceRecord.status === 'late') {
+            status = 'late';
+          } else if (attendanceRecord.isLate) {
+            status = 'late';
+          } else {
+            status = 'present';
+          }
+          
+          // Format clock times
+          const clockInTime = attendanceRecord.clockIn ? 
+            format(attendanceRecord.clockIn, 'HH:mm') : undefined;
+          const clockOutTime = attendanceRecord.clockOut ? 
+            format(attendanceRecord.clockOut, 'HH:mm') : undefined;
+          
+          employeeAttendanceData.push({
+            employee,
+            status,
+            clockInTime,
+            clockOutTime,
+            totalHours: attendanceRecord.totalHours || attendanceRecord.hoursWorked || 0,
+            breakDuration: attendanceRecord.breaks?.reduce((total: number, breakTime: any) => 
+              total + (breakTime.duration || 0), 0) || 0
+          });
+          
+          // Count by status
+          if (status === 'present') {
+            presentCount++;
+          } else if (status === 'late') {
+            lateCount++;
+          }
+        } else {
+          // Employee has no attendance record - mark as absent
+          employeeAttendanceData.push({
+            employee,
+            status: 'absent'
+          });
+          absentCount++;
+        }
+      }
+      
+      setEmployeeAttendance(employeeAttendanceData);
+      
+      // Calculate statistics
+      const totalEmployees = employees.length;
+      const totalPresent = presentCount + lateCount; // Late is considered present
+      const attendanceRate = totalEmployees > 0 ? Math.round((totalPresent / totalEmployees) * 100) : 0;
+      
+      setAttendanceStats({
+        totalEmployees,
+        presentToday: totalPresent,
+        absentToday: absentCount,
+        lateToday: lateCount,
+        attendanceRate
+      });
+      
+      console.log(`📈 Stats - Total: ${totalEmployees}, Present: ${totalPresent}, Absent: ${absentCount}, Late: ${lateCount}, Rate: ${attendanceRate}%`);
+    } catch (error) {
+      console.error('❌ Error loading today\'s attendance:', error);
     }
   };
 
   const loadMonthlyData = async (employees: Employee[]) => {
     try {
       const selectedDateObj = parseDDMMYYYY(selectedDate);
+      if (!selectedDateObj) {
+        console.error('Invalid date format:', selectedDate);
+        return;
+      }
+      
       const monthStart = startOfMonth(selectedDateObj);
       const monthEnd = endOfMonth(selectedDateObj);
       const daysInMonth = eachDayOfInterval({ start: monthStart, end: monthEnd });
@@ -146,28 +185,28 @@ const OverallAttendancePage: React.FC = () => {
       
       for (const day of daysInMonth) {
         const dayStr = formatToDDMMYYYY(day);
+        
+        // Get all attendance records for this specific day
+        const attendanceByUser = await globalAttendanceService.getAllAttendanceForDate(dayStr);
+        
         let presentCount = 0;
         let lateCount = 0;
         
         for (const employee of employees) {
-          try {
-            const records = await globalAttendanceService.getAttendanceRecords(employee.uid);
-            const dayRecord = records.find(record => record.date === dayStr);
-            
-            if (dayRecord && dayRecord.clockIn) {
-              const clockInTime = new Date(`2000-01-01T${dayRecord.clockIn}:00`);
-              const lateThreshold = new Date(`2000-01-01T09:30:00`);
-              
-              if (clockInTime > lateThreshold) {
-                lateCount++;
-              } else {
-                presentCount++;
-              }
+          const employeeId = employee.uid || employee.id; // Use uid if available, otherwise use id
+          if (!employeeId) continue; // Skip employees without UID/ID
+          
+          const attendanceRecord = attendanceByUser[employeeId];
+          
+          if (attendanceRecord && attendanceRecord.clockIn) {
+            // Check if the employee was late or present
+            if (attendanceRecord.status === 'late' || attendanceRecord.isLate) {
+              lateCount++;
+            } else {
+              presentCount++;
             }
-          } catch (error) {
-            // Employee not found or no attendance data
-            continue;
           }
+          // If no attendance record, employee is absent (no action needed as we only count present/late)
         }
         
         const totalPresent = presentCount + lateCount;
@@ -442,7 +481,7 @@ const OverallAttendancePage: React.FC = () => {
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
                 {filteredEmployeeAttendance.map((attendance) => (
-                  <tr key={attendance.employee.uid} className="hover:bg-gray-50">
+                  <tr key={attendance.employee.uid || attendance.employee.id} className="hover:bg-gray-50">
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center">
                         <div className="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center">
@@ -494,7 +533,7 @@ const OverallAttendancePage: React.FC = () => {
         <div className="bg-white rounded-lg border border-gray-200">
           <div className="p-6 border-b border-gray-200">
             <h2 className="text-lg font-semibold text-gray-900">
-              Monthly Attendance Overview - {format(parseDDMMYYYY(selectedDate), 'MMMM yyyy')}
+              Monthly Attendance Overview - {parseDDMMYYYY(selectedDate) ? format(parseDDMMYYYY(selectedDate)!, 'MMMM yyyy') : selectedDate}
             </h2>
           </div>
 
