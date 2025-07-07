@@ -5,10 +5,9 @@ import { globalAttendanceService } from '../../services/globalAttendanceService'
 import { meetingService } from '../../services/meetingService';
 import { notificationService } from '../../services/notificationService';
 import { Meeting, Notification, AttendanceRecord } from '../../types';
-import { format, startOfWeek, endOfWeek, isToday, isFuture } from 'date-fns';
+import { format, startOfWeek, endOfWeek, isToday } from 'date-fns';
 import toast from 'react-hot-toast';
 import ClockInOutNew from '../Employee/ClockInOutNew';
-import { parseDDMMYYYY } from '../../utils/dateUtils';
 
 const EmployeeDashboardNew: React.FC = () => {
   console.log('🔄 EmployeeDashboardNew rendering...');
@@ -129,10 +128,14 @@ const EmployeeDashboardNew: React.FC = () => {
       const allMeetings = await meetingService.getMeetingsForEmployee(employee.id);
       // Filter for today and future meetings
       const upcomingMeetings = allMeetings.filter(meeting => {
-        const meetingDate = parseDDMMYYYY(meeting.date);
-        return meetingDate && (isToday(meetingDate) || isFuture(meetingDate));
+        const meetingDate = new Date(meeting.date); // Meeting.date is in YYYY-MM-DD format
+        const today = new Date();
+        today.setHours(0, 0, 0, 0); // Reset time for comparison
+        return meetingDate >= today;
       });
-      setMeetings(upcomingMeetings.slice(0, 5)); // Show only next 5 meetings
+      // Sort by date and take next 5 meetings
+      upcomingMeetings.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+      setMeetings(upcomingMeetings.slice(0, 5));
     } catch (error) {
       console.error('Error loading meetings:', error);
     }
@@ -466,9 +469,9 @@ const EmployeeDashboardNew: React.FC = () => {
             {meetings.length > 0 ? (
               <div className="space-y-3">
                 {meetings.map((meeting) => {
-                  const meetingDate = parseDDMMYYYY(meeting.date);
+                  const meetingDate = new Date(meeting.date); // Meeting.date is in YYYY-MM-DD format
                   
-                  if (!meetingDate) {
+                  if (isNaN(meetingDate.getTime())) {
                     console.error('Invalid meeting date format:', meeting.date);
                     return null;
                   }

@@ -5,7 +5,6 @@ import UnifiedLoginPage from './components/Auth/UnifiedLoginPage';
 import Sidebar from './components/Layout/Sidebar';
 import UnifiedDashboardNew from './components/Dashboard/UnifiedDashboardNew';
 import EmployeeDashboardNew from './components/Dashboard/EmployeeDashboardNew';
-import AdminDashboardNew from './components/Dashboard/AdminDashboardNew';
 import AdminModePage from './components/Admin/AdminModePage';
 import OverallAttendancePage from './components/Admin/OverallAttendancePage';
 import EmployeeManagement from './components/Admin/EmployeeManagement';
@@ -13,7 +12,6 @@ import AdminSetup from './components/Admin/AdminSetup';
 import AssignMeeting from './components/Admin/AssignMeeting';
 import AttendanceLogsNew from './components/Attendance/AttendanceLogsNew';
 import AttendancePageNew from './components/Attendance/AttendancePageNew';
-import KioskMode from './components/Admin/KioskMode';
 
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user, employee, loading } = useAuth();
@@ -87,7 +85,7 @@ const AppContent: React.FC = () => {
       } />
       
       {/* Admin-only Routes */}
-      {(employee?.Role === 'Admin' || employee?.role?.toLowerCase() === 'admin') && (
+      {employee?.role?.toLowerCase() === 'admin' && (
         <>
           <Route path="/admin-mode" element={
             <ProtectedRoute>
@@ -97,11 +95,6 @@ const AppContent: React.FC = () => {
           <Route path="/overall-attendance" element={
             <ProtectedRoute>
               <OverallAttendancePage />
-            </ProtectedRoute>
-          } />
-          <Route path="/legacy-admin" element={
-            <ProtectedRoute>
-              <AdminDashboardNew />
             </ProtectedRoute>
           } />
           <Route path="/admin-attendance" element={
@@ -117,11 +110,6 @@ const AppContent: React.FC = () => {
           <Route path="/assign-meeting" element={
             <ProtectedRoute>
               <AssignMeeting />
-            </ProtectedRoute>
-          } />
-          <Route path="/kiosk" element={
-            <ProtectedRoute>
-              <KioskMode />
             </ProtectedRoute>
           } />
           <Route path="/setup" element={

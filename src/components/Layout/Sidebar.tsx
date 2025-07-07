@@ -9,7 +9,6 @@ import {
   ChevronRight,
   Menu,
   X,
-  Play,
   BarChart3,
   UserCheck
 } from 'lucide-react';
@@ -65,12 +64,6 @@ const Sidebar: React.FC = () => {
       label: 'Overall Attendance',
       icon: BarChart3,
       to: '/overall-attendance'
-    }] : []),
-    ...(isAdmin ? [{
-      key: 'kiosk-mode',
-      label: 'Kiosk Mode',
-      icon: Play,
-      to: '/kiosk'
     }] : []),
     ...(isAdmin ? [{
       key: 'employees',

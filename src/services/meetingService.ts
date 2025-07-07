@@ -89,6 +89,16 @@ class MeetingService {
       throw error;
     }
   }
+
+  async updateMeeting(meetingId: string, meetingData: Partial<Omit<Meeting, 'id' | 'createdAt'>>): Promise<void> {
+    try {
+      const meetingRef = doc(db, 'meetings', meetingId);
+      await updateDoc(meetingRef, meetingData);
+    } catch (error) {
+      console.error('Error updating meeting:', error);
+      throw error;
+    }
+  }
 }
 
 export const meetingService = new MeetingService();
