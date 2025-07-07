@@ -11,15 +11,19 @@ import {
   CheckCircle,
   XCircle,
   AlertCircle,
-  Coffee
+  Coffee,
+  FileText,
+  Send
 } from 'lucide-react';
 import { globalAttendanceService } from '../../services/globalAttendanceService';
 import { userService } from '../../services/userService';
-import { AttendanceRecord, Employee } from '../../types';
+import { leaveService } from '../../services/leaveService';
+import { AttendanceRecord, Employee, LeaveRequest } from '../../types';
 import { format, startOfMonth, endOfMonth, subMonths, addMonths, eachDayOfInterval } from 'date-fns';
 import toast from 'react-hot-toast';
 import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
+import { useAuth } from '../../hooks/useAuth';
 
 interface AttendanceStats {
   totalDays: number;
@@ -39,12 +43,20 @@ interface EmployeeAttendanceData {
 }
 
 const AttendanceLogsNew: React.FC = () => {
+  const { employee } = useAuth();
   const [attendanceData, setAttendanceData] = useState<EmployeeAttendanceData[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedMonth, setSelectedMonth] = useState(new Date());
   const [selectedEmployee, setSelectedEmployee] = useState<string>('all');
   const [employees, setEmployees] = useState<Employee[]>([]);
+  const [showLeaveRequestForm, setShowLeaveRequestForm] = useState(false);
+  const [leaveFormData, setLeaveFormData] = useState({
+    leaveType: 'vacation' as LeaveRequest['leaveType'],
+    startDate: '',
+    endDate: '',
+    reason: ''
+  });
 
   useEffect(() => {
     loadEmployees();
@@ -199,6 +211,8 @@ const AttendanceLogsNew: React.FC = () => {
           'Hours Worked': formatDuration(record.hoursWorked || 0),
           'Is Late': record.isLate ? 'Yes' : 'No',
           'Late Reason': record.lateReason || '',
+          'Is Late From Lunch': record.isLateFromLunch ? 'Yes' : 'No',
+          'Lunch Late Reason': record.lunchLateReason || '',
           'Breaks Count': record.breaks.length,
           'Status': record.clockIn ? (record.isLate ? 'Late' : 'Present') : 'Absent'
         }))
@@ -236,18 +250,72 @@ const AttendanceLogsNew: React.FC = () => {
     totalAbsent: acc.totalAbsent + data.stats.absentDays
   }), { totalEmployees: 0, totalHours: 0, totalPresent: 0, totalLate: 0, totalAbsent: 0 });
 
+  const handleLeaveRequest = async () => {
+    if (!employee) {
+      toast.error('You must be logged in to submit a leave request');
+      return;
+    }
+
+    if (!leaveFormData.startDate || !leaveFormData.endDate || !leaveFormData.reason.trim()) {
+      toast.error('Please fill in all required fields');
+      return;
+    }
+
+    if (new Date(leaveFormData.startDate) > new Date(leaveFormData.endDate)) {
+      toast.error('End date must be after start date');
+      return;
+    }
+
+    try {
+      const leaveRequest: Omit<LeaveRequest, 'id' | 'createdAt'> = {
+        employeeId: employee.id,
+        employeeName: employee.name,
+        leaveType: leaveFormData.leaveType,
+        startDate: leaveFormData.startDate,
+        endDate: leaveFormData.endDate,
+        reason: leaveFormData.reason,
+        status: 'pending',
+        requestedAt: new Date().toISOString()
+      };
+
+      await leaveService.createLeaveRequest(leaveRequest);
+      toast.success('Leave request submitted successfully!');
+      setShowLeaveRequestForm(false);
+      setLeaveFormData({
+        leaveType: 'vacation',
+        startDate: '',
+        endDate: '',
+        reason: ''
+      });
+    } catch (error) {
+      console.error('Error submitting leave request:', error);
+      toast.error('Failed to submit leave request');
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-bold text-gray-900">Attendance Logs</h1>
-        <button
-          onClick={exportToExcel}
-          className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg flex items-center"
-        >
-          <Download className="mr-2 h-4 w-4" />
-          Export Excel
-        </button>
+        <div className="flex space-x-3">
+          {employee && (
+            <button
+              onClick={() => setShowLeaveRequestForm(true)}
+              className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center"
+            >
+              <FileText className="mr-2 h-4 w-4" />
+              Request Leave
+            </button>
+          )}
+          <button
+            onClick={exportToExcel}
+            className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg flex items-center"
+          >
+            <Download className="mr-2 h-4 w-4" />
+            Export Excel
+          </button>
+        </div>
       </div>
 
       {/* Summary Cards */}
@@ -349,6 +417,99 @@ const AttendanceLogsNew: React.FC = () => {
         </div>
       </div>
 
+      {/* Leave Request Modal */}
+      {showLeaveRequestForm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-semibold text-gray-900">Request Leave</h3>
+              <button
+                onClick={() => setShowLeaveRequestForm(false)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <XCircle className="h-5 w-5" />
+              </button>
+            </div>
+
+            <form onSubmit={(e) => { e.preventDefault(); handleLeaveRequest(); }} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Leave Type
+                </label>
+                <select
+                  value={leaveFormData.leaveType}
+                  onChange={(e) => setLeaveFormData({ ...leaveFormData, leaveType: e.target.value as LeaveRequest['leaveType'] })}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                  <option value="vacation">Vacation</option>
+                  <option value="sick">Sick Leave</option>
+                  <option value="personal">Personal</option>
+                  <option value="emergency">Emergency</option>
+                </select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Start Date
+                  </label>
+                  <input
+                    type="date"
+                    value={leaveFormData.startDate}
+                    onChange={(e) => setLeaveFormData({ ...leaveFormData, startDate: e.target.value })}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    End Date
+                  </label>
+                  <input
+                    type="date"
+                    value={leaveFormData.endDate}
+                    onChange={(e) => setLeaveFormData({ ...leaveFormData, endDate: e.target.value })}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Reason
+                </label>
+                <textarea
+                  value={leaveFormData.reason}
+                  onChange={(e) => setLeaveFormData({ ...leaveFormData, reason: e.target.value })}
+                  rows={3}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  placeholder="Please provide a reason for your leave request..."
+                  required
+                />
+              </div>
+
+              <div className="flex justify-end space-x-3 pt-4">
+                <button
+                  type="button"
+                  onClick={() => setShowLeaveRequestForm(false)}
+                  className="px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg flex items-center"
+                >
+                  <Send className="mr-2 h-4 w-4" />
+                  Submit Request
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* Attendance Data */}
       {loading ? (
         <div className="text-center py-12">
@@ -439,15 +600,22 @@ const AttendanceLogsNew: React.FC = () => {
                                 </div>
                               </td>
                               <td className="py-2">
-                                <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(status)}`}>
-                                  {getStatusIcon(status)}
-                                  <span className="ml-1 capitalize">{status}</span>
-                                </span>
-                                {record.isLate && record.lateReason && (
-                                  <div className="text-xs text-gray-500 mt-1">
-                                    {record.lateReason}
-                                  </div>
-                                )}
+                                <div className="space-y-1">
+                                  <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(status)}`}>
+                                    {getStatusIcon(status)}
+                                    <span className="ml-1 capitalize">{status}</span>
+                                  </span>
+                                  {record.isLate && record.lateReason && (
+                                    <div className="text-xs text-amber-600 bg-amber-50 px-2 py-1 rounded border">
+                                      <strong>Late:</strong> {record.lateReason}
+                                    </div>
+                                  )}
+                                  {record.isLateFromLunch && record.lunchLateReason && (
+                                    <div className="text-xs text-orange-600 bg-orange-50 px-2 py-1 rounded border">
+                                      <strong>Lunch Late:</strong> {record.lunchLateReason}
+                                    </div>
+                                  )}
+                                </div>
                               </td>
                             </tr>
                           );

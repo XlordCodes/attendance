@@ -36,6 +36,8 @@ export interface AttendanceRecord {
   earlyLogoutReason?: string;
   lateReason?: string; // Added for late arrival reasons
   isLate?: boolean; // Added for late status
+  isLateFromLunch?: boolean; // Added for lunch late status
+  lunchLateReason?: string; // Added for lunch late reasons
   overtime: number;
   status: 'present' | 'absent' | 'late' | 'partial' | 'half-day';
   totalHours: number;
@@ -94,4 +96,21 @@ export interface Meeting {
   createdBy: string;
   createdAt: Date;
   status: 'scheduled' | 'completed' | 'cancelled';
+}
+
+export interface LeaveRequest {
+  id?: string;
+  employeeId: string;
+  employeeName: string;
+  employeeEmail?: string;
+  leaveType: 'sick' | 'vacation' | 'personal' | 'emergency' | 'other';
+  startDate: string;
+  endDate: string;
+  reason: string;
+  status: 'pending' | 'approved' | 'rejected';
+  appliedAt?: Date;
+  requestedAt?: string; // For backward compatibility
+  reviewedAt?: Date;
+  reviewedBy?: string;
+  adminComments?: string;
 }

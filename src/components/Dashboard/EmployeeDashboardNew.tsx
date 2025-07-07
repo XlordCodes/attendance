@@ -1,20 +1,17 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Clock, Calendar, TrendingUp, Bell, X } from 'lucide-react';
+import { Clock, Calendar, TrendingUp } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { globalAttendanceService } from '../../services/globalAttendanceService';
 import { meetingService } from '../../services/meetingService';
-import { notificationService } from '../../services/notificationService';
-import { Meeting, Notification, AttendanceRecord } from '../../types';
+import { Meeting, AttendanceRecord } from '../../types';
 import { format, startOfWeek, endOfWeek, isToday } from 'date-fns';
-import toast from 'react-hot-toast';
 import ClockInOutNew from '../Employee/ClockInOutNew';
 
 const EmployeeDashboardNew: React.FC = () => {
-  console.log('🔄 EmployeeDashboardNew rendering...');
   const { employee, user } = useAuth();
   const [todayRecord, setTodayRecord] = useState<AttendanceRecord | null>(null);
   const [meetings, setMeetings] = useState<Meeting[]>([]);
-  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [meetingsLoading, setMeetingsLoading] = useState(false);
   const [weeklyStats, setWeeklyStats] = useState({
     totalHours: 0,
     daysPresent: 0,
@@ -22,23 +19,8 @@ const EmployeeDashboardNew: React.FC = () => {
     totalBreaks: 0,
   });
   const [currentTime, setCurrentTime] = useState(new Date());
-  const [showNotifications, setShowNotifications] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-
-  // Debug employee data
-  useEffect(() => {
-    console.log('🔍 EmployeeDashboardNew mounted');
-    console.log('👤 User:', user ? 'Present' : 'Not present');
-    console.log('👨‍💼 Employee:', employee ? 'Present' : 'Not present');
-    if (employee) {
-      console.log('✅ Employee data:', employee);
-      console.log('✅ Employee name field:', employee.name);
-      console.log('✅ All employee fields:', Object.keys(employee));
-    } else {
-      console.log('❌ No employee data');
-    }
-  }, [employee, user]);
 
   // Helper function to get display name from employee data
   const getEmployeeName = useCallback(() => {
@@ -62,14 +44,6 @@ const EmployeeDashboardNew: React.FC = () => {
                        employee.role || 
                        'Employee';
     
-    console.log('🏷️ Employee designation data:', {
-      Designation: (employee as any).Designation,
-      designation: employee.designation,
-      position: employee.position,
-      role: employee.role,
-      selected: designation
-    });
-    
     return designation;
   }, [employee]);
 
@@ -82,14 +56,10 @@ const EmployeeDashboardNew: React.FC = () => {
     if (!employee || !user) return;
     
     try {
-      console.log('📋 Loading today record for:', getEmployeeName());
-      console.log('📋 Using user ID:', employee.id); // Use employee.id instead of user.uid
       const record = await globalAttendanceService.getTodayAttendance(employee.id);
-      console.log('✅ Today record loaded:', record);
       setTodayRecord(record);
     } catch (error) {
-      console.error('❌ Error loading today record:', error);
-      // Don't throw, just log the error
+      console.error('Error loading today record:', error);
     }
   }, [employee, user]);
 
@@ -125,63 +95,41 @@ const EmployeeDashboardNew: React.FC = () => {
     if (!employee) return;
 
     try {
-      const allMeetings = await meetingService.getMeetingsForEmployee(employee.id);
-      // Filter for today and future meetings
-      const upcomingMeetings = allMeetings.filter(meeting => {
-        const meetingDate = new Date(meeting.date); // Meeting.date is in YYYY-MM-DD format
-        const today = new Date();
-        today.setHours(0, 0, 0, 0); // Reset time for comparison
-        return meetingDate >= today;
+      setMeetingsLoading(true);
+      
+      // Get all meetings and manually filter for this employee
+      const allMeetings = await meetingService.getAllMeetings();
+      
+      // Find meetings where this employee is assigned
+      const employeeMeetings = allMeetings.filter(meeting => {
+        return meeting.assignedEmployees && 
+               meeting.assignedEmployees.includes(employee.id);
       });
+      
+      if (employeeMeetings.length === 0) {
+        setMeetings([]);
+        return;
+      }
+
+      // Filter for today and future meetings
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      
+      const upcomingMeetings = employeeMeetings.filter(meeting => {
+        const meetingDate = new Date(meeting.date);
+        return !isNaN(meetingDate.getTime()) && meetingDate >= today;
+      });
+
       // Sort by date and take next 5 meetings
       upcomingMeetings.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
       setMeetings(upcomingMeetings.slice(0, 5));
     } catch (error) {
       console.error('Error loading meetings:', error);
+      setMeetings([]);
+    } finally {
+      setMeetingsLoading(false);
     }
   }, [employee]);
-
-  const loadNotifications = useCallback(async () => {
-    if (!employee) return;
-
-    try {
-      const userNotifications = await notificationService.getAllNotifications();
-      setNotifications(userNotifications.slice(0, 10)); // Show latest 10 notifications
-    } catch (error) {
-      console.error('Error loading notifications:', error);
-    }
-  }, [employee]);
-
-  const markNotificationAsRead = async (notificationId: string) => {
-    try {
-      await notificationService.markAsRead(notificationId);
-      setNotifications(prev => 
-        prev.map(notification => 
-          notification.id === notificationId 
-            ? { ...notification, isRead: true }
-            : notification
-        )
-      );
-    } catch (error) {
-      console.error('Error marking notification as read:', error);
-    }
-  };
-
-  const clearAllNotifications = async () => {
-    try {
-      const unreadNotifications = notifications.filter(n => !n.isRead);
-      await Promise.all(
-        unreadNotifications.map(notification => 
-          notificationService.markAsRead(notification.id)
-        )
-      );
-      setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
-      toast.success('All notifications marked as read');
-    } catch (error) {
-      console.error('Error clearing notifications:', error);
-      toast.error('Failed to clear notifications');
-    }
-  };
 
   const formatDuration = (hours: number) => {
     const h = Math.floor(hours);
@@ -189,38 +137,40 @@ const EmployeeDashboardNew: React.FC = () => {
     return `${h}h ${m}m`;
   };
 
-  const unreadNotificationsCount = notifications.filter(n => !n.isRead).length;
-
   // Load all dashboard data when employee and user are available
   useEffect(() => {
     if (employee && user) {
-      console.log('🚀 Loading dashboard data...');
       setLoading(true);
       setError(null);
       
       Promise.all([
         loadTodayRecord(),
         loadWeeklyStats(),
-        loadMeetings(),
-        loadNotifications()
+        loadMeetings()
       ]).then(() => {
-        console.log('✅ Dashboard data loaded successfully');
         setLoading(false);
       }).catch((err) => {
-        console.error('❌ Error loading dashboard data:', err);
+        console.error('Error loading dashboard data:', err);
         setError(err.message || 'Failed to load dashboard data');
         setLoading(false);
       });
       
-      // Set up an interval to refresh data every 30 seconds
-      const refreshInterval = setInterval(() => {
+      // Set up intervals for real-time updates
+      const attendanceRefreshInterval = setInterval(() => {
         loadTodayRecord();
         loadWeeklyStats();
-      }, 30000);
+      }, 30000); // Every 30 seconds for attendance
       
-      return () => clearInterval(refreshInterval);
+      const meetingsRefreshInterval = setInterval(() => {
+        loadMeetings();
+      }, 60000); // Every 1 minute for meetings
+      
+      return () => {
+        clearInterval(attendanceRefreshInterval);
+        clearInterval(meetingsRefreshInterval);
+      };
     }
-  }, [employee, user]);
+  }, [employee, user, loadTodayRecord, loadWeeklyStats, loadMeetings]);
 
   // Loading state
   if (loading) {
@@ -282,82 +232,8 @@ const EmployeeDashboardNew: React.FC = () => {
               {employee?.department}
             </p>
           </div>
-          <div className="relative">
-            <button
-              onClick={() => setShowNotifications(!showNotifications)}
-              className="bg-white/20 hover:bg-white/30 p-3 rounded-lg transition-colors relative"
-            >
-              <Bell className="h-6 w-6" />
-              {unreadNotificationsCount > 0 && (
-                <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
-                  {unreadNotificationsCount}
-                </span>
-              )}
-            </button>
-          </div>
         </div>
       </div>
-
-      {/* Notifications Dropdown - positioned at top right of main content */}
-      {showNotifications && (
-        <div className="fixed top-20 right-8 w-80 bg-white rounded-lg shadow-lg border z-50">
-          <div className="p-4 border-b flex justify-between items-center">
-            <h3 className="font-semibold text-gray-900">Notifications</h3>
-            <div className="flex items-center space-x-2">
-              {unreadNotificationsCount > 0 && (
-                <button
-                  onClick={clearAllNotifications}
-                  className="text-xs text-blue-600 hover:text-blue-800"
-                >
-                  Mark all read
-                </button>
-              )}
-              <button
-                onClick={() => setShowNotifications(false)}
-                className="text-gray-400 hover:text-gray-600"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-          </div>
-          <div className="max-h-64 overflow-y-auto">
-            {notifications.length > 0 ? (
-              notifications.map((notification) => (
-                <div
-                  key={notification.id}
-                  className={`p-3 border-b last:border-b-0 cursor-pointer hover:bg-gray-50 ${
-                    !notification.isRead ? 'bg-blue-50' : ''
-                  }`}
-                  onClick={() => markNotificationAsRead(notification.id)}
-                >
-                  <div className="flex items-start space-x-3">
-                    <div className={`mt-1 h-2 w-2 rounded-full ${
-                      notification.type === 'overtime' ? 'bg-yellow-400' :
-                      notification.type === 'early_logout' ? 'bg-red-400' :
-                      'bg-blue-400'
-                    }`} />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-gray-900">
-                        {notification.title}
-                      </p>
-                      <p className="text-sm text-gray-600">
-                        {notification.message}
-                      </p>
-                      <p className="text-xs text-gray-400 mt-1">
-                        {format(new Date(notification.createdAt), 'MMM d, HH:mm')}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              ))
-            ) : (
-              <div className="p-4 text-center text-gray-500">
-                No notifications
-              </div>
-            )}
-          </div>
-        </div>
-      )}
 
       {/* Quick Stats */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -464,37 +340,95 @@ const EmployeeDashboardNew: React.FC = () => {
 
           {/* Upcoming Meetings */}
           <div className="bg-white rounded-lg shadow-sm border p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Upcoming Meetings</h3>
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-semibold text-gray-900">Upcoming Meetings</h3>
+              <button 
+                onClick={loadMeetings}
+                disabled={meetingsLoading}
+                className={`text-sm font-medium flex items-center space-x-2 px-3 py-1 rounded-lg transition-colors ${
+                  meetingsLoading 
+                    ? 'text-gray-400 bg-gray-100 cursor-not-allowed' 
+                    : 'text-blue-600 hover:text-blue-800 hover:bg-blue-50'
+                }`}
+              >
+                {meetingsLoading ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-2 border-gray-300 border-t-blue-600"></div>
+                    <span>Refreshing...</span>
+                  </>
+                ) : (
+                  <>
+                    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                    <span>Refresh</span>
+                  </>
+                )}
+              </button>
+            </div>
             
-            {meetings.length > 0 ? (
+            {meetingsLoading ? (
+              <div className="text-center py-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-2 border-gray-300 border-t-blue-600 mx-auto mb-3"></div>
+                <p className="text-gray-500 text-sm">Loading meetings...</p>
+              </div>
+            ) : meetings.length > 0 ? (
               <div className="space-y-3">
                 {meetings.map((meeting) => {
-                  const meetingDate = new Date(meeting.date); // Meeting.date is in YYYY-MM-DD format
+                  const meetingDate = new Date(meeting.date);
                   
                   if (isNaN(meetingDate.getTime())) {
-                    console.error('Invalid meeting date format:', meeting.date);
                     return null;
                   }
                   
-                  // Create time object for the meeting
+                  // Create proper date and time for the meeting
                   const [hours, minutes] = meeting.time.split(':').map(Number);
-                  const meetingTime = new Date(meetingDate);
-                  meetingTime.setHours(hours, minutes, 0, 0);
+                  const meetingDateTime = new Date(meetingDate);
+                  meetingDateTime.setHours(hours, minutes, 0, 0);
+                  
+                  // Format date and time properly
+                  const isToday = format(meetingDate, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd');
+                  const isTomorrow = format(meetingDate, 'yyyy-MM-dd') === format(new Date(Date.now() + 24 * 60 * 60 * 1000), 'yyyy-MM-dd');
+                  
+                  let dateDisplay;
+                  if (isToday) {
+                    dateDisplay = 'Today';
+                  } else if (isTomorrow) {
+                    dateDisplay = 'Tomorrow';
+                  } else {
+                    dateDisplay = format(meetingDate, 'MMM d, yyyy');
+                  }
+                  
+                  const timeDisplay = format(meetingDateTime, 'h:mm a');
                   
                   return (
-                    <div key={meeting.id} className="border-l-4 border-blue-500 pl-3 py-2">
-                      <h4 className="font-medium text-gray-900">{meeting.title}</h4>
-                      <p className="text-sm text-gray-600">{meeting.description}</p>
-                      <div className="flex items-center mt-1 text-xs text-gray-500">
-                        <Calendar className="h-3 w-3 mr-1" />
-                        {isToday(meetingDate) ? 'Today' : format(meetingDate, 'MMM d')} at {format(meetingTime, 'HH:mm')}
+                    <div key={meeting.id} className="border-l-4 border-blue-500 pl-4 py-3 bg-blue-50">
+                      <h4 className="font-semibold text-gray-900 mb-1">{meeting.title}</h4>
+                      <div className="flex items-center justify-between text-sm">
+                        <div className="flex items-center text-gray-700">
+                          <Calendar className="h-4 w-4 mr-2 text-blue-600" />
+                          <span className="font-medium">{dateDisplay}</span>
+                          <span className="mx-2">•</span>
+                          <Clock className="h-4 w-4 mr-1 text-blue-600" />
+                          <span>{timeDisplay}</span>
+                        </div>
+                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                          meeting.status === 'scheduled' ? 'bg-green-100 text-green-800' :
+                          meeting.status === 'completed' ? 'bg-blue-100 text-blue-800' :
+                          'bg-gray-100 text-gray-800'
+                        }`}>
+                          {meeting.status}
+                        </span>
                       </div>
                     </div>
                   );
-                }).filter(Boolean)}
+                })}
               </div>
             ) : (
-              <p className="text-gray-500 text-sm">No upcoming meetings</p>
+              <div className="text-center py-8">
+                <Calendar className="h-12 w-12 mx-auto mb-3 text-gray-300" />
+                <p className="text-gray-500 text-sm">No upcoming meetings scheduled</p>
+              </div>
             )}
           </div>
         </div>

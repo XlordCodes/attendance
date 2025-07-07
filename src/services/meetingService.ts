@@ -9,7 +9,7 @@ import {
   orderBy,
   addDoc 
 } from 'firebase/firestore';
-import { db } from './firebaseConfig';
+import { db } from '../firebase/config';
 import { Meeting } from '../types';
 
 class MeetingService {
@@ -41,12 +41,29 @@ class MeetingService {
       const q = query(meetingsRef, orderBy('createdAt', 'desc'));
       const querySnapshot = await getDocs(q);
       
-      return querySnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      } as Meeting));
+      const meetings = querySnapshot.docs.map(doc => {
+        const data = doc.data();
+        
+        // Handle potential Firestore timestamp conversion
+        let createdAt = data.createdAt;
+        if (createdAt && typeof createdAt.toDate === 'function') {
+          createdAt = createdAt.toDate();
+        } else if (createdAt && typeof createdAt === 'string') {
+          createdAt = new Date(createdAt);
+        } else if (!createdAt) {
+          createdAt = new Date();
+        }
+        
+        return {
+          id: doc.id,
+          ...data,
+          createdAt
+        } as Meeting;
+      });
+      
+      return meetings;
     } catch (error) {
-      console.error('Error getting meetings:', error);
+      console.error('Error getting all meetings:', error);
       throw error;
     }
   }
@@ -59,12 +76,30 @@ class MeetingService {
         where('assignedEmployees', 'array-contains', employeeId),
         orderBy('date', 'asc')
       );
+      
       const querySnapshot = await getDocs(q);
       
-      return querySnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      } as Meeting));
+      const meetings = querySnapshot.docs.map(doc => {
+        const data = doc.data();
+        
+        // Handle potential Firestore timestamp conversion
+        let createdAt = data.createdAt;
+        if (createdAt && typeof createdAt.toDate === 'function') {
+          createdAt = createdAt.toDate();
+        } else if (createdAt && typeof createdAt === 'string') {
+          createdAt = new Date(createdAt);
+        } else if (!createdAt) {
+          createdAt = new Date();
+        }
+        
+        return {
+          id: doc.id,
+          ...data,
+          createdAt
+        } as Meeting;
+      });
+      
+      return meetings;
     } catch (error) {
       console.error('Error getting meetings for employee:', error);
       throw error;

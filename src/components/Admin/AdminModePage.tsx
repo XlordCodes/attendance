@@ -9,13 +9,15 @@ import {
   CalendarPlus,
   CheckCircle,
   XCircle,
-  AlertCircle
+  AlertCircle,
+  FileText
 } from 'lucide-react';
 import { userService } from '../../services/userService';
 import { meetingService } from '../../services/meetingService';
 import { Employee, Meeting } from '../../types';
 import { format, parseISO, isToday } from 'date-fns';
 import toast from 'react-hot-toast';
+import LeaveManagement from './LeaveManagement';
 
 interface MeetingFormData {
   title: string;
@@ -26,6 +28,7 @@ interface MeetingFormData {
 }
 
 const AdminModePage: React.FC = () => {
+  const [activeTab, setActiveTab] = useState<'meetings' | 'leaves'>('meetings');
   const [meetings, setMeetings] = useState<Meeting[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
@@ -218,12 +221,47 @@ const AdminModePage: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Meetings Management</h1>
-          <p className="text-gray-600">Schedule meetings, assign employees, and track meeting history</p>
-        </div>
+      {/* Tab Navigation */}
+      <div className="border-b border-gray-200">
+        <nav className="-mb-px flex space-x-8">
+          <button
+            onClick={() => setActiveTab('meetings')}
+            className={`py-2 px-1 border-b-2 font-medium text-sm ${
+              activeTab === 'meetings'
+                ? 'border-blue-500 text-blue-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            }`}
+          >
+            <div className="flex items-center space-x-2">
+              <Calendar className="h-4 w-4" />
+              <span>Meetings</span>
+            </div>
+          </button>
+          <button
+            onClick={() => setActiveTab('leaves')}
+            className={`py-2 px-1 border-b-2 font-medium text-sm ${
+              activeTab === 'leaves'
+                ? 'border-blue-500 text-blue-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            }`}
+          >
+            <div className="flex items-center space-x-2">
+              <FileText className="h-4 w-4" />
+              <span>Leave Requests</span>
+            </div>
+          </button>
+        </nav>
+      </div>
+
+      {/* Tab Content */}
+      {activeTab === 'meetings' ? (
+        <div className="space-y-6">
+          {/* Header */}
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900">Meetings Management</h1>
+              <p className="text-gray-600">Schedule meetings, assign employees, and track meeting history</p>
+            </div>
         <div className="mt-4 sm:mt-0">
           <button
             onClick={() => {
@@ -553,6 +591,10 @@ const AdminModePage: React.FC = () => {
             </div>
           </div>
         </div>
+      )}
+        </div>
+      ) : (
+        <LeaveManagement />
       )}
     </div>
   );
