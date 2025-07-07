@@ -1,4 +1,4 @@
-import { AttendanceRecord, BreakTime, GeolocationData } from '../types';
+import { AttendanceRecord, GeolocationData } from '../types';
 import { format } from 'date-fns';
 import { parseDDMMYYYY, compareDDMMYYYY } from '../utils/dateUtils';
 import { 
@@ -461,7 +461,7 @@ class GlobalAttendanceService {
 
   // Helper Methods removed AFK functionality
 
-  async startBreak(userId: string, reason?: string): Promise<AttendanceRecord> {
+  async startBreak(userId: string): Promise<AttendanceRecord> {
     try {
       const today = format(new Date(), 'dd-MM-yyyy');
       const attendanceRef = doc(
@@ -482,27 +482,33 @@ class GlobalAttendanceService {
         throw new Error('Please clock in first');
       }
 
-      const newBreakTime: BreakTime = {
-        id: `break_${Date.now()}`,
-        start: new Date(),
-        reason: reason || 'Break',
-        type: 'break'
+      // Check if there's already an active break
+      const existingBreaks = attendanceData.breaks || [];
+      const activeBreak = existingBreaks.find((bt: Record<string, unknown>) => !bt.endTime);
+      if (activeBreak) {
+        throw new Error('A break is already in progress');
+      }
+
+      const newBreak = {
+        startTime: Timestamp.fromDate(new Date()),
+        endTime: null,
+        type: 'break',
+        duration: 0
       };
 
-      const updatedBreakTimes = [...(attendanceData.breakTimes || []), this.convertBreakTimeToFirestore(newBreakTime)];
+      const updatedBreaks = [...existingBreaks, newBreak];
       
       await updateDoc(attendanceRef, {
-        breakTimes: updatedBreakTimes,
+        breaks: updatedBreaks,
         updatedAt: Timestamp.now()
       });
 
-      const updatedData = {
-        ...attendanceData,
-        breakTimes: updatedBreakTimes,
-        updatedAt: Timestamp.now()
-      };
+      const updatedDoc = await getDoc(attendanceRef);
+      if (!updatedDoc.exists()) {
+        throw new Error('Failed to retrieve updated attendance record');
+      }
 
-      return this.convertFirestoreToAttendance(updatedData, today);
+      return this.convertFirestoreToAttendance(updatedDoc.data(), today);
     } catch (error) {
       console.error('Error starting break:', error);
       throw error;
@@ -526,54 +532,40 @@ class GlobalAttendanceService {
       }
 
       const attendanceData = attendanceDoc.data();
-      const breakTimes = attendanceData.breakTimes || [];
-      const activeBreakIndex = breakTimes.findIndex((bt: Record<string, unknown>) => !bt.end);
+      const breaks = attendanceData.breaks || [];
+      const activeBreakIndex = breaks.findIndex((bt: Record<string, unknown>) => !bt.endTime);
 
       if (activeBreakIndex === -1) {
         throw new Error('No active break found');
       }
 
       const endTime = new Date();
-      const activeBreak = breakTimes[activeBreakIndex];
-      const startTime = (activeBreak.start as { toDate(): Date }).toDate();
+      const activeBreak = breaks[activeBreakIndex];
+      const startTime = (activeBreak.startTime as { toDate(): Date }).toDate();
       const duration = (endTime.getTime() - startTime.getTime()) / (1000 * 60); // minutes
 
-      // Update the break time
-      breakTimes[activeBreakIndex] = {
+      // Update the break with end time and duration
+      breaks[activeBreakIndex] = {
         ...activeBreak,
-        end: Timestamp.fromDate(endTime),
-        duration
+        endTime: Timestamp.fromDate(endTime),
+        duration: Math.round(duration * 100) / 100
       };
 
-      const totalBreakHours = breakTimes.reduce((sum: number, bt: Record<string, unknown>) => 
-        sum + ((bt.duration as number) || 0), 0) / 60; // convert to hours
-
       await updateDoc(attendanceRef, {
-        breakTimes,
-        totalBreakHours: Math.round(totalBreakHours * 100) / 100,
+        breaks,
         updatedAt: Timestamp.now()
       });
 
-      const updatedData = {
-        ...attendanceData,
-        breakTimes,
-        totalBreakHours: Math.round(totalBreakHours * 100) / 100,
-        updatedAt: Timestamp.now()
-      };
+      const updatedDoc = await getDoc(attendanceRef);
+      if (!updatedDoc.exists()) {
+        throw new Error('Failed to retrieve updated attendance record');
+      }
 
-      return this.convertFirestoreToAttendance(updatedData, today);
+      return this.convertFirestoreToAttendance(updatedDoc.data(), today);
     } catch (error) {
       console.error('Error ending break:', error);
       throw error;
     }
-  }
-
-  private convertBreakTimeToFirestore(breakTime: BreakTime) {
-    return {
-      ...breakTime,
-      start: breakTime.start ? Timestamp.fromDate(breakTime.start) : null,
-      end: breakTime.end ? Timestamp.fromDate(breakTime.end) : null
-    };
   }
 
   async startLunchBreak(userId: string): Promise<AttendanceRecord> {
