@@ -13,6 +13,7 @@ import {
 } from 'firebase/firestore';
 import { db } from './firebaseConfig';
 import { format } from 'date-fns';
+import { isLateArrival, calculateLateMinutes } from '../constants/workingHours';
 
 // Types for the new attendance structure
 export interface AttendanceDocumentNew {
@@ -115,11 +116,8 @@ class AttendanceServiceNew {
    * Calculate if user is late based on login time
    */
   private calculateIsLate(loginTime: Date): { isLate: boolean; lateReason: string } {
-    const startOfWorkDay = new Date(loginTime);
-    startOfWorkDay.setHours(9, 0, 0, 0); // Assuming work starts at 9:00 AM
-
-    const isLate = loginTime > startOfWorkDay;
-    const lateMinutes = isLate ? Math.floor((loginTime.getTime() - startOfWorkDay.getTime()) / (1000 * 60)) : 0;
+    const isLate = isLateArrival(loginTime);
+    const lateMinutes = isLate ? calculateLateMinutes(loginTime) : 0;
     
     return {
       isLate,

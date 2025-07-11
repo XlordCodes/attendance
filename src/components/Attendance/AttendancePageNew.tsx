@@ -44,6 +44,7 @@ const AttendancePageNew: React.FC = () => {
     if (employee) {
       loadAttendanceData();
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [employee, selectedMonth]);
 
   const loadAttendanceData = async () => {

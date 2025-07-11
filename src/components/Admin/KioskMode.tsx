@@ -2,12 +2,17 @@ import React, { useState, useEffect } from 'react';
 import { Clock, Users, KeySquare } from 'lucide-react';
 import { globalAttendanceService } from '../../services/globalAttendanceService';
 import { userService } from '../../services/userService';
+import { Employee } from '../../types';
 import { format } from 'date-fns';
 import toast from 'react-hot-toast';
 
+interface ActiveEmployee extends Employee {
+  clockInTime: Date;
+}
+
 const KioskMode: React.FC = () => {
   const [currentTime, setCurrentTime] = useState(new Date());
-  const [activeEmployees, setActiveEmployees] = useState<any[]>([]);
+  const [activeEmployees, setActiveEmployees] = useState<ActiveEmployee[]>([]);
   const [showManualEntry, setShowManualEntry] = useState(false);
   const [employeeId, setEmployeeId] = useState('');
   const [loading, setLoading] = useState(false);

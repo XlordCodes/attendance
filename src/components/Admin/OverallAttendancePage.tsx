@@ -57,13 +57,14 @@ const OverallAttendancePage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState<'today' | 'monthly'>('today');
 
-  const loadAttendanceData = async () => {
-    try {
-      setLoading(true);
-      console.log(`🔄 Loading attendance data for ${selectedDate} in ${viewMode} mode`);
-      
-      // Get all employees
-      const employees = await userService.getAllEmployees();
+  useEffect(() => {
+    const loadAttendanceData = async () => {
+      try {
+        setLoading(true);
+        console.log(`🔄 Loading attendance data for ${selectedDate} in ${viewMode} mode`);
+        
+        // Get all employees
+        const employees = await userService.getAllEmployees();
       console.log(`👥 Found ${employees.length} employees:`, employees.map(emp => ({
         uid: emp.uid,
         id: emp.id,
@@ -128,7 +129,7 @@ const OverallAttendancePage: React.FC = () => {
             clockInTime,
             clockOutTime,
             totalHours: attendanceRecord.totalHours || attendanceRecord.hoursWorked || 0,
-            breakDuration: attendanceRecord.breaks?.reduce((total: number, breakTime: any) => 
+            breakDuration: attendanceRecord.breaks?.reduce((total: number, breakTime: { duration?: number }) => 
               total + (breakTime.duration || 0), 0) || 0
           });
           
@@ -241,9 +242,8 @@ const OverallAttendancePage: React.FC = () => {
     } catch (error) {
       console.error('Failed to load monthly data:', error);
     }
-  };
+    };
 
-  useEffect(() => {
     loadAttendanceData();
   }, [selectedDate, viewMode]);
 

@@ -26,6 +26,7 @@ class NotificationService {
   }
 
   private convertNotificationToFirestore(notification: Partial<Notification>) {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { id, ...data } = notification;
     return {
       ...data,

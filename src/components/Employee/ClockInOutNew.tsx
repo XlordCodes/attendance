@@ -5,6 +5,7 @@ import { AttendanceRecord } from '../../types';
 import { useAuth } from '../../hooks/useAuth';
 import { format } from 'date-fns';
 import toast from 'react-hot-toast';
+import { getWorkStartTime, getLunchStartTime, getLunchEndTime } from '../../constants/workingHours';
 
 interface ClockInOutNewProps {
   onAttendanceChange?: () => void;
@@ -52,10 +53,9 @@ const ClockInOutNew: React.FC<ClockInOutNewProps> = ({ onAttendanceChange }) => 
   const handleClockIn = async () => {
     if (!employee?.id) return;
 
-    // Check if it would be a late arrival (10:00 AM standard)
+    // Check if it would be a late arrival based on configured work start time
     const now = new Date();
-    const workStartTime = new Date();
-    workStartTime.setHours(10, 0, 0, 0);
+    const workStartTime = getWorkStartTime(now);
     
     const isLateArrival = now > workStartTime;
     
@@ -244,27 +244,7 @@ const ClockInOutNew: React.FC<ClockInOutNewProps> = ({ onAttendanceChange }) => 
     return () => clearInterval(locationInterval);
   }, []);
 
-  // Check for automatic lunch break
-  useEffect(() => {
-    if (!todayRecord?.clockIn || todayRecord?.clockOut || todayRecord?.lunchStart) return;
-
-    const checkLunchTime = () => {
-      const now = new Date();
-      const lunchStartTime = new Date();
-      lunchStartTime.setHours(14, 0, 0, 0); // 2:00 PM
-
-      // Automatically start lunch break at 2:00 PM
-      if (now >= lunchStartTime && !todayRecord.lunchStart) {
-        handleAutomaticLunchStart();
-      }
-    };
-
-    const lunchTimer = setInterval(checkLunchTime, 60000); // Check every minute
-    
-    return () => clearInterval(lunchTimer);
-  }, [todayRecord]);
-
-  const handleAutomaticLunchStart = async () => {
+  const handleAutomaticLunchStart = useCallback(async () => {
     if (!employee?.id) return;
 
     try {
@@ -275,14 +255,32 @@ const ClockInOutNew: React.FC<ClockInOutNewProps> = ({ onAttendanceChange }) => 
     } catch (error) {
       console.error('Error starting automatic lunch break:', error);
     }
-  };
+  }, [employee?.id, onAttendanceChange]);
+
+  // Check for automatic lunch break
+  useEffect(() => {
+    if (!todayRecord?.clockIn || todayRecord?.clockOut || todayRecord?.lunchStart) return;
+
+    const checkLunchTime = () => {
+      const now = new Date();
+      const lunchStartTime = getLunchStartTime(now);
+
+      // Automatically start lunch break at 2:00 PM
+      if (now >= lunchStartTime && !todayRecord.lunchStart) {
+        handleAutomaticLunchStart();
+      }
+    };
+
+    const lunchTimer = setInterval(checkLunchTime, 60000); // Check every minute
+    
+    return () => clearInterval(lunchTimer);
+  }, [todayRecord, handleAutomaticLunchStart]);
 
   const handleLunchReturn = async () => {
     if (!employee?.id) return;
 
     const now = new Date();
-    const lunchEndTime = new Date();
-    lunchEndTime.setHours(15, 0, 0, 0); // 3:00 PM
+    const lunchEndTime = getLunchEndTime(now);
     
     const isLate = now > lunchEndTime;
 
@@ -543,7 +541,7 @@ const ClockInOutNew: React.FC<ClockInOutNewProps> = ({ onAttendanceChange }) => 
           <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">Late Arrival</h3>
             <p className="text-gray-600 mb-4">
-              You're arriving after 10:00 AM. Please provide a reason for your late arrival:
+              You're arriving after {format(getWorkStartTime(new Date()), 'h:mm a')}. Please provide a reason for your late arrival:
             </p>
             <textarea
               value={lateReason}

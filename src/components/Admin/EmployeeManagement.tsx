@@ -61,7 +61,8 @@ const EmployeeManagement: React.FC = () => {
       });
       await loadEmployees();
       toast.success(`Employee ${employee.isActive ? 'deactivated' : 'activated'} successfully`);
-    } catch (error) {
+    } catch (error: unknown) {
+      console.error('Failed to update employee status:', error);
       toast.error('Failed to update employee status');
     }
   };

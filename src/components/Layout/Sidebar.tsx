@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { useState } from 'react';
+import SettingsModal from '../Settings/SettingsModal';
 
 const Sidebar: React.FC = () => {
   const { employee, logout } = useAuth();
@@ -20,6 +21,7 @@ const Sidebar: React.FC = () => {
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
 
   const handleLogout = async () => {
     try {
@@ -245,10 +247,22 @@ const Sidebar: React.FC = () => {
         
         {showUserMenu && isExpanded && (
           <div className="bg-gray-50 rounded-md p-2 mt-2 space-y-1">
-            <button className="w-full text-left text-xs text-gray-600 hover:text-gray-900 py-1">
+            <button 
+              onClick={() => {
+                setShowSettings(true);
+                setShowUserMenu(false);
+              }}
+              className="w-full text-left text-xs text-gray-600 hover:text-gray-900 py-1"
+            >
               Profile Settings
             </button>
-            <button className="w-full text-left text-xs text-gray-600 hover:text-gray-900 py-1">
+            <button 
+              onClick={() => {
+                setShowSettings(true);
+                setShowUserMenu(false);
+              }}
+              className="w-full text-left text-xs text-gray-600 hover:text-gray-900 py-1"
+            >
               Preferences
             </button>
             <button className="w-full text-left text-xs text-gray-600 hover:text-gray-900 py-1">
@@ -301,6 +315,12 @@ const Sidebar: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Settings Modal */}
+      <SettingsModal 
+        isOpen={showSettings} 
+        onClose={() => setShowSettings(false)} 
+      />
     </div>
   );
 };

@@ -6,6 +6,7 @@ import { meetingService } from '../../services/meetingService';
 import { Meeting, AttendanceRecord } from '../../types';
 import { format, startOfWeek, endOfWeek } from 'date-fns';
 import ClockInOutNew from '../Employee/ClockInOutNew';
+import WorkingHoursInfo from '../common/WorkingHoursInfo';
 
 const EmployeeDashboardNew: React.FC = () => {
   const { employee, user } = useAuth();
@@ -234,6 +235,9 @@ const EmployeeDashboardNew: React.FC = () => {
 
   return (
     <div className="space-y-6">
+      {/* Working Hours Information */}
+      <WorkingHoursInfo />
+
       {/* Welcome Header */}
       <div className="bg-gradient-to-r from-blue-600 to-purple-600 rounded-lg shadow-sm text-white p-6">
         <div className="flex justify-between items-start">

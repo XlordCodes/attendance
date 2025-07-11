@@ -2,6 +2,13 @@ import { AttendanceRecord, GeolocationData } from '../types';
 import { format } from 'date-fns';
 import { parseDDMMYYYY, compareDDMMYYYY } from '../utils/dateUtils';
 import { 
+  isLateArrival, 
+  WORKING_HOURS,
+  getLunchStartTime,
+  getLunchEndTime,
+  getWorkEndTime 
+} from '../constants/workingHours';
+import { 
   doc, 
   getDoc,
   setDoc,
@@ -56,11 +63,12 @@ class GlobalAttendanceService {
   }
 
   private convertAttendanceToFirestore(record: Partial<AttendanceRecord>) {
-    const { id, ...data } = record;
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { id: _id, ...data } = record;
     
     // Remove any undefined values to prevent Firestore errors
     const cleanData = Object.fromEntries(
-      Object.entries(data).filter(([_, value]) => value !== undefined)
+      Object.entries(data).filter(([, value]) => value !== undefined)
     );
     
     return {
@@ -72,7 +80,12 @@ class GlobalAttendanceService {
       createdAt: cleanData.createdAt ? Timestamp.fromDate(cleanData.createdAt as Date) : Timestamp.now(),
       updatedAt: Timestamp.now(),
       // Convert breaks to the format expected by Firestore
-      breaks: (cleanData.breaks as any[])?.map(bt => ({
+      breaks: (cleanData.breaks as Array<{
+        startTime?: Date;
+        endTime?: Date;
+        type?: string;
+        duration?: number;
+      }>)?.map(bt => ({
         startTime: bt.startTime ? Timestamp.fromDate(bt.startTime) : null,
         endTime: bt.endTime ? Timestamp.fromDate(bt.endTime) : null,
         type: bt.type || 'break',
@@ -179,10 +192,12 @@ class GlobalAttendanceService {
       const clockOutTime = new Date();
       const clockInTime = (attendanceData.clockIn as { toDate(): Date }).toDate();
       const hoursWorked = (clockOutTime.getTime() - clockInTime.getTime()) / (1000 * 60 * 60);
+      const overtime = Math.max(0, hoursWorked - WORKING_HOURS.STANDARD_WORK_HOURS);
 
       const updatedData = {
         clockOut: Timestamp.fromDate(clockOutTime),
         hoursWorked: Math.round(hoursWorked * 100) / 100,
+        overtime: Math.round(overtime * 100) / 100,
         status: 'completed',
         updatedAt: Timestamp.now(),
         ...(reason && { earlyLogoutReason: reason }) // Only add earlyLogoutReason if reason exists
@@ -443,20 +458,11 @@ class GlobalAttendanceService {
   }
 
   private isLateArrival(clockInTime: Date): boolean {
-    // Consider 10:00 AM as the standard start time
-    const standardStartTime = new Date(clockInTime);
-    standardStartTime.setHours(10, 0, 0, 0);
-    
-    return clockInTime > standardStartTime;
+    return isLateArrival(clockInTime);
   }
 
   private determineStatus(clockInTime: Date): 'present' | 'absent' | 'late' | 'partial' | 'half-day' {
-    const hour = clockInTime.getHours();
-    
-    if (hour > 10 || (hour === 10 && clockInTime.getMinutes() > 0)) {
-      return 'late';
-    }
-    return 'present';
+    return isLateArrival(clockInTime) ? 'late' : 'present';
   }
 
   // Helper Methods removed AFK functionality
@@ -639,7 +645,12 @@ class GlobalAttendanceService {
       }
 
       const lunchEndTime = new Date();
-      const updateData: any = {
+      const updateData: {
+        lunchEnd: Timestamp;
+        updatedAt: Timestamp;
+        isLateFromLunch?: boolean;
+        lunchLateReason?: string;
+      } = {
         lunchEnd: Timestamp.fromDate(lunchEndTime),
         updatedAt: Timestamp.now()
       };
@@ -667,20 +678,30 @@ class GlobalAttendanceService {
   // Helper method to check if it's lunch time
   isLunchTime(): boolean {
     const now = new Date();
-    const currentHour = now.getHours();
-    const currentMinute = now.getMinutes();
+    const lunchStart = getLunchStartTime(now);
+    const lunchEnd = getLunchEndTime(now);
     
-    // Lunch time is 2:00 PM to 3:00 PM (14:00 to 15:00)
-    return (currentHour === 14) || (currentHour === 15 && currentMinute === 0);
+    return now >= lunchStart && now <= lunchEnd;
   }
 
   // Helper method to check if user is late returning from lunch
   isLateFromLunch(): boolean {
     const now = new Date();
-    const currentHour = now.getHours();
+    const lunchEnd = getLunchEndTime(now);
     
-    // Late if it's after 3:00 PM (15:00)
-    return currentHour > 15;
+    return now > lunchEnd;
+  }
+
+  // Helper method to check if minimum working hours are completed
+  hasCompletedMinimumHours(clockInTime: Date, clockOutTime: Date): boolean {
+    const hoursWorked = (clockOutTime.getTime() - clockInTime.getTime()) / (1000 * 60 * 60);
+    return hoursWorked >= WORKING_HOURS.STANDARD_WORK_HOURS;
+  }
+
+  // Helper method to calculate if early departure
+  isEarlyDeparture(clockOutTime: Date): boolean {
+    const workEnd = getWorkEndTime(clockOutTime);
+    return clockOutTime < workEnd;
   }
 }
 

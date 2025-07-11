@@ -3,7 +3,7 @@ import { Mail, Lock, Eye, EyeOff } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import toast from 'react-hot-toast';
 
-const AintrixLogo: React.FC<{ variant: string; size: number; className: string }> = ({ variant, size, className }) => (
+const AintrixLogo: React.FC<{ className: string }> = ({ className }) => (
   <div className={`${className} flex items-center justify-center`}>
     <div className="w-full h-full bg-gray-900 rounded-lg flex items-center justify-center">
       <div className="w-3/5 h-3/5 bg-white rounded opacity-90"></div>
@@ -97,8 +97,6 @@ const UnifiedLoginPage: React.FC = () => {
                 <div className="mb-2 sm:mb-3 md:mb-4">
                   <div className="flex justify-center">
                     <AintrixLogo 
-                      variant="black" 
-                      size={32} 
                       className="w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 lg:w-14 lg:h-14"
                     />
                   </div>

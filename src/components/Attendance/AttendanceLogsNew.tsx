@@ -13,7 +13,8 @@ import {
   AlertCircle,
   Coffee,
   FileText,
-  Send
+  Send,
+  Info
 } from 'lucide-react';
 import { globalAttendanceService } from '../../services/globalAttendanceService';
 import { userService } from '../../services/userService';
@@ -24,6 +25,7 @@ import toast from 'react-hot-toast';
 import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
 import { useAuth } from '../../hooks/useAuth';
+import TermsAndConditionsModal from '../common/TermsAndConditionsModal';
 
 interface AttendanceStats {
   totalDays: number;
@@ -51,6 +53,7 @@ const AttendanceLogsNew: React.FC = () => {
   const [selectedEmployee, setSelectedEmployee] = useState<string>('all');
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [showLeaveRequestForm, setShowLeaveRequestForm] = useState(false);
+  const [showTermsModal, setShowTermsModal] = useState(false);
   const [leaveFormData, setLeaveFormData] = useState({
     leaveType: 'vacation' as LeaveRequest['leaveType'],
     startDate: '',
@@ -66,6 +69,7 @@ const AttendanceLogsNew: React.FC = () => {
     if (employees.length > 0) {
       loadAttendanceData();
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [employees, selectedMonth, selectedEmployee]);
 
   const loadEmployees = async () => {
@@ -297,7 +301,16 @@ const AttendanceLogsNew: React.FC = () => {
     <div className="space-y-6">
       {/* Header */}
       <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold text-gray-900">Attendance Logs</h1>
+        <div className="flex items-center space-x-3">
+          <h1 className="text-2xl font-bold text-gray-900">Attendance Logs</h1>
+          <button
+            onClick={() => setShowTermsModal(true)}
+            className="bg-blue-100 hover:bg-blue-200 text-blue-600 p-2 rounded-lg transition-colors"
+            title="View Terms & Conditions"
+          >
+            <Info className="h-4 w-4" />
+          </button>
+        </div>
         <div className="flex space-x-3">
           {employee && (
             <button
@@ -641,6 +654,12 @@ const AttendanceLogsNew: React.FC = () => {
           )}
         </div>
       )}
+
+      {/* Terms & Conditions Modal */}
+      <TermsAndConditionsModal 
+        isOpen={showTermsModal} 
+        onClose={() => setShowTermsModal(false)} 
+      />
     </div>
   );
 };

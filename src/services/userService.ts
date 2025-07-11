@@ -14,6 +14,28 @@ import { createUserWithEmailAndPassword, signOut } from 'firebase/auth';
 import { db, auth } from './firebaseConfig';
 import { Employee } from '../types';
 
+interface UserSettings {
+  theme: 'light' | 'dark' | 'system';
+  notifications: {
+    clockInReminder: boolean;
+    clockOutReminder: boolean;
+    breakReminder: boolean;
+    weeklyReport: boolean;
+    sound: boolean;
+  };
+  workPreferences: {
+    defaultBreakDuration: number;
+    timezone: string;
+    dateFormat: 'DD/MM/YYYY' | 'MM/DD/YYYY' | 'YYYY-MM-DD';
+    timeFormat: '12h' | '24h';
+  };
+  privacy: {
+    shareLocation: boolean;
+    trackProductivity: boolean;
+  };
+  language: string;
+}
+
 class UserService {
   private readonly COLLECTION_NAME = 'users';
 
@@ -290,6 +312,19 @@ class UserService {
       return stats;
     } catch (error) {
       console.error('Error getting user stats:', error);
+      throw error;
+    }
+  }
+
+  async updateUserSettings(userId: string, settings: UserSettings): Promise<void> {
+    try {
+      const userRef = doc(db, this.COLLECTION_NAME, userId);
+      await updateDoc(userRef, {
+        settings,
+        updatedAt: new Date()
+      });
+    } catch (error) {
+      console.error('Error updating user settings:', error);
       throw error;
     }
   }
