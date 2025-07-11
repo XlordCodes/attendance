@@ -6,7 +6,6 @@ import {
   Calendar,
   LogOut,
   ChevronDown,
-  ChevronRight,
   Menu,
   X,
   BarChart3,
@@ -21,7 +20,6 @@ const Sidebar: React.FC = () => {
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
-  const [expandedMenu, setExpandedMenu] = useState<string | null>(null);
 
   const handleLogout = async () => {
     try {
@@ -35,42 +33,46 @@ const Sidebar: React.FC = () => {
     setIsExpanded(!isExpanded);
   };
 
-  const toggleMenu = (menuKey: string) => {
-    setExpandedMenu(expandedMenu === menuKey ? null : menuKey);
-  };
-
   const isAdmin = employee?.role?.toLowerCase() === 'admin';
 
-  // New navigation structure
+  // Navigation structure - Direct menu items for employees, grouped items for admins
   const navigationItems = [
-    {
-      key: 'employee-mode',
-      label: 'Employee Mode',
-      icon: UserCheck,
-      hasSubItems: true,
-      subItems: [
-        { to: '/employee-dashboard', icon: Home, label: 'Dashboard' },
-        { to: '/attendance-logs', icon: Calendar, label: 'Attendance Logs' },
-      ]
-    },
-    ...(isAdmin ? [{
-      key: 'admin-mode',
-      label: 'Admin Mode',
-      icon: Settings,
-      to: '/admin-mode'
-    }] : []),
-    ...(isAdmin ? [{
-      key: 'overall-attendance',
-      label: 'Overall Attendance',
-      icon: BarChart3,
-      to: '/overall-attendance'
-    }] : []),
-    ...(isAdmin ? [{
-      key: 'employees',
-      label: 'Employees',
-      icon: Users,
-      to: '/employees'
-    }] : []),
+    // For employees: Direct access to Dashboard and Attendance Logs
+    ...(!isAdmin ? [
+      { to: '/employee-dashboard', icon: Home, label: 'Dashboard' },
+      { to: '/attendance-logs', icon: Calendar, label: 'Attendance Logs' },
+    ] : []),
+    // For admins: All admin features
+    ...(isAdmin ? [
+      {
+        key: 'employee-mode',
+        label: 'Employee Mode',
+        icon: UserCheck,
+        hasSubItems: true,
+        subItems: [
+          { to: '/employee-dashboard', icon: Home, label: 'Dashboard' },
+          { to: '/attendance-logs', icon: Calendar, label: 'Attendance Logs' },
+        ]
+      },
+      {
+        key: 'admin-mode',
+        label: 'Admin Mode',
+        icon: Settings,
+        to: '/admin-mode'
+      },
+      {
+        key: 'overall-attendance',
+        label: 'Overall Attendance',
+        icon: BarChart3,
+        to: '/overall-attendance'
+      },
+      {
+        key: 'employees',
+        label: 'Employees',
+        icon: Users,
+        to: '/employees'
+      }
+    ] : []),
   ];
 
   return (
@@ -92,7 +94,7 @@ const Sidebar: React.FC = () => {
             </div>
           )}
           
-          {/* Menu Toggle Button - Better UX positioning */}
+          {/* Menu Toggle Button */}
           <button
             onClick={toggleSidebar}
             className={`p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors ${
@@ -110,36 +112,26 @@ const Sidebar: React.FC = () => {
         {navigationItems.map((item) => {
           const Icon = item.icon;
           const isActive = item.to ? location.pathname === item.to : false;
-          const isMenuExpanded = expandedMenu === item.key;
-          const hasActiveSubItem = item.subItems?.some(subItem => location.pathname === subItem.to);
           
-          if (item.hasSubItems) {
+          // For items with sub-items (admin only)
+          if (item.hasSubItems && item.subItems) {
+            const hasActiveSubItem = item.subItems.some(subItem => location.pathname === subItem.to);
+            
             return (
               <div key={item.key}>
-                <button
-                  onClick={() => toggleMenu(item.key)}
-                  className={`w-full flex items-center px-3 py-3 text-sm font-medium rounded-lg transition-all duration-200 ${
-                    hasActiveSubItem || isMenuExpanded
-                      ? 'bg-blue-50 text-blue-700'
-                      : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
-                  } ${!isExpanded ? 'justify-center h-10 w-10' : 'h-10'}`}
-                  title={!isExpanded ? item.label : undefined}
-                >
+                <div className={`flex items-center px-3 py-3 text-sm font-medium rounded-lg ${
+                  hasActiveSubItem
+                    ? 'bg-blue-50 text-blue-700'
+                    : 'text-gray-600'
+                } ${!isExpanded ? 'justify-center h-10 w-10' : 'h-10'}`}>
                   <Icon className="w-4 h-4 flex-shrink-0" />
                   {isExpanded && (
-                    <>
-                      <span className="ml-2 whitespace-nowrap flex-1 text-left">{item.label}</span>
-                      {isMenuExpanded ? (
-                        <ChevronDown className="w-4 h-4" />
-                      ) : (
-                        <ChevronRight className="w-4 h-4" />
-                      )}
-                    </>
+                    <span className="ml-2 whitespace-nowrap flex-1 text-left">{item.label}</span>
                   )}
-                </button>
+                </div>
                 
-                {/* Sub-menu items */}
-                {isExpanded && isMenuExpanded && item.subItems && (
+                {/* Sub-menu items - Always show for admins when expanded */}
+                {isExpanded && (
                   <div className="ml-6 mt-1 space-y-1">
                     {item.subItems.map((subItem) => {
                       const SubIcon = subItem.icon;
@@ -165,9 +157,10 @@ const Sidebar: React.FC = () => {
               </div>
             );
           } else {
+            // Direct navigation items
             return (
               <NavLink
-                key={item.key}
+                key={item.key || item.to}
                 to={item.to!}
                 className={`flex items-center px-3 py-3 text-sm font-medium rounded-lg transition-all duration-200 ${
                   isActive

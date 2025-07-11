@@ -4,7 +4,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { globalAttendanceService } from '../../services/globalAttendanceService';
 import { meetingService } from '../../services/meetingService';
 import { Meeting, AttendanceRecord } from '../../types';
-import { format, startOfWeek, endOfWeek, isToday } from 'date-fns';
+import { format, startOfWeek, endOfWeek } from 'date-fns';
 import ClockInOutNew from '../Employee/ClockInOutNew';
 
 const EmployeeDashboardNew: React.FC = () => {
@@ -33,19 +33,35 @@ const EmployeeDashboardNew: React.FC = () => {
            'User';
   }, [employee]);
 
-  // Helper function to get employee designation/role
-  const getEmployeeDesignation = useCallback(() => {
-    if (!employee) return 'Employee';
-    
-    // Safely get employee designation with fallbacks (check both cases)
-    const designation = (employee as any).Designation || // Firestore field (capital D)
-                       employee.designation ||          // lowercase field
-                       employee.position || 
-                       employee.role || 
-                       'Employee';
-    
-    return designation;
-  }, [employee]);
+  // Define a type for Employee with possible fields
+  type EmployeeType = {
+    id: string;
+    name?: string;
+    Name?: string;
+    email?: string;
+    Designation?: string;
+    designation?: string;
+    position?: string;
+    role?: string;
+    department?: string;
+  };
+  
+    // Helper function to get employee designation/role
+    const getEmployeeDesignation = useCallback(() => {
+      if (!employee) return 'Employee';
+  
+      // Type assertion for employee
+      const emp = employee as EmployeeType;
+  
+      // Safely get employee designation with fallbacks (check both cases)
+      const designation = emp.Designation ||
+                         emp.designation ||
+                         emp.position ||
+                         emp.role ||
+                         'Employee';
+  
+      return designation;
+    }, [employee]);
 
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
