@@ -1,6 +1,6 @@
 import { supabase } from './supabaseClient';
-import { format } from 'date-fns';
-import { getOfficeTodayIso, toOfficeDate, toOfficeDateSafe, getOfficeNow } from '../utils/timezoneUtils';
+
+import { getOfficeTodayIso, toOfficeDate, toOfficeDateSafe } from '../utils/timezoneUtils';
 import { isLateArrival, calculateLateMinutes } from '../constants/workingHours';
 
 // Types for the new attendance structure
