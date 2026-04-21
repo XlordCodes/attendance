@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Search, Edit, UserCheck, UserX, RefreshCw } from 'lucide-react';
+import { Plus, Search, Edit, UserCheck, UserX, RefreshCw, Mail } from 'lucide-react';
 import { userService } from '../../services/userService';
+import { supabase } from '../../services/supabaseClient';
 import { Employee } from '../../types';
 import toast from 'react-hot-toast';
 
@@ -9,6 +10,7 @@ const EmployeeManagement: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
+  const [showInviteModal, setShowInviteModal] = useState(false);
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
 
   useEffect(() => {
@@ -16,11 +18,6 @@ const EmployeeManagement: React.FC = () => {
       console.log('🚀 Initializing Employee Management component...');
       
       try {
-        // First, clean up any existing password fields in Firestore (security issue)
-        console.log('🧹 Running user document cleanup...');
-        await userService.cleanupUserDocuments();
-        
-        // Then load employees
         console.log('📋 Loading employees...');
         await loadEmployees();
       } catch (error) {
@@ -72,10 +69,7 @@ const EmployeeManagement: React.FC = () => {
       setLoading(true);
       console.log('🔄 Manual refresh triggered...');
       
-      // Clean up documents first
-      await userService.cleanupUserDocuments();
-      
-      // Then reload employees
+      // Reload employees
       await loadEmployees();
       
       toast.success('Employee data refreshed successfully!');
@@ -97,6 +91,13 @@ const EmployeeManagement: React.FC = () => {
           >
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
             <span>Refresh</span>
+          </button>
+          <button
+            onClick={() => setShowInviteModal(true)}
+            className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 flex items-center space-x-2"
+          >
+            <Mail className="w-4 h-4" />
+            <span>Invite Employee</span>
           </button>
           <button
             onClick={() => setShowAddModal(true)}
@@ -238,6 +239,14 @@ const EmployeeManagement: React.FC = () => {
             setEditingEmployee(null);
           }}
           onSave={loadEmployees}
+        />
+      )}
+
+      {/* Invite Employee Modal */}
+      {showInviteModal && (
+        <InviteEmployeeModal
+          onClose={() => setShowInviteModal(false)}
+          onSuccess={loadEmployees}
         />
       )}
     </div>
@@ -423,6 +432,152 @@ const EmployeeModal: React.FC<{
               className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300"
             >
               {loading ? 'Saving...' : (employee ? 'Update' : 'Create')}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+};
+
+const InviteEmployeeModal: React.FC<{
+  onClose: () => void;
+  onSuccess: () => void;
+}> = ({ onClose, onSuccess }) => {
+  const [formData, setFormData] = useState({
+    email: '',
+    name: '',
+    department: '',
+    position: '',
+    designation: '',
+    employeeId: ''
+  });
+  const [loading, setLoading] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+
+    try {
+      // Call Supabase Edge Function to invite employee
+      const { data, error } = await supabase.functions.invoke('invite-employee', {
+        body: formData
+      });
+
+      if (error) throw new Error(error.message);
+      if (!data.success) throw new Error(data.message);
+
+      toast.success('Invitation sent successfully! Employee will receive an email to set up their account.');
+      onSuccess();
+      onClose();
+    } catch (error) {
+      console.error('❌ Invitation error:', error);
+      toast.error(error instanceof Error ? error.message : 'Failed to send invitation');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div className="bg-white rounded-lg p-6 w-96 max-h-[90vh] overflow-y-auto">
+        <h3 className="text-lg font-medium text-gray-900 mb-4">
+          Invite New Employee
+        </h3>
+        
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Full Name
+            </label>
+            <input
+              type="text"
+              value={formData.name}
+              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+              className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
+              required
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Email Address
+            </label>
+            <input
+              type="email"
+              value={formData.email}
+              onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+              className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
+              required
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Employee ID (Optional)
+            </label>
+            <input
+              type="text"
+              value={formData.employeeId}
+              onChange={(e) => setFormData({ ...formData, employeeId: e.target.value })}
+              className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Department
+            </label>
+            <input
+              type="text"
+              value={formData.department}
+              onChange={(e) => setFormData({ ...formData, department: e.target.value })}
+              className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
+              required
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Position
+            </label>
+            <input
+              type="text"
+              value={formData.position}
+              onChange={(e) => setFormData({ ...formData, position: e.target.value })}
+              className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
+              required
+            />
+          </div>
+
+          <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+            <div className="flex items-start">
+              <div className="flex-shrink-0">
+                <Mail className="h-5 w-5 text-green-400" />
+              </div>
+              <div className="ml-3">
+                <p className="text-sm text-green-800">
+                  <strong>Secure Invitation:</strong> The employee will receive an email with a 
+                  secure link to set up their own password. No temporary passwords are generated.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex space-x-3 mt-6">
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex-1 px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={loading}
+              className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-300"
+            >
+              {loading ? 'Sending...' : 'Send Invitation'}
             </button>
           </div>
         </form>

@@ -33,6 +33,7 @@ export interface AttendanceRecord {
   breaks: BreakTime[]; // Updated field name for consistency
   breakTimes?: BreakTime[]; // For backward compatibility
   location?: GeolocationData;
+  clientIP?: string; // Audit: Client IP address used for clock in
   earlyLogoutReason?: string;
   lateReason?: string; // Added for late arrival reasons
   isLate?: boolean; // Added for late status

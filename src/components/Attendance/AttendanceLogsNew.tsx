@@ -20,7 +20,8 @@ import { globalAttendanceService } from '../../services/globalAttendanceService'
 import { userService } from '../../services/userService';
 import { leaveService } from '../../services/leaveService';
 import { AttendanceRecord, Employee, LeaveRequest } from '../../types';
-import { format, startOfMonth, endOfMonth, subMonths, addMonths, eachDayOfInterval } from 'date-fns';
+import { startOfMonth, endOfMonth, subMonths, addMonths, eachDayOfInterval } from 'date-fns';
+import { formatOffice, formatOfficeTimeShort, formatOfficeMonth, getOfficeNow } from '../../utils/timezoneUtils';
 import toast from 'react-hot-toast';
 import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
@@ -49,7 +50,7 @@ const AttendanceLogsNew: React.FC = () => {
   const [attendanceData, setAttendanceData] = useState<EmployeeAttendanceData[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedMonth, setSelectedMonth] = useState(new Date());
+  const [selectedMonth, setSelectedMonth] = useState(getOfficeNow());
   const [selectedEmployee, setSelectedEmployee] = useState<string>('all');
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [showLeaveRequestForm, setShowLeaveRequestForm] = useState(false);
@@ -175,7 +176,7 @@ const AttendanceLogsNew: React.FC = () => {
 
   const formatTime = (date: Date | null) => {
     if (!date) return '--:--';
-    return format(date, 'HH:mm');
+    return formatOfficeTimeShort(date);
   };
 
   const formatDuration = (hours: number) => {
@@ -229,7 +230,7 @@ const AttendanceLogsNew: React.FC = () => {
       const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
       const file = new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
       
-      const monthName = format(selectedMonth, 'MMMM-yyyy');
+      const monthName = formatOfficeMonth(selectedMonth);
       saveAs(file, `attendance-${monthName}.xlsx`);
       toast.success('Attendance report exported successfully!');
     } catch (error) {
@@ -388,7 +389,7 @@ const AttendanceLogsNew: React.FC = () => {
             <div className="flex items-center space-x-2 min-w-0 flex-1">
               <Calendar className="h-4 w-4 text-gray-400" />
               <span className="font-medium">
-                {format(selectedMonth, 'MMMM yyyy')}
+                {formatOfficeMonth(selectedMonth)}
               </span>
             </div>
             <button

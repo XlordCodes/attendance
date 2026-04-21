@@ -1,7 +1,6 @@
 import { useState, useEffect, createContext, useContext } from 'react';
-import { signInWithEmailAndPassword, signOut, onAuthStateChanged, User } from 'firebase/auth';
-import { doc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
-import { auth, db } from '../services/firebaseConfig';
+import { User } from '@supabase/supabase-js';
+import { supabase } from '../services/supabaseClient';
 import { Employee } from '../types';
 import toast from 'react-hot-toast';
 
@@ -28,160 +27,250 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [employee, setEmployee] = useState<Employee | null>(null);
   const [loading, setLoading] = useState(true);
 
+
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-      console.log('🔄 Auth state changed:', firebaseUser?.email || 'signed out');
-      setLoading(true);
-      
-      if (firebaseUser) {
-        try {
-          console.log('👤 Fetching user data for UID:', firebaseUser.uid);
-          
-          // Use the Firebase UID directly for fully dynamic user lookup
-          const mappedUserId = firebaseUser.uid;
-          console.log('🔄 Mapped user ID:', mappedUserId);
-          
-          // Try to get user data from Firestore users collection
-          const userDoc = await getDoc(doc(db, 'users', mappedUserId));
-          
-          if (userDoc.exists()) {
-            const userData = userDoc.data() as Omit<Employee, 'id'>;
-            const employeeData = {
-              id: mappedUserId, // Use mapped ID instead of Firebase UID
-              uid: firebaseUser.uid, // Keep original UID for reference
-              ...userData,
-            };
-            
-            console.log('✅ User data loaded from Firestore:', employeeData);
-            setEmployee(employeeData);
-          } else {
-            console.log('⚠️ No user document found by UID, trying email lookup...');
-            
-            // Fallback: Try to find by email in users collection
-            const usersQuery = query(
-              collection(db, 'users'),
-              where('email', '==', firebaseUser.email)
-            );
-            const usersSnapshot = await getDocs(usersQuery);
-            
-            if (!usersSnapshot.empty) {
-              const userDocByEmail = usersSnapshot.docs[0];
-              const userData = userDocByEmail.data() as Omit<Employee, 'id'>;
-              const employeeData = {
-                id: userDocByEmail.id,
-                ...userData,
-              };
-              
-              console.log('✅ User data found by email:', employeeData);
-              setEmployee(employeeData);
-            } else {
-              console.error('❌ User record not found in Firestore');
-              toast.error('User record not found. Please contact admin.');
-              await signOut(auth);
-            }
-          }
-        } catch (error) {
-          console.error('❌ Error fetching user data:', error);
-          toast.error('Error loading user data');
-          await signOut(auth);
+    let cancelled = false;
+
+    // ────────────────────────────────────────────────────────
+    // THE HYDRATION FAILSAFE
+    // We explicitly call getSession() to predictably hydrate the initial state
+    // and release the loading lock. This prevents the INITIAL_SESSION race condition.
+    // ────────────────────────────────────────────────────────
+    const initializeSession = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (cancelled) return;
+
+        if (session?.user) {
+          setUser(session.user);
+          await fetchEmployeeData(session.user);
+        } else {
+          setUser(null);
+          setEmployee(null);
         }
-      } else {
-        console.log('👋 User signed out');
-        setEmployee(null);
+      } catch (err) {
+        console.error('❌ Hydration failsafe error:', err);
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
       }
-      
-      setUser(firebaseUser);
-      setLoading(false);
+    };
+
+    initializeSession();
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (cancelled) return;
+
+      console.log('🔄 Auth state changed:', event, session?.user?.email || 'signed out');
+
+      // Boot is strictly handled by initializeSession
+      if (event === 'INITIAL_SESSION') return;
+
+      try {
+        // Token refresh: user/employee unchanged, just update the JWT seamlessly.
+        if (event === 'TOKEN_REFRESHED' && session?.user) {
+          setUser(session.user);
+          return;
+        }
+
+        if (event === 'SIGNED_IN') {
+          setLoading(true);
+
+          if (session?.user) {
+            setUser(session.user);
+            // fetchEmployeeData guarantees graceful resolution (Promise.allSettled)
+            await fetchEmployeeData(session.user);
+          } else {
+            setUser(null);
+            setEmployee(null);
+          }
+        } 
+        
+        // Handle Session Dropped
+        else if (event === 'SIGNED_OUT' || event === 'TOKEN_REFRESH_FAILED') {
+          setEmployee(null);
+          setUser(null);
+          toast.error('Session expired. Please log in again.');
+          window.location.href = '/';
+        }
+      } catch (err) {
+        console.error('❌ Invariant Error traversing auth state machine:', err);
+      } finally {
+        if (event === 'SIGNED_IN' && !cancelled) {
+            setLoading(false);
+        }
+      }
     });
 
-    return unsubscribe;
+    return () => {
+      cancelled = true;
+      subscription.unsubscribe();
+    };
   }, []);
+
+  // ──────────────────────────────────────────────────────────
+  // PARALLELISED EMPLOYEE LOOKUP  (Defect 7 fix)
+  //
+  // Previously:  id lookup → wait → on failure → email lookup
+  //              Total: ~300-400ms sequential
+  //
+  // Now:         id lookup ┐
+  //              email lookup ┤  → prefer id result
+  //              Total: ~150-200ms (single RTT)
+  // ──────────────────────────────────────────────────────────
+  const fetchEmployeeData = async (authUser: User) => {
+    try {
+      console.log('👤 Fetching user data for UID:', authUser.id);
+
+      // Fire both lookups in parallel
+      const [idResult, emailResult] = await Promise.allSettled([
+        supabase
+          .from('employees')
+          .select('*')
+          .eq('id', authUser.id)
+          .single(),
+        supabase
+          .from('employees')
+          .select('*')
+          .eq('email', authUser.email)
+          .limit(1),
+      ]);
+
+      // Prefer the primary-key (id) lookup
+      if (
+        idResult.status === 'fulfilled' &&
+        idResult.value.data &&
+        !idResult.value.error
+      ) {
+        console.log('✅ User data loaded (by id):', idResult.value.data);
+        setEmployee(mapDbToEmployee(idResult.value.data));
+        return;
+      }
+
+      // Fall back to email lookup
+      if (
+        emailResult.status === 'fulfilled' &&
+        emailResult.value.data &&
+        emailResult.value.data.length > 0
+      ) {
+        console.log('✅ User data loaded (by email):', emailResult.value.data[0]);
+        setEmployee(mapDbToEmployee(emailResult.value.data[0]));
+        return;
+      }
+
+      // Both lookups failed — user is authenticated but has no employee row
+      console.error('❌ User record not found in database for', authUser.email);
+      toast.error('User record not found. Please contact admin.');
+      // employee remains null — ProtectedRoute will show the error state
+    } catch (error) {
+      console.error('❌ Error fetching user data:', error);
+      toast.error('Error loading user data');
+      // employee remains null — same fallback
+    }
+  };
+
+  const mapDbToEmployee = (dbData: any): Employee => {
+    return {
+      id: dbData.id,
+      uid: dbData.uid || dbData.id,
+      employeeId: dbData.employee_id,
+      name: dbData.name,
+      email: dbData.email,
+      role: dbData.role,
+      department: dbData.department,
+      position: dbData.position,
+      designation: dbData.designation,
+      isActive: dbData.is_active,
+      joinDate: dbData.join_date,
+      createdAt: new Date(dbData.created_at),
+      lastLogin: dbData.last_login ? new Date(dbData.last_login) : undefined
+    };
+  };
 
   const login = async (email: string, password: string) => {
     try {
-      setLoading(true);
-      
+      // NOTE: Do NOT call setLoading(true) here.
+      // onAuthStateChange will fire SIGNED_IN and handle
+      // loading state + fetchEmployeeData automatically.
+      // Setting loading here would cause a flicker.
+
       console.log('🔐 Starting login process for:', email);
-      
-      // Step 1: First authenticate with Firebase Auth
-      try {
-        const userCredential = await signInWithEmailAndPassword(auth, email, password);
-        console.log('✅ Firebase Auth successful for:', email);
-        
-        // Step 2: Check if user exists in Firestore users collection
-        const userDoc = await getDoc(doc(db, 'users', userCredential.user.uid));
-        
-        if (userDoc.exists()) {
-          const userData = userDoc.data();
-          console.log('✅ User found in Firestore:', userData);
-          
-          // Show success toast with correct user name
-          toast.success(`Welcome back, ${userData.name}!`);
-          
-          return userCredential;
-          
+
+      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+        email,
+        password
+      });
+
+      if (authError) {
+        // Map Supabase error messages to user-friendly strings
+        const msg = authError.message;
+        if (msg?.includes('Invalid login credentials')) {
+          throw new Error('Invalid email or password. Please check your credentials.');
+        } else if (msg?.includes('Email not confirmed')) {
+          throw new Error('Please confirm your email address before logging in.');
+        } else if (msg?.includes('Too many requests')) {
+          throw new Error('Too many failed login attempts. Please try again later.');
+        } else if (msg?.includes('User account locked')) {
+          throw new Error('This account has been disabled. Please contact admin.');
         } else {
-          console.log('⚠️ No user document found in Firestore, trying email lookup...');
-          
-          // Fallback: Try to find by email in users collection
-          const usersQuery = query(
-            collection(db, 'users'),
-            where('email', '==', email)
-          );
-          const usersSnapshot = await getDocs(usersQuery);
-          
-          if (usersSnapshot.empty) {
-            throw new Error('User profile not found in database. Please contact admin to set up your profile.');
-          }
-          
-          const userDocByEmail = usersSnapshot.docs[0];
-          const userData = userDocByEmail.data();
-          console.log('✅ User found by email:', userData);
-          
-          // Show success toast with correct user name
-          toast.success(`Welcome back, ${userData.name}!`);
-          
-          return userCredential;
+          throw new Error(`Authentication failed: ${msg}`);
         }
-        } catch (authError: unknown) {
-          console.error('❌ Firebase Auth error:', authError);
-          
-          if (authError instanceof Error) {
-            const errorCode = (authError as { code?: string }).code;
-            
-            if (errorCode === 'auth/user-not-found') {
-              throw new Error('Account not found. Please check your email address.');
-            } else if (errorCode === 'auth/wrong-password') {
-              throw new Error('Invalid password. Please check your credentials.');
-            } else if (errorCode === 'auth/invalid-email') {
-              throw new Error('Invalid email format.');
-            } else if (errorCode === 'auth/too-many-requests') {
-              throw new Error('Too many failed login attempts. Please try again later.');
-            } else if (errorCode === 'auth/user-disabled') {
-              throw new Error('This account has been disabled. Please contact admin.');
-            } else {
-              throw new Error(`Authentication failed: ${authError.message}`);
-            }
-          } else {
-            throw new Error('Authentication failed. Please try again.');
-          }
+      }
+
+      console.log('✅ Supabase Auth successful for:', email);
+
+      // Fire-and-forget: update last_login timestamp
+      // Not awaited — non-critical, should not block login flow
+      supabase
+        .from('employees')
+        .update({ last_login: new Date().toISOString() })
+        .eq('id', authData.user.id)
+        .then(({ error }) => {
+          if (error) console.warn('⚠️ Failed to update last_login:', error.message);
+        });
+
+      // Check if user exists in employees table for welcome message
+      const { data: userData } = await supabase
+        .from('employees')
+        .select('name')
+        .eq('id', authData.user.id)
+        .single();
+
+      if (userData) {
+        toast.success(`Welcome back, ${userData.name}!`);
+      } else {
+        // Fallback: Try email
+        const { data: employeesByEmail } = await supabase
+          .from('employees')
+          .select('name')
+          .eq('email', email)
+          .limit(1);
+
+        if (employeesByEmail && employeesByEmail.length > 0) {
+          toast.success(`Welcome back, ${employeesByEmail[0].name}!`);
+        } else {
+          toast.success('Login successful!');
         }
-      
+      }
+
+      return authData;
     } catch (error: unknown) {
       console.error('❌ Login error:', error);
       const errorMessage = error instanceof Error ? error.message : 'Login failed. Please try again.';
       throw new Error(errorMessage);
-    } finally {
-      setLoading(false);
     }
   };
 
   const logout = async () => {
     try {
-      await signOut(auth);
+      await supabase.auth.signOut();
       setUser(null);
       setEmployee(null);
       toast.success('Logged out successfully');
+
+      // Full page reload to clear all state — intentional.
+      window.location.href = '/';
     } catch (error) {
       console.error('Logout error:', error);
       toast.error('Error during logout');

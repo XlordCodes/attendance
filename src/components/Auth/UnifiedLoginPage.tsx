@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Mail, Lock, Eye, EyeOff } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import toast from 'react-hot-toast';
@@ -16,7 +17,16 @@ const UnifiedLoginPage: React.FC = () => {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-  const { login } = useAuth();
+  const { login, user, loading: authLoading } = useAuth();
+  const navigate = useNavigate();
+
+  // ✅ AUTO-BOOT FAILSAFE: Immediately redirect logged-in users to dashboard
+  // Bypasses all hanging promises and submit handler race conditions
+  useEffect(() => {
+    if (!authLoading && user) {
+      navigate('/dashboard', { replace: true });
+    }
+  }, [user, authLoading, navigate]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -34,6 +44,15 @@ const UnifiedLoginPage: React.FC = () => {
     try {
       // Remove role parameter - let the system determine role from database
       await login(email, password);
+      
+      // ── DO NOT navigate here. ──
+      // The useEffect auto-redirect (line 25-29) watches for
+      // (!authLoading && user) and navigates when onAuthStateChange
+      // has fully completed (user set, employee fetched, loading=false).
+      //
+      // Navigating here would fire BEFORE onAuthStateChange sets
+      // user/employee, causing ProtectedRoute to see !user and
+      // bounce the user right back to /login.
     } catch (error) {
       console.error('Login failed:', error);
       toast.error('Login failed. Please check your credentials.');

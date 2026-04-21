@@ -1,109 +1,130 @@
-import { 
-  collection, 
-  doc, 
-  getDocs, 
-  addDoc, 
-  updateDoc, 
-  query, 
-  where, 
-  orderBy, 
-  limit as firestoreLimit,
-  Timestamp 
-} from 'firebase/firestore';
-import { db } from './firebaseConfig';
+import { supabase } from './supabaseClient';
 import { Notification } from '../types';
 
 class NotificationService {
-  private readonly COLLECTION_NAME = 'notifications';
+  private readonly TABLE_NAME = 'notifications';
 
-  private convertFirestoreToNotification(doc: { id: string; data(): Record<string, unknown> }): Notification {
-    const data = doc.data();
+  private mapDbToNotification(dbData: any): Notification {
     return {
-      ...data,
-      id: doc.id,
-      createdAt: (data.createdAt as { toDate(): Date })?.toDate(),
-    } as Notification;
-  }
-
-  private convertNotificationToFirestore(notification: Partial<Notification>) {
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const { id, ...data } = notification;
-    return {
-      ...data,
-      createdAt: data.createdAt ? Timestamp.fromDate(data.createdAt) : Timestamp.now(),
+      id: dbData.id,
+      type: dbData.type,
+      title: dbData.title,
+      message: dbData.message,
+      employeeId: dbData.employee_id,
+      employeeName: dbData.employee_name,
+      isRead: dbData.is_read,
+      createdAt: new Date(dbData.created_at),
+      priority: dbData.priority
     };
   }
 
   async createNotification(notification: Omit<Notification, 'id' | 'createdAt'>): Promise<Notification> {
-    const notificationData = {
-      ...notification,
-      createdAt: new Date(),
-    };
+    try {
+      const { data, error } = await supabase
+        .from(this.TABLE_NAME)
+        .insert({
+          type: notification.type,
+          title: notification.title,
+          message: notification.message,
+          employee_id: notification.employeeId,
+          employee_name: notification.employeeName,
+          is_read: notification.isRead,
+          priority: notification.priority
+        })
+        .select()
+        .single();
 
-    const docRef = await addDoc(
-      collection(db, this.COLLECTION_NAME), 
-      this.convertNotificationToFirestore(notificationData)
-    );
+      if (error) throw error;
 
-    return { ...notificationData, id: docRef.id };
+      return this.mapDbToNotification(data);
+    } catch (error) {
+      console.error('Error creating notification:', error);
+      throw error;
+    }
   }
 
   async getNotificationsForEmployee(employeeId: string, limit: number = 20): Promise<Notification[]> {
-    const q = query(
-      collection(db, this.COLLECTION_NAME),
-      where('employeeId', '==', employeeId),
-      orderBy('createdAt', 'desc'),
-      firestoreLimit(limit)
-    );
-    
-    const querySnapshot = await getDocs(q);
-    return querySnapshot.docs.map(doc => this.convertFirestoreToNotification(doc));
+    try {
+      const { data, error } = await supabase
+        .from(this.TABLE_NAME)
+        .select('*')
+        .eq('employee_id', employeeId)
+        .order('created_at', { ascending: false })
+        .limit(limit);
+
+      if (error) throw error;
+      return data.map(this.mapDbToNotification);
+    } catch (error) {
+      console.error('Error getting notifications for employee:', error);
+      throw error;
+    }
   }
 
   async getAllNotifications(limit: number = 50): Promise<Notification[]> {
-    const q = query(
-      collection(db, this.COLLECTION_NAME),
-      orderBy('createdAt', 'desc'),
-      firestoreLimit(limit)
-    );
-    
-    const querySnapshot = await getDocs(q);
-    return querySnapshot.docs.map(doc => this.convertFirestoreToNotification(doc));
+    try {
+      const { data, error } = await supabase
+        .from(this.TABLE_NAME)
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(limit);
+
+      if (error) throw error;
+      return data.map(this.mapDbToNotification);
+    } catch (error) {
+      console.error('Error getting all notifications:', error);
+      throw error;
+    }
   }
 
   async getUnreadNotifications(employeeId?: string): Promise<Notification[]> {
-    let q = query(
-      collection(db, this.COLLECTION_NAME),
-      where('isRead', '==', false),
-      orderBy('createdAt', 'desc')
-    );
+    try {
+      let query = supabase
+        .from(this.TABLE_NAME)
+        .select('*')
+        .eq('is_read', false)
+        .order('created_at', { ascending: false });
 
-    if (employeeId) {
-      q = query(
-        collection(db, this.COLLECTION_NAME),
-        where('employeeId', '==', employeeId),
-        where('isRead', '==', false),
-        orderBy('createdAt', 'desc')
-      );
+      if (employeeId) {
+        query = query.eq('employee_id', employeeId);
+      }
+
+      const { data, error } = await query;
+
+      if (error) throw error;
+      return data.map(this.mapDbToNotification);
+    } catch (error) {
+      console.error('Error getting unread notifications:', error);
+      throw error;
     }
-    
-    const querySnapshot = await getDocs(q);
-    return querySnapshot.docs.map(doc => this.convertFirestoreToNotification(doc));
   }
 
   async markAsRead(notificationId: string): Promise<void> {
-    const docRef = doc(db, this.COLLECTION_NAME, notificationId);
-    await updateDoc(docRef, { isRead: true });
+    try {
+      const { error } = await supabase
+        .from(this.TABLE_NAME)
+        .update({ is_read: true })
+        .eq('id', notificationId);
+
+      if (error) throw error;
+    } catch (error) {
+      console.error('Error marking notification as read:', error);
+      throw error;
+    }
   }
 
   async markAllAsRead(employeeId: string): Promise<void> {
-    const unreadNotifications = await this.getUnreadNotifications(employeeId);
-    
-    const updatePromises = unreadNotifications.map(notification => 
-      this.markAsRead(notification.id)
-    );
-    
-    await Promise.all(updatePromises);
+    try {
+      const { error } = await supabase
+        .from(this.TABLE_NAME)
+        .update({ is_read: true })
+        .eq('employee_id', employeeId)
+        .eq('is_read', false);
+
+      if (error) throw error;
+    } catch (error) {
+      console.error('Error marking all notifications as read:', error);
+      throw error;
+    }
   }
 
   // System notifications

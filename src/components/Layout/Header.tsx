@@ -2,6 +2,7 @@ import { Bell, LogOut, Search, Settings } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { useState } from 'react';
 import SettingsModal from '../Settings/SettingsModal';
+import { formatOffice, getOfficeNow } from '../../utils/timezoneUtils';
 
 const Header = () => {
   const { employee, logout } = useAuth();
@@ -23,12 +24,7 @@ const Header = () => {
             Welcome back, {employee?.name?.split(' ')[0]}
           </h2>
           <p className="text-sm text-gray-500">
-            {new Date().toLocaleDateString('en-US', { 
-              weekday: 'long', 
-              year: 'numeric', 
-              month: 'long', 
-              day: 'numeric' 
-            })}
+            {formatOffice(getOfficeNow(), 'EEEE, MMMM d, yyyy')}
           </p>
         </div>
 

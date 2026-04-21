@@ -14,6 +14,7 @@ import {
 import { useAuth } from '../../hooks/useAuth';
 import { useState } from 'react';
 import SettingsModal from '../Settings/SettingsModal';
+import { formatOffice, formatOfficeTimeShort, getOfficeNow } from '../../utils/timezoneUtils';
 
 const Sidebar: React.FC = () => {
   const { employee, logout } = useAuth();
@@ -186,23 +187,13 @@ const Sidebar: React.FC = () => {
         {isExpanded ? (
           <div className="text-center">
             <p className="text-xs text-gray-700">
-              {new Date().toLocaleDateString('en-US', { 
-                weekday: 'short', 
-                month: 'short', 
-                day: 'numeric' 
-              })} • {new Date().toLocaleTimeString('en-US', { 
-                hour: '2-digit', 
-                minute: '2-digit' 
-              })}
+              {formatOffice(getOfficeNow(), 'EEE, MMM d')} • {formatOfficeTimeShort(getOfficeNow())}
             </p>
           </div>
         ) : (
           <div className="text-center">
             <p className="text-xs text-gray-700 font-mono">
-              {new Date().toLocaleTimeString('en-US', { 
-                hour: '2-digit', 
-                minute: '2-digit' 
-              })}
+              {formatOfficeTimeShort(getOfficeNow())}
             </p>
           </div>
         )}

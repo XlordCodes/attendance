@@ -1,24 +1,12 @@
-import { 
-  doc, 
-  getDoc,
-  setDoc,
-  Timestamp,
-  getDocs,
-  collection,
-  query,
-  where,
-  orderBy,
-  limit,
-  updateDoc
-} from 'firebase/firestore';
-import { db } from './firebaseConfig';
+import { supabase } from './supabaseClient';
 import { format } from 'date-fns';
+import { getOfficeTodayIso, toOfficeDate, toOfficeDateSafe, getOfficeNow } from '../utils/timezoneUtils';
 import { isLateArrival, calculateLateMinutes } from '../constants/workingHours';
 
 // Types for the new attendance structure
 export interface AttendanceDocumentNew {
-  loginTime: Timestamp | null;
-  logoutTime: Timestamp | null;
+  loginTime: Date | null;
+  logoutTime: Date | null;
   breaks: BreakSession[];
   isLate: boolean;
   lateReason: string;
@@ -26,8 +14,9 @@ export interface AttendanceDocumentNew {
 }
 
 export interface BreakSession {
-  start: Timestamp;
-  end: Timestamp | null;
+  start: Date;
+  end: Date | null;
+  id?: string;
 }
 
 export interface AttendanceDocumentDisplay {
@@ -43,73 +32,30 @@ export interface AttendanceDocumentDisplay {
 export interface BreakSessionDisplay {
   start: Date;
   end: Date | null;
+  id?: string;
 }
 
 class AttendanceServiceNew {
-  private readonly USERS_COLLECTION = 'users';
-  private readonly ATTENDANCE_SUBCOLLECTION = 'attendance';
+  private readonly ATTENDANCE_TABLE = 'attendance_records';
+  private readonly BREAKS_TABLE = 'attendance_breaks';
 
   /**
-   * Get attendance document reference for a specific date
+   * Convert database attendance record to display format
    */
-  private getAttendanceDocRef(userId: string, date: string) {
-    return doc(db, this.USERS_COLLECTION, userId, this.ATTENDANCE_SUBCOLLECTION, date);
-  }
-
-  /**
-   * Get attendance collection reference for a user
-   */
-  private getAttendanceCollectionRef(userId: string) {
-    return collection(db, this.USERS_COLLECTION, userId, this.ATTENDANCE_SUBCOLLECTION);
-  }
-
-  /**
-   * Convert Firestore attendance document to display format
-   */
-  private convertFirestoreToDisplay(data: Record<string, unknown>, date: string): AttendanceDocumentDisplay {
+  private convertDbToDisplay(dbData: any, breaks: any[], date: string): AttendanceDocumentDisplay {
     return {
       date,
-      loginTime: (data.loginTime as { toDate(): Date })?.toDate() || null,
-      logoutTime: (data.logoutTime as { toDate(): Date })?.toDate() || null,
-      breaks: ((data.breaks as Array<Record<string, unknown>>) || []).map((breakSession: Record<string, unknown>) => ({
-        start: (breakSession.start as { toDate(): Date })?.toDate(),
-        end: (breakSession.end as { toDate(): Date })?.toDate() || null
+      loginTime: toOfficeDateSafe(dbData.login_time) || null,
+      logoutTime: toOfficeDateSafe(dbData.logout_time) || null,
+      breaks: breaks.map((breakDb: any) => ({
+        id: breakDb.id,
+        start: toOfficeDate(breakDb.start),
+        end: toOfficeDateSafe(breakDb.end) || null
       })),
-      isLate: data.isLate || false,
-      lateReason: data.lateReason || '',
-      workedHours: data.workedHours || 0
+      isLate: dbData.is_late || false,
+      lateReason: dbData.late_reason || '',
+      workedHours: dbData.worked_hours || 0
     };
-  }
-
-  /**
-   * Convert display format to Firestore document
-   */
-  private convertDisplayToFirestore(attendance: Partial<AttendanceDocumentDisplay>): Partial<AttendanceDocumentNew> {
-    const result: Partial<AttendanceDocumentNew> = {};
-
-    if (attendance.loginTime !== undefined) {
-      result.loginTime = attendance.loginTime ? Timestamp.fromDate(attendance.loginTime) : null;
-    }
-    if (attendance.logoutTime !== undefined) {
-      result.logoutTime = attendance.logoutTime ? Timestamp.fromDate(attendance.logoutTime) : null;
-    }
-    if (attendance.breaks !== undefined) {
-      result.breaks = attendance.breaks.map(breakSession => ({
-        start: Timestamp.fromDate(breakSession.start),
-        end: breakSession.end ? Timestamp.fromDate(breakSession.end) : null
-      }));
-    }
-    if (attendance.isLate !== undefined) {
-      result.isLate = attendance.isLate;
-    }
-    if (attendance.lateReason !== undefined) {
-      result.lateReason = attendance.lateReason;
-    }
-    if (attendance.workedHours !== undefined) {
-      result.workedHours = attendance.workedHours;
-    }
-
-    return result;
   }
 
   /**
@@ -154,13 +100,29 @@ class AttendanceServiceNew {
    */
   async getAttendanceForDate(userId: string, date: string): Promise<AttendanceDocumentDisplay | null> {
     try {
-      const docRef = this.getAttendanceDocRef(userId, date);
-      const docSnap = await getDoc(docRef);
+      // Get attendance record
+      const { data: attendanceRecord, error: attendanceError } = await supabase
+        .from(this.ATTENDANCE_TABLE)
+        .select('*')
+        .eq('user_id', userId)
+        .eq('date', date)
+        .single();
 
-      if (docSnap.exists()) {
-        return this.convertFirestoreToDisplay(docSnap.data(), date);
+      if (attendanceError) {
+        if (attendanceError.code === 'PGRST116') return null; // No record found
+        throw attendanceError;
       }
-      return null;
+
+      // Get breaks for this attendance record
+      const { data: breaks, error: breaksError } = await supabase
+        .from(this.BREAKS_TABLE)
+        .select('*')
+        .eq('attendance_record_id', attendanceRecord.id)
+        .order('start', { ascending: true });
+
+      if (breaksError) throw breaksError;
+
+      return this.convertDbToDisplay(attendanceRecord, breaks, date);
     } catch (error) {
       console.error('Error getting attendance for date:', error);
       throw error;
@@ -171,17 +133,17 @@ class AttendanceServiceNew {
    * Get attendance for today
    */
   async getTodayAttendance(userId: string): Promise<AttendanceDocumentDisplay | null> {
-    const today = format(new Date(), 'yyyy-MM-dd');
+    const today = getOfficeTodayIso();
     return this.getAttendanceForDate(userId, today);
   }
 
   /**
    * Clock in - create or update attendance document with login time
+   * USES SERVER-SIDE TIMESTAMP TO PREVENT TIME SPOOFING
    */
   async clockIn(userId: string, customLateReason?: string): Promise<AttendanceDocumentDisplay> {
     try {
-      const today = format(new Date(), 'yyyy-MM-dd');
-      const loginTime = new Date();
+      const today = getOfficeTodayIso();
       
       // Check if already clocked in today
       const existingAttendance = await this.getAttendanceForDate(userId, today);
@@ -189,6 +151,21 @@ class AttendanceServiceNew {
         throw new Error('Already clocked in today');
       }
 
+      // First create attendance record with server timestamp
+      const { data: insertedRecord, error: insertError } = await supabase
+        .rpc('clock_in', {
+          p_user_id: userId,
+          p_date: today
+        })
+        .single();
+
+      if (insertError) throw insertError;
+
+      // Type assertion for RPC return value
+      const typedInsertedRecord = insertedRecord as { id: string; login_time: string };
+
+      // Get the server-generated login time
+      const loginTime = toOfficeDate(typedInsertedRecord.login_time);
       const lateInfo = this.calculateIsLate(loginTime);
       
       // Use custom late reason if provided and user is actually late
@@ -196,7 +173,18 @@ class AttendanceServiceNew {
         ? customLateReason 
         : lateInfo.lateReason;
 
-      const attendanceData: AttendanceDocumentDisplay = {
+      // Update late status
+      await supabase
+        .from(this.ATTENDANCE_TABLE)
+        .update({
+          is_late: lateInfo.isLate,
+          late_reason: finalLateReason
+        })
+        .eq('id', typedInsertedRecord.id);
+
+      console.log('✅ Clock in successful for user:', userId);
+      
+      return {
         date: today,
         loginTime,
         logoutTime: null,
@@ -205,14 +193,6 @@ class AttendanceServiceNew {
         lateReason: finalLateReason,
         workedHours: 0
       };
-
-      const firestoreData = this.convertDisplayToFirestore(attendanceData);
-      const docRef = this.getAttendanceDocRef(userId, today);
-      
-      await setDoc(docRef, firestoreData, { merge: true });
-
-      console.log('✅ Clock in successful for user:', userId);
-      return attendanceData;
     } catch (error) {
       console.error('❌ Clock in failed:', error);
       throw error;
@@ -221,11 +201,11 @@ class AttendanceServiceNew {
 
   /**
    * Clock out - update attendance document with logout time and calculate worked hours
+   * USES SERVER-SIDE TIMESTAMP TO PREVENT TIME SPOOFING
    */
   async clockOut(userId: string): Promise<AttendanceDocumentDisplay> {
     try {
-      const today = format(new Date(), 'yyyy-MM-dd');
-      const logoutTime = new Date();
+      const today = getOfficeTodayIso();
       
       const existingAttendance = await this.getAttendanceForDate(userId, today);
       if (!existingAttendance?.loginTime) {
@@ -236,22 +216,44 @@ class AttendanceServiceNew {
         throw new Error('Already clocked out today');
       }
 
+      // State machine validation: Check for active break
+      const activeBreak = existingAttendance.breaks.find(b => !b.end);
+      if (activeBreak) {
+        throw new Error('Cannot clock out while a break is active. Please end your break first.');
+      }
+
+      // Update with server timestamp
+      const { data: updatedRecord, error: updateError } = await supabase
+        .rpc('clock_out', {
+          p_user_id: userId,
+          p_date: today
+        })
+        .single();
+
+      if (updateError) throw updateError;
+
+      // Type assertion for RPC return value
+      const typedUpdatedRecord = updatedRecord as { id: string; logout_time: string };
+
+      const logoutTime = toOfficeDate(typedUpdatedRecord.logout_time);
+
       const workedHours = this.calculateWorkedHours(
         existingAttendance.loginTime,
         logoutTime,
         existingAttendance.breaks
       );
 
+      // Update worked hours
+      await supabase
+        .from(this.ATTENDANCE_TABLE)
+        .update({ worked_hours: workedHours })
+        .eq('id', typedUpdatedRecord.id);
+
       const updatedAttendance: AttendanceDocumentDisplay = {
         ...existingAttendance,
         logoutTime,
         workedHours
       };
-
-      const firestoreData = this.convertDisplayToFirestore(updatedAttendance);
-      const docRef = this.getAttendanceDocRef(userId, today);
-      
-      await updateDoc(docRef, firestoreData);
 
       console.log('✅ Clock out successful for user:', userId);
       return updatedAttendance;
@@ -263,11 +265,11 @@ class AttendanceServiceNew {
 
   /**
    * Start a break
+   * USES SERVER-SIDE TIMESTAMP TO PREVENT TIME SPOOFING
    */
   async startBreak(userId: string): Promise<AttendanceDocumentDisplay> {
     try {
-      const today = format(new Date(), 'yyyy-MM-dd');
-      const breakStart = new Date();
+      const today = getOfficeTodayIso();
       
       const existingAttendance = await this.getAttendanceForDate(userId, today);
       if (!existingAttendance?.loginTime) {
@@ -284,20 +286,38 @@ class AttendanceServiceNew {
         throw new Error('Break already in progress');
       }
 
-      const newBreak: BreakSessionDisplay = {
-        start: breakStart,
+      // Get attendance record ID
+      const { data: attendanceRecord, error: recordError } = await supabase
+        .from(this.ATTENDANCE_TABLE)
+        .select('id')
+        .eq('user_id', userId)
+        .eq('date', today)
+        .single();
+
+      if (recordError) throw recordError;
+
+      // Create break with server timestamp
+      const { data: newBreak, error: breakError } = await supabase
+        .rpc('start_break', {
+          p_attendance_record_id: attendanceRecord.id
+        })
+        .single();
+
+      if (breakError) throw breakError;
+
+      // Type assertion for RPC return value
+      const typedNewBreak = newBreak as { id: string; start: string };
+
+      const updatedBreaks = [...existingAttendance.breaks, {
+        id: typedNewBreak.id,
+        start: toOfficeDate(typedNewBreak.start),
         end: null
-      };
+      }];
 
       const updatedAttendance: AttendanceDocumentDisplay = {
         ...existingAttendance,
-        breaks: [...existingAttendance.breaks, newBreak]
+        breaks: updatedBreaks
       };
-
-      const firestoreData = this.convertDisplayToFirestore(updatedAttendance);
-      const docRef = this.getAttendanceDocRef(userId, today);
-      
-      await updateDoc(docRef, { breaks: firestoreData.breaks });
 
       console.log('✅ Break started for user:', userId);
       return updatedAttendance;
@@ -309,11 +329,11 @@ class AttendanceServiceNew {
 
   /**
    * End a break
+   * USES SERVER-SIDE TIMESTAMP TO PREVENT TIME SPOOFING
    */
   async endBreak(userId: string): Promise<AttendanceDocumentDisplay> {
     try {
-      const today = format(new Date(), 'yyyy-MM-dd');
-      const breakEnd = new Date();
+      const today = getOfficeTodayIso();
       
       const existingAttendance = await this.getAttendanceForDate(userId, today);
       if (!existingAttendance?.loginTime) {
@@ -326,10 +346,24 @@ class AttendanceServiceNew {
         throw new Error('No break in progress');
       }
 
+      const ongoingBreak = existingAttendance.breaks[ongoingBreakIndex];
+
+      // End break with server timestamp
+      const { data: updatedBreak, error: breakError } = await supabase
+        .rpc('end_break', {
+          p_break_id: ongoingBreak.id
+        })
+        .single();
+
+      if (breakError) throw breakError;
+
+      // Type assertion for RPC return value
+      const typedUpdatedBreak = updatedBreak as { id: string; end: string };
+
       const updatedBreaks = [...existingAttendance.breaks];
       updatedBreaks[ongoingBreakIndex] = {
         ...updatedBreaks[ongoingBreakIndex],
-        end: breakEnd
+        end: toOfficeDate(typedUpdatedBreak.end)
       };
 
       // Recalculate worked hours if already clocked out
@@ -340,6 +374,23 @@ class AttendanceServiceNew {
           existingAttendance.logoutTime,
           updatedBreaks
         );
+
+        // Get attendance record ID
+        const { data: attendanceRecord, error: recordError } = await supabase
+          .from(this.ATTENDANCE_TABLE)
+          .select('id')
+          .eq('user_id', userId)
+          .eq('date', today)
+          .single();
+
+        if (recordError) throw recordError;
+        
+        if (attendanceRecord) {
+          await supabase
+            .from(this.ATTENDANCE_TABLE)
+            .update({ worked_hours: workedHours })
+            .eq('id', attendanceRecord.id);
+        }
       }
 
       const updatedAttendance: AttendanceDocumentDisplay = {
@@ -348,14 +399,6 @@ class AttendanceServiceNew {
         workedHours
       };
 
-      const firestoreData = this.convertDisplayToFirestore(updatedAttendance);
-      const docRef = this.getAttendanceDocRef(userId, today);
-      
-      await updateDoc(docRef, { 
-        breaks: firestoreData.breaks,
-        workedHours: firestoreData.workedHours
-      });
-
       console.log('✅ Break ended for user:', userId);
       return updatedAttendance;
     } catch (error) {
@@ -363,8 +406,6 @@ class AttendanceServiceNew {
       throw error;
     }
   }
-
-
 
   /**
    * Get attendance records for a date range
@@ -375,20 +416,30 @@ class AttendanceServiceNew {
     endDate: string
   ): Promise<AttendanceDocumentDisplay[]> {
     try {
-      const collectionRef = this.getAttendanceCollectionRef(userId);
-      const q = query(
-        collectionRef,
-        where('__name__', '>=', startDate),
-        where('__name__', '<=', endDate),
-        orderBy('__name__', 'desc')
-      );
+      const { data: attendanceRecords, error: attendanceError } = await supabase
+        .from(this.ATTENDANCE_TABLE)
+        .select('*')
+        .eq('user_id', userId)
+        .gte('date', startDate)
+        .lte('date', endDate)
+        .order('date', { ascending: false });
 
-      const querySnapshot = await getDocs(q);
-      const records: AttendanceDocumentDisplay[] = [];
+      if (attendanceError) throw attendanceError;
 
-      querySnapshot.forEach((doc) => {
-        const data = doc.data();
-        records.push(this.convertFirestoreToDisplay(data, doc.id));
+      // Get all breaks for these records
+      const recordIds = attendanceRecords.map(r => r.id);
+      const { data: allBreaks, error: breaksError } = await supabase
+        .from(this.BREAKS_TABLE)
+        .select('*')
+        .in('attendance_record_id', recordIds)
+        .order('start', { ascending: true });
+
+      if (breaksError) throw breaksError;
+
+      // Map breaks to records
+      const records: AttendanceDocumentDisplay[] = attendanceRecords.map(record => {
+        const recordBreaks = allBreaks.filter(b => b.attendance_record_id === record.id);
+        return this.convertDbToDisplay(record, recordBreaks, record.date);
       });
 
       return records;
@@ -403,19 +454,29 @@ class AttendanceServiceNew {
    */
   async getRecentAttendance(userId: string, limitCount: number = 10): Promise<AttendanceDocumentDisplay[]> {
     try {
-      const collectionRef = this.getAttendanceCollectionRef(userId);
-      const q = query(
-        collectionRef,
-        orderBy('__name__', 'desc'),
-        limit(limitCount)
-      );
+      const { data: attendanceRecords, error: attendanceError } = await supabase
+        .from(this.ATTENDANCE_TABLE)
+        .select('*')
+        .eq('user_id', userId)
+        .order('date', { ascending: false })
+        .limit(limitCount);
 
-      const querySnapshot = await getDocs(q);
-      const records: AttendanceDocumentDisplay[] = [];
+      if (attendanceError) throw attendanceError;
 
-      querySnapshot.forEach((doc) => {
-        const data = doc.data();
-        records.push(this.convertFirestoreToDisplay(data, doc.id));
+      // Get all breaks for these records
+      const recordIds = attendanceRecords.map(r => r.id);
+      const { data: allBreaks, error: breaksError } = await supabase
+        .from(this.BREAKS_TABLE)
+        .select('*')
+        .in('attendance_record_id', recordIds)
+        .order('start', { ascending: true });
+
+      if (breaksError) throw breaksError;
+
+      // Map breaks to records
+      const records: AttendanceDocumentDisplay[] = attendanceRecords.map(record => {
+        const recordBreaks = allBreaks.filter(b => b.attendance_record_id === record.id);
+        return this.convertDbToDisplay(record, recordBreaks, record.date);
       });
 
       return records;

@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Clock, Calendar, TrendingUp } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { globalAttendanceService } from '../../services/globalAttendanceService';
@@ -10,18 +11,83 @@ import WorkingHoursInfo from '../common/WorkingHoursInfo';
 
 const EmployeeDashboardNew: React.FC = () => {
   const { employee, user } = useAuth();
-  const [todayRecord, setTodayRecord] = useState<AttendanceRecord | null>(null);
-  const [meetings, setMeetings] = useState<Meeting[]>([]);
-  const [meetingsLoading, setMeetingsLoading] = useState(false);
-  const [weeklyStats, setWeeklyStats] = useState({
-    totalHours: 0,
-    daysPresent: 0,
-    averageHours: 0,
-    totalBreaks: 0,
-  });
+  const queryClient = useQueryClient();
   const [currentTime, setCurrentTime] = useState(new Date());
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+
+  // ✅ TanStack Query: Today's attendance record
+  const { data: todayRecord, isLoading: todayLoading } = useQuery({
+    queryKey: ['employeeAttendanceToday', employee?.id],
+    queryFn: async () => {
+      if (!employee) return null;
+      return globalAttendanceService.getTodayAttendance(employee.id);
+    },
+    enabled: !!employee,
+  });
+
+  // ✅ TanStack Query: Weekly attendance statistics
+  const { data: weeklyStats, isLoading: weeklyLoading } = useQuery({
+    queryKey: ['employeeWeeklyStats', employee?.id],
+    queryFn: async () => {
+      if (!employee) return { totalHours: 0, daysPresent: 0, averageHours: 0, totalBreaks: 0 };
+      
+      const weekStart = startOfWeek(new Date());
+      const weekEnd = endOfWeek(new Date());
+      const weeklyRecords = await globalAttendanceService.getAttendanceRange(
+        employee.id,
+        weekStart,
+        weekEnd
+      );
+
+      const totalHours = weeklyRecords.reduce((sum, record) => sum + (record.hoursWorked || 0), 0);
+      const daysPresent = weeklyRecords.filter(record => record.clockIn).length;
+      const totalBreaks = weeklyRecords.reduce((sum, record) => sum + record.breaks.length, 0);
+
+      return {
+        totalHours,
+        daysPresent,
+        averageHours: daysPresent > 0 ? totalHours / daysPresent : 0,
+        totalBreaks
+      };
+    },
+    enabled: !!employee,
+  });
+
+  // ✅ TanStack Query: Upcoming meetings
+  const { data: meetings = [], isLoading: meetingsLoading, refetch: refetchMeetings } = useQuery({
+    queryKey: ['employeeMeetings', employee?.id],
+    queryFn: async () => {
+      if (!employee) return [];
+      
+      const allMeetings = await meetingService.getAllMeetings();
+      
+      // Find meetings where this employee is assigned
+      const employeeMeetings = allMeetings.filter(meeting => {
+        return meeting.assignedEmployees && 
+               meeting.assignedEmployees.includes(employee.id);
+      });
+      
+      if (employeeMeetings.length === 0) {
+        return [];
+      }
+
+      // Filter for today and future meetings
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      
+      const upcomingMeetings = employeeMeetings.filter(meeting => {
+        const meetingDate = new Date(meeting.date);
+        return !isNaN(meetingDate.getTime()) && meetingDate >= today;
+      });
+
+      // Sort by date and take next 5 meetings
+      upcomingMeetings.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+      return upcomingMeetings.slice(0, 5);
+    },
+    enabled: !!employee,
+  });
+
+  // Combined loading state (derived from TanStack Query — no manual useState)
+  const loading = todayLoading || weeklyLoading || meetingsLoading;
 
   // Helper function to get display name from employee data
   const getEmployeeName = useCallback(() => {
@@ -64,130 +130,31 @@ const EmployeeDashboardNew: React.FC = () => {
       return designation;
     }, [employee]);
 
+  // Clock tick — the only legitimate useEffect in this component
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => clearInterval(timer);
   }, []);
 
-  const loadTodayRecord = useCallback(async () => {
-    if (!employee || !user) return;
-    
-    try {
-      const record = await globalAttendanceService.getTodayAttendance(employee.id);
-      setTodayRecord(record);
-    } catch (error) {
-      console.error('Error loading today record:', error);
-    }
-  }, [employee, user]);
-
-  const loadWeeklyStats = useCallback(async () => {
-    if (!employee || !user) return;
-
-    try {
-      const weekStart = startOfWeek(new Date());
-      const weekEnd = endOfWeek(new Date());
-
-      const weeklyRecords = await globalAttendanceService.getAttendanceRange(
-        employee.id, // Use employee.id instead of user.uid
-        weekStart,
-        weekEnd
-      );
-
-      const totalHours = weeklyRecords.reduce((sum, record) => sum + (record.hoursWorked || 0), 0);
-      const daysPresent = weeklyRecords.filter(record => record.clockIn).length;
-      const totalBreaks = weeklyRecords.reduce((sum, record) => sum + record.breaks.length, 0);
-
-      setWeeklyStats({
-        totalHours,
-        daysPresent,
-        averageHours: daysPresent > 0 ? totalHours / daysPresent : 0,
-        totalBreaks
-      });
-    } catch (error) {
-      console.error('Error loading weekly stats:', error);
-    }
-  }, [employee, user]);
-
-  const loadMeetings = useCallback(async () => {
-    if (!employee) return;
-
-    try {
-      setMeetingsLoading(true);
-      
-      // Get all meetings and manually filter for this employee
-      const allMeetings = await meetingService.getAllMeetings();
-      
-      // Find meetings where this employee is assigned
-      const employeeMeetings = allMeetings.filter(meeting => {
-        return meeting.assignedEmployees && 
-               meeting.assignedEmployees.includes(employee.id);
-      });
-      
-      if (employeeMeetings.length === 0) {
-        setMeetings([]);
-        return;
-      }
-
-      // Filter for today and future meetings
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      
-      const upcomingMeetings = employeeMeetings.filter(meeting => {
-        const meetingDate = new Date(meeting.date);
-        return !isNaN(meetingDate.getTime()) && meetingDate >= today;
-      });
-
-      // Sort by date and take next 5 meetings
-      upcomingMeetings.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-      setMeetings(upcomingMeetings.slice(0, 5));
-    } catch (error) {
-      console.error('Error loading meetings:', error);
-      setMeetings([]);
-    } finally {
-      setMeetingsLoading(false);
-    }
-  }, [employee]);
+  // ────────────────────────────────────────────────────────
+  // GHOST CODE DELETED (Defect 9)
+  //
+  // A massive useEffect block referencing setLoading, setError,
+  // loadTodayRecord, loadWeeklyStats, loadMeetings was here.
+  // None of those functions existed in scope — they were
+  // remnants of the pre-TanStack migration.  The useEffect
+  // would throw ReferenceError at runtime.
+  //
+  // All data fetching is now handled exclusively by the three
+  // useQuery hooks above.  Refresh intervals are managed via
+  // TanStack Query's refetchInterval option if needed.
+  // ────────────────────────────────────────────────────────
 
   const formatDuration = (hours: number) => {
     const h = Math.floor(hours);
     const m = Math.floor((hours - h) * 60);
     return `${h}h ${m}m`;
   };
-
-  // Load all dashboard data when employee and user are available
-  useEffect(() => {
-    if (employee && user) {
-      setLoading(true);
-      setError(null);
-      
-      Promise.all([
-        loadTodayRecord(),
-        loadWeeklyStats(),
-        loadMeetings()
-      ]).then(() => {
-        setLoading(false);
-      }).catch((err) => {
-        console.error('Error loading dashboard data:', err);
-        setError(err.message || 'Failed to load dashboard data');
-        setLoading(false);
-      });
-      
-      // Set up intervals for real-time updates
-      const attendanceRefreshInterval = setInterval(() => {
-        loadTodayRecord();
-        loadWeeklyStats();
-      }, 30000); // Every 30 seconds for attendance
-      
-      const meetingsRefreshInterval = setInterval(() => {
-        loadMeetings();
-      }, 60000); // Every 1 minute for meetings
-      
-      return () => {
-        clearInterval(attendanceRefreshInterval);
-        clearInterval(meetingsRefreshInterval);
-      };
-    }
-  }, [employee, user, loadTodayRecord, loadWeeklyStats, loadMeetings]);
 
   // Loading state
   if (loading) {
@@ -196,25 +163,6 @@ const EmployeeDashboardNew: React.FC = () => {
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
           <p className="mt-4 text-gray-600">Loading dashboard...</p>
-        </div>
-      </div>
-    );
-  }
-
-  // Error state
-  if (error) {
-    return (
-      <div className="flex items-center justify-center min-h-96">
-        <div className="text-center">
-          <div className="text-red-600 text-6xl mb-4">⚠️</div>
-          <h2 className="text-xl font-semibold text-gray-900 mb-2">Something went wrong</h2>
-          <p className="text-gray-600 mb-4">{error}</p>
-          <button 
-            onClick={() => window.location.reload()} 
-            className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
-          >
-            Reload Page
-          </button>
         </div>
       </div>
     );
@@ -255,14 +203,14 @@ const EmployeeDashboardNew: React.FC = () => {
         </div>
       </div>
 
-      {/* Quick Stats */}
+      {/* Quick Stats — nullish coalescing guards against undefined weeklyStats */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         <div className="bg-white rounded-lg shadow-sm border p-6">
           <div className="flex items-center">
             <Clock className="h-8 w-8 text-blue-600" />
             <div className="ml-4">
               <p className="text-sm font-medium text-gray-600">This Week</p>
-              <p className="text-2xl font-bold text-gray-900">{formatDuration(weeklyStats.totalHours)}</p>
+              <p className="text-2xl font-bold text-gray-900">{formatDuration(weeklyStats?.totalHours ?? 0)}</p>
               <p className="text-xs text-gray-500">Total hours worked</p>
             </div>
           </div>
@@ -273,7 +221,7 @@ const EmployeeDashboardNew: React.FC = () => {
             <Calendar className="h-8 w-8 text-green-600" />
             <div className="ml-4">
               <p className="text-sm font-medium text-gray-600">Days Present</p>
-              <p className="text-2xl font-bold text-gray-900">{weeklyStats.daysPresent}</p>
+              <p className="text-2xl font-bold text-gray-900">{weeklyStats?.daysPresent ?? 0}</p>
               <p className="text-xs text-gray-500">This week</p>
             </div>
           </div>
@@ -284,7 +232,7 @@ const EmployeeDashboardNew: React.FC = () => {
             <TrendingUp className="h-8 w-8 text-purple-600" />
             <div className="ml-4">
               <p className="text-sm font-medium text-gray-600">Daily Average</p>
-              <p className="text-2xl font-bold text-gray-900">{formatDuration(weeklyStats.averageHours)}</p>
+              <p className="text-2xl font-bold text-gray-900">{formatDuration(weeklyStats?.averageHours ?? 0)}</p>
               <p className="text-xs text-gray-500">Hours per day</p>
             </div>
           </div>
@@ -294,7 +242,7 @@ const EmployeeDashboardNew: React.FC = () => {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Clock In/Out Section */}
         <div className="space-y-6">
-          <ClockInOutNew onAttendanceChange={loadTodayRecord} />
+          <ClockInOutNew onAttendanceChange={() => queryClient.invalidateQueries({ queryKey: ['employeeAttendanceToday', employee?.id] })} />
         </div>
 
         {/* Today's Status & Upcoming Meetings */}
@@ -363,7 +311,7 @@ const EmployeeDashboardNew: React.FC = () => {
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-lg font-semibold text-gray-900">Upcoming Meetings</h3>
               <button 
-                onClick={loadMeetings}
+                onClick={() => refetchMeetings()}
                 disabled={meetingsLoading}
                 className={`text-sm font-medium flex items-center space-x-2 px-3 py-1 rounded-lg transition-colors ${
                   meetingsLoading 

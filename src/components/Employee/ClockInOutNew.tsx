@@ -3,6 +3,7 @@ import { Clock, AlertCircle, Coffee, Play, Pause } from 'lucide-react';
 import { globalAttendanceService } from '../../services/globalAttendanceService';
 import { AttendanceRecord } from '../../types';
 import { useAuth } from '../../hooks/useAuth';
+import { formatOfficeTimeLong, formatOfficeTimeAmPm, getOfficeNow, formatOffice } from '../../utils/timezoneUtils';
 import { format } from 'date-fns';
 import toast from 'react-hot-toast';
 import { getWorkStartTime, getLunchStartTime, getLunchEndTime } from '../../constants/workingHours';
@@ -15,7 +16,7 @@ const ClockInOutNew: React.FC<ClockInOutNewProps> = ({ onAttendanceChange }) => 
   const { employee } = useAuth();
   const [todayRecord, setTodayRecord] = useState<AttendanceRecord | null>(null);
   const [loading, setLoading] = useState(false);
-  const [currentTime, setCurrentTime] = useState(new Date());
+  const [currentTime, setCurrentTime] = useState(getOfficeNow());
   const [isOnBreak, setIsOnBreak] = useState(false);
   const [showLateReasonModal, setShowLateReasonModal] = useState(false);
   const [lateReason, setLateReason] = useState('');
@@ -24,7 +25,7 @@ const ClockInOutNew: React.FC<ClockInOutNewProps> = ({ onAttendanceChange }) => 
   const [locationError, setLocationError] = useState<string | null>(null);
 
   useEffect(() => {
-    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
+    const timer = setInterval(() => setCurrentTime(getOfficeNow()), 1000);
     return () => clearInterval(timer);
   }, []);
 
@@ -174,7 +175,7 @@ const ClockInOutNew: React.FC<ClockInOutNewProps> = ({ onAttendanceChange }) => 
 
   const formatTime = (date: Date | null) => {
     if (!date) return '--:--';
-    return format(date, 'HH:mm:ss');
+    return formatOfficeTimeLong(date);
   };
 
   const formatDuration = (hours: number) => {

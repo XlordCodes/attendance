@@ -7,7 +7,8 @@ import {
   XCircle,
   Clock,
   Search,
-  User
+  User,
+  MapPin
 } from 'lucide-react';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval } from 'date-fns';
 import { userService } from '../../services/userService';
@@ -258,13 +259,18 @@ const OverallAttendancePage: React.FC = () => {
     try {
       let csvContent = '';
       
-      if (viewMode === 'today') {
-        // Export today's attendance
-        csvContent = 'Employee Name,Employee ID,Designation,Status,Clock In,Clock Out,Total Hours,Break Duration\n';
-        employeeAttendance.forEach(attendance => {
-          const designation = attendance.employee.designation || attendance.employee.Designation || 'Employee';
-          csvContent += `"${attendance.employee.name}","${attendance.employee.employeeId}","${designation}","${attendance.status}","${attendance.clockInTime || 'N/A'}","${attendance.clockOutTime || 'N/A'}","${attendance.totalHours || 0}","${attendance.breakDuration || 0}"\n`;
-        });
+       if (viewMode === 'today') {
+         // Export today's attendance
+         csvContent = 'Employee Name,Employee ID,Designation,Status,Clock In,Clock Out,Total Hours,Break Duration,IP Address,GPS Coordinates\n';
+         employeeAttendance.forEach(attendance => {
+           const designation = attendance.employee.designation || attendance.employee.Designation || 'Employee';
+           const attendanceRecord = attendanceByUser[attendance.employee.uid || attendance.employee.id];
+           const ipAddress = attendanceRecord?.clientIP || 'N/A';
+           const gpsCoordinates = attendanceRecord?.location 
+             ? `${attendanceRecord.location.latitude}, ${attendanceRecord.location.longitude}` 
+             : 'N/A';
+           csvContent += `"${attendance.employee.name}","${attendance.employee.employeeId}","${designation}","${attendance.status}","${attendance.clockInTime || 'N/A'}","${attendance.clockOutTime || 'N/A'}","${attendance.totalHours || 0}","${attendance.breakDuration || 0}","${ipAddress}","${gpsCoordinates}"\n`;
+         });
       } else {
         // Export monthly data
         csvContent = 'Date,Total Employees,Present,Absent,Late,Attendance Rate %\n';
@@ -474,10 +480,13 @@ const OverallAttendancePage: React.FC = () => {
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Total Hours
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Break Duration
-                  </th>
-                </tr>
+                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                     Break Duration
+                   </th>
+                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                     Audit Data
+                   </th>
+                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
                 {filteredEmployeeAttendance.map((attendance) => (
@@ -512,10 +521,33 @@ const OverallAttendancePage: React.FC = () => {
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                       {attendance.totalHours ? `${attendance.totalHours.toFixed(1)}h` : 'N/A'}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {attendance.breakDuration ? `${attendance.breakDuration}m` : 'N/A'}
-                    </td>
-                  </tr>
+                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                     {attendance.breakDuration ? `${attendance.breakDuration}m` : 'N/A'}
+                   </td>
+                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                     <div className="flex flex-col space-y-1">
+                       {attendanceRecord && attendanceRecord.clientIP && (
+                         <span className="text-xs text-gray-600 font-mono">
+                           IP: {attendanceRecord.clientIP}
+                         </span>
+                       )}
+                       {attendanceRecord && attendanceRecord.location && (
+                         <a
+                           href={`https://www.google.com/maps/search/?api=1&query=${attendanceRecord.location.latitude},${attendanceRecord.location.longitude}`}
+                           target="_blank"
+                           rel="noopener noreferrer"
+                           className="flex items-center text-xs text-blue-600 hover:text-blue-800 transition-colors"
+                         >
+                           <MapPin className="w-3 h-3 mr-1" />
+                           {attendanceRecord.location.latitude.toFixed(4)}, {attendanceRecord.location.longitude.toFixed(4)}
+                         </a>
+                       )}
+                       {!attendanceRecord?.clientIP && !attendanceRecord?.location && (
+                         <span className="text-xs text-gray-400">N/A</span>
+                       )}
+                     </div>
+                   </td>
+                 </tr>
                 ))}
               </tbody>
             </table>
