@@ -14,33 +14,48 @@ import { leaveService } from '../../services/leaveService';
 import { LeaveRequest } from '../../types';
 import { format } from 'date-fns';
 import toast from 'react-hot-toast';
+import { useAuth } from '../../hooks/useAuth';
 
 const LeaveManagement: React.FC = () => {
+  const { employee } = useAuth();
   const [leaveRequests, setLeaveRequests] = useState<LeaveRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<'all' | 'pending' | 'approved' | 'rejected'>('all');
 
-  useEffect(() => {
-    loadLeaveRequests();
-  }, []);
+   useEffect(() => {
+     loadLeaveRequests();
+   }, []);
 
-  const loadLeaveRequests = async () => {
-    setLoading(true);
-    try {
-      const requests = await leaveService.getAllLeaveRequests();
-      setLeaveRequests(requests);
-    } catch (error) {
-      console.error('Error loading leave requests:', error);
-      toast.error('Failed to load leave requests');
-    } finally {
-      setLoading(false);
-    }
-  };
+   const loadLeaveRequests = async () => {
+     setLoading(true);
+     try {
+       const requests = await leaveService.getAllLeaveRequests();
+       setLeaveRequests(requests);
+     } catch (error) {
+       console.error('Error loading leave requests:', error);
+       toast.error('Failed to load leave requests');
+     } finally {
+       setLoading(false);
+     }
+   };
+
+   const formatDate = (dateString: string) => {
+     return format(new Date(`${dateString}T00:00:00`), 'MMM dd, yyyy');
+   };
 
   const handleApproveRequest = async (id: string) => {
     try {
-      await leaveService.updateLeaveRequestStatus(id, 'approved', 'Admin', 'Approved by admin');
-      setLeaveRequests(prev => 
+      if (!employee?.id) {
+        toast.error('Admin identity not verified');
+        return;
+      }
+      await leaveService.updateLeaveRequestStatus(
+        id,
+        'approved',
+        employee.id,
+        'Approved by admin'
+      );
+      setLeaveRequests(prev =>
         prev.map(req => req.id === id ? { ...req, status: 'approved' } : req)
       );
       toast.success('Leave request approved');
@@ -52,8 +67,17 @@ const LeaveManagement: React.FC = () => {
 
   const handleRejectRequest = async (id: string) => {
     try {
-      await leaveService.updateLeaveRequestStatus(id, 'rejected', 'Admin', 'Rejected by admin');
-      setLeaveRequests(prev => 
+      if (!employee?.id) {
+        toast.error('Admin identity not verified');
+        return;
+      }
+      await leaveService.updateLeaveRequestStatus(
+        id,
+        'rejected',
+        employee.id,
+        'Rejected by admin'
+      );
+      setLeaveRequests(prev =>
         prev.map(req => req.id === id ? { ...req, status: 'rejected' } : req)
       );
       toast.success('Leave request rejected');
@@ -94,10 +118,6 @@ const LeaveManagement: React.FC = () => {
       case 'emergency': return 'text-orange-600 bg-orange-100';
       default: return 'text-gray-600 bg-gray-100';
     }
-  };
-
-  const formatDate = (dateString: string) => {
-    return format(new Date(dateString), 'MMM dd, yyyy');
   };
 
   const calculateDays = (startDate: string, endDate: string) => {

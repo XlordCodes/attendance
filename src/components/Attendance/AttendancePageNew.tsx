@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
-import { 
-  Calendar, 
-  Clock, 
+import {
+  Calendar,
+  Clock,
   CheckCircle,
   XCircle,
   AlertCircle,
@@ -9,11 +9,12 @@ import {
   ChevronRight
 } from 'lucide-react';
 import { globalAttendanceService } from '../../services/globalAttendanceService';
-import { AttendanceRecord } from '../../types';
-import { format, startOfMonth, endOfMonth, addMonths, subMonths } from 'date-fns';
+import { leaveService } from '../../services/leaveService';
+import { AttendanceRecord, LeaveRequest } from '../../types';
+import { format, startOfMonth, endOfMonth, addMonths, subMonths, parseISO, isValid } from 'date-fns';
 import { useAuth } from '../../hooks/useAuth';
 import toast from 'react-hot-toast';
-import { parseDDMMYYYY } from '../../utils/dateUtils';
+
 
 interface AttendanceStats {
   totalDays: number;
@@ -39,28 +40,31 @@ const AttendancePageNew: React.FC = () => {
   });
   const [loading, setLoading] = useState(true);
   const [selectedMonth, setSelectedMonth] = useState(new Date());
+  const [employeeLeaveRequests, setEmployeeLeaveRequests] = useState<LeaveRequest[]>([]);
+  const [loadingLeaves, setLoadingLeaves] = useState(false);
 
   useEffect(() => {
     if (employee) {
       loadAttendanceData();
+      fetchEmployeeLeaves();
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [employee, selectedMonth]);
 
   const loadAttendanceData = async () => {
     if (!employee) return;
-    
+
     setLoading(true);
     try {
       const monthStart = startOfMonth(selectedMonth);
       const monthEnd = endOfMonth(selectedMonth);
-      
+
       const attendanceRecords = await globalAttendanceService.getAttendanceRange(
         employee.id,
         monthStart,
         monthEnd
       );
-      
+
       setRecords(attendanceRecords);
       calculateStats(attendanceRecords);
     } catch (error) {
@@ -71,13 +75,27 @@ const AttendancePageNew: React.FC = () => {
     }
   };
 
+  const fetchEmployeeLeaves = async () => {
+    if (!employee) return;
+    setLoadingLeaves(true);
+    try {
+      const requests = await leaveService.getLeaveRequestsForEmployee(employee.id);
+      setEmployeeLeaveRequests(requests);
+    } catch (error) {
+      console.error('Error fetching leave requests:', error);
+      toast.error('Failed to load leave requests');
+    } finally {
+      setLoadingLeaves(false);
+    }
+  };
+
   const calculateStats = (attendanceRecords: AttendanceRecord[]) => {
     const totalDays = attendanceRecords.length;
     const presentDays = attendanceRecords.filter(r => r.clockIn).length;
     const lateDays = attendanceRecords.filter(r => r.isLate).length;
     const absentDays = totalDays - presentDays;
     const totalHours = attendanceRecords.reduce((sum, r) => sum + (r.hoursWorked || 0), 0);
-    
+
     setStats({
       totalDays,
       presentDays,
@@ -167,7 +185,7 @@ const AttendancePageNew: React.FC = () => {
         <div>
           <h1 className="text-2xl font-bold text-gray-900">My Attendance</h1>
           <p className="text-gray-600 mt-1">View your attendance history and statistics</p>
-        </div>        
+        </div>
         {/* Month Navigation */}
         <div className="flex items-center space-x-4">
           <button
@@ -187,6 +205,65 @@ const AttendancePageNew: React.FC = () => {
           </button>
         </div>
       </div>
+
+      {/* My Leave Requests */}
+      {employee && (
+        <div className="bg-white rounded-lg shadow-sm border p-6">
+          <h4 className="font-medium text-gray-900 mb-3">My Leave Requests</h4>
+          {loadingLeaves ? (
+            <div className="text-center py-4">
+              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mx-auto"></div>
+            </div>
+          ) : employeeLeaveRequests.length > 0 ? (
+            <div className="overflow-x-auto">
+              <table className="min-w-full">
+                <thead>
+                  <tr className="text-left text-sm font-medium text-gray-600">
+                    <th className="pb-2 pr-4">Type</th>
+                    <th className="pb-2 pr-4">Date Range</th>
+                    <th className="pb-2 pr-4">Status</th>
+                    <th className="pb-2">Reason</th>
+                  </tr>
+                </thead>
+                <tbody className="text-sm">
+                  {employeeLeaveRequests.map((leave) => {
+                    const statusColor =
+                      leave.status === 'approved' ? 'text-green-600 bg-green-100' :
+                        leave.status === 'rejected' ? 'text-red-600 bg-red-100' :
+                          'text-yellow-600 bg-yellow-100';
+
+                    const start = new Date(`${leave.startDate}T00:00:00`);
+                    const end = new Date(`${leave.endDate}T00:00:00`);
+                    const days = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+
+                    return (
+                      <tr key={leave.id} className="border-t">
+                        <td className="py-2 capitalize pr-4">{leave.leaveType}</td>
+                        <td className="py-2 pr-4">
+                          {format(start, 'MMM dd, yyyy')} – {format(end, 'MMM dd, yyyy')}
+                          <span className="text-xs text-gray-500 ml-1">
+                            ({days} days)
+                          </span>
+                        </td>
+                        <td className="py-2 pr-4">
+                          <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${statusColor}`}>
+                            {leave.status.charAt(0).toUpperCase() + leave.status.slice(1)}
+                          </span>
+                        </td>
+                        <td className="py-2 max-w-xs truncate" title={leave.reason}>
+                          {leave.reason}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <p className="text-gray-500 italic py-4">No leave requests submitted yet.</p>
+          )}
+        </div>
+      )}
 
       {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -239,7 +316,7 @@ const AttendancePageNew: React.FC = () => {
         <div className="px-6 py-4 border-b border-gray-200">
           <h3 className="text-lg font-semibold text-gray-900">Attendance Records</h3>
         </div>
-        
+
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
@@ -268,49 +345,49 @@ const AttendancePageNew: React.FC = () => {
               {records.length > 0 ? (
                 records
                   .map((record) => {
-                    // Parse dd-MM-yyyy format correctly
-                    const recordDate = parseDDMMYYYY(record.date);
-                    if (!recordDate) {
+                    // Parse ISO date string (YYYY-MM-DD) safely
+                    const recordDate = parseISO(record.date);
+                    if (!isValid(recordDate)) {
                       console.error('Invalid date format:', record.date);
                       return null;
                     }
                     return (
-                    <tr key={record.date} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm font-medium text-gray-900">
-                          {format(recordDate, 'MMM dd, yyyy')}
-                        </div>
-                        <div className="text-xs text-gray-500">
-                          {format(recordDate, 'EEEE')}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-md text-xs font-medium border ${getStatusColor(record)}`}>
-                          {getStatusIcon(record)}
-                          <span className="ml-1 capitalize">{getRecordStatus(record)}</span>
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {record.clockIn ? format(record.clockIn, 'HH:mm') : '--:--'}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {record.clockOut ? format(record.clockOut, 'HH:mm') : '--:--'}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {formatDuration(record.hoursWorked || 0)}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {record.breaks.length} ({formatMinutes(record.breaks.reduce((sum, b) => {
-                          const duration = b.endTime && b.startTime 
-                            ? Math.floor((b.endTime.getTime() - b.startTime.getTime()) / (1000 * 60))
-                            : 0;
-                          return sum + duration;
-                        }, 0))})
-                      </td>
-                    </tr>
-                  );
-                })
-                .filter(Boolean) // Remove null entries
+                      <tr key={record.date} className="hover:bg-gray-50">
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="text-sm font-medium text-gray-900">
+                            {format(recordDate, 'MMM dd, yyyy')}
+                          </div>
+                          <div className="text-xs text-gray-500">
+                            {format(recordDate, 'EEEE')}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-md text-xs font-medium border ${getStatusColor(record)}`}>
+                            {getStatusIcon(record)}
+                            <span className="ml-1 capitalize">{getRecordStatus(record)}</span>
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                          {record.clockIn ? format(record.clockIn, 'HH:mm') : '--:--'}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                          {record.clockOut ? format(record.clockOut, 'HH:mm') : '--:--'}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                          {formatDuration(record.hoursWorked || 0)}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                          {record.breaks.length} ({formatMinutes(record.breaks.reduce((sum, b) => {
+                            const duration = b.endTime && b.startTime
+                              ? Math.floor((b.endTime.getTime() - b.startTime.getTime()) / (1000 * 60))
+                              : 0;
+                            return sum + duration;
+                          }, 0))})
+                        </td>
+                      </tr>
+                    );
+                  })
+                  .filter(Boolean) // Remove null entries
               ) : (
                 <tr>
                   <td colSpan={6} className="px-6 py-12 text-center">

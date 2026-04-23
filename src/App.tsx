@@ -15,7 +15,6 @@ import Sidebar from './components/Layout/Sidebar';
 // ────────────────────────────────────────────────────────────
 const UnifiedLoginPage = React.lazy(() => import('./components/Auth/UnifiedLoginPage'));
 const UnifiedDashboardNew = React.lazy(() => import('./components/Dashboard/UnifiedDashboardNew'));
-const EmployeeDashboardNew = React.lazy(() => import('./components/Dashboard/EmployeeDashboardNew'));
 const AdminModePage = React.lazy(() => import('./components/Admin/AdminModePage'));
 const OverallAttendancePage = React.lazy(() => import('./components/Admin/OverallAttendancePage'));
 const EmployeeManagement = React.lazy(() => import('./components/Admin/EmployeeManagement'));
@@ -144,7 +143,12 @@ const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 // APP CONTENT — Route definitions wrapped in Suspense
 // ────────────────────────────────────────────────────────────
 const AppContent: React.FC = () => {
-  const { user, employee } = useAuth();
+  const { user, employee, loading } = useAuth();
+
+  // Strict guard: hold the loading screen until auth state machine settles
+  if (loading) {
+    return <GlobalLoader />;
+  }
 
   return (
     <Suspense fallback={<GlobalLoader />}>
@@ -155,26 +159,19 @@ const AppContent: React.FC = () => {
         {/* Unauthenticated routes */}
         <Route path="/login" element={<UnifiedLoginPage />} />
         
-        {/* Authenticated routes */}
-        <Route path="/" element={<Navigate to="/dashboard" replace />} />
-        <Route path="/dashboard" element={
-          <ProtectedRoute>
-            <AppLayout>
-              {/* Unified dashboard for all users - admins get both views */}
-              <UnifiedDashboardNew />
-            </AppLayout>
-          </ProtectedRoute>
-        } />
-        
-        {/* Employee features - accessible by all users */}
-        <Route path="/employee-dashboard" element={
-          <ProtectedRoute>
-            <AppLayout>
-              <EmployeeDashboardNew />
-            </AppLayout>
-          </ProtectedRoute>
-        } />
-        <Route path="/attendance-logs" element={
+         {/* Authenticated routes */}
+         <Route path="/" element={<Navigate to="/dashboard" replace />} />
+         <Route path="/dashboard" element={
+           <ProtectedRoute>
+             <AppLayout>
+               {/* Unified dashboard for all users - admins get both views */}
+               <UnifiedDashboardNew />
+             </AppLayout>
+           </ProtectedRoute>
+         } />
+         
+         {/* Employee features - accessible by all users */}
+         <Route path="/attendance-logs" element={
           <ProtectedRoute>
             <AppLayout>
               <AttendancePageNew />
@@ -231,12 +228,12 @@ const AppContent: React.FC = () => {
               <AdminSetup />
             </AppLayout>
           </ProtectedRoute>
-        } />
-        
-        <Route path="*" element={<Navigate to="/dashboard" replace />} />
-      </Routes>
-    </Suspense>
-  );
+         } />
+
+         <Route path="*" element={<Navigate to="/dashboard" replace />} />
+       </Routes>
+     </Suspense>
+   );
 };
 
 // ────────────────────────────────────────────────────────────

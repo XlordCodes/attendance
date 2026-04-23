@@ -1,12 +1,10 @@
 import { AttendanceRecord, GeolocationData } from '../types';
-import { format } from 'date-fns';
-import { parseDDMMYYYY, compareDDMMYYYY } from '../utils/dateUtils';
-import { 
-  toOfficeDate, 
-  toOfficeDateSafe, 
-  getOfficeTodayIso, 
-  getOfficeTodayDDMMYYYY, 
-  getOfficeNow 
+import {
+  toOfficeDate,
+  toOfficeDateSafe,
+  getOfficeTodayIso,
+  getOfficeNow,
+  formatOffice
 } from '../utils/timezoneUtils';
 import {
   isLateArrival,
@@ -22,8 +20,54 @@ class GlobalAttendanceService {
   private readonly BREAKS_TABLE = 'attendance_breaks';
   private readonly USERS_TABLE = 'employees';
 
-  private convertDbToAttendance(dbData: any): AttendanceRecord {
+   private convertDbToAttendance(dbData: any): AttendanceRecord {
     const breaks = (dbData.attendance_breaks || []) as Array<any>;
+
+    // Calculate total break minutes from completed breaks
+    let totalBreakMins = 0;
+     if (Array.isArray(breaks)) {
+       breaks.forEach((b: any) => {
+         if (b.start && b.end) {
+           const startTime = new Date(b.start);
+           const endTime = new Date(b.end);
+           if (!isNaN(startTime.getTime()) && !isNaN(endTime.getTime())) {
+             totalBreakMins += (endTime.getTime() - startTime.getTime()) / (1000 * 60);
+           }
+         }
+       });
+     }
+
+       // Round break minutes to 2 decimal places
+       totalBreakMins = Math.round(totalBreakMins * 100) / 100;
+
+       // Guard: validate critical timestamps before parsing
+       if (!dbData.login_time && !dbData.logout_time) {
+         console.warn(
+           `⚠️ convertDbToAttendance: Both login_time and logout_time are missing for record ${dbData.id || '(no id)'}. ` +
+           `Hours will default to 0 unless worked_hours is present.`
+         );
+       }
+
+       // Parse worked_hours (Postgres NUMERIC may return string)
+       let calcHours = dbData.worked_hours ? parseFloat(dbData.worked_hours) : 0;
+
+      // Fallback: if worked_hours is missing/0 but we have clock times, recalculate
+      if (!calcHours && dbData.login_time && dbData.logout_time) {
+        const loginTime = new Date(dbData.login_time);
+        const logoutTime = new Date(dbData.logout_time);
+        if (!isNaN(loginTime.getTime()) && !isNaN(logoutTime.getTime())) {
+          const totalMs = logoutTime.getTime() - loginTime.getTime();
+          const breakMs = totalBreakMins * 60 * 1000;
+          const netMs = totalMs - breakMs;
+          calcHours = netMs > 0 ? netMs / (1000 * 60 * 60) : 0;
+        }
+      }
+
+      // Round hours to 2 decimal places
+      calcHours = Math.round(calcHours * 100) / 100;
+
+    // Compute overtime based on standard work hours
+    const overtime = Math.max(0, calcHours - WORKING_HOURS.STANDARD_WORK_HOURS);
 
     return {
       id: dbData.id,
@@ -34,37 +78,40 @@ class GlobalAttendanceService {
       employeeName: dbData.employees?.name || '',
       department: dbData.employees?.department || '',
       date: dbData.date,
-      clockIn: toOfficeDateSafe(dbData.login_time),
-      clockOut: toOfficeDateSafe(dbData.logout_time),
-      lunchStart: toOfficeDateSafe(dbData.lunch_start),
-      lunchEnd: toOfficeDateSafe(dbData.lunch_end),
+      clockIn: toOfficeDateSafe(dbData.login_time) || null,
+      clockOut: toOfficeDateSafe(dbData.logout_time) || null,
+      lunchStart: toOfficeDateSafe(dbData.lunch_start) || null,
+      lunchEnd: toOfficeDateSafe(dbData.lunch_end) || null,
       createdAt: toOfficeDate(dbData.created_at),
       updatedAt: toOfficeDate(dbData.updated_at),
-      hoursWorked: dbData.worked_hours || 0,
-      totalHours: dbData.worked_hours || 0,
+      // Use calculated hours with fallback
+      hoursWorked: calcHours,
+      totalHours: calcHours,
+      totalBreakMinutes: totalBreakMins,
+      totalBreakHours: totalBreakMins / 60,
       breaks: breaks.map((bt: any) => ({
         id: bt.id,
         startTime: toOfficeDate(bt.start),
-        endTime: toOfficeDateSafe(bt.end),
+        endTime: toOfficeDateSafe(bt.end) || null,
         type: bt.type || 'break',
-        duration: bt.duration || 0
+        duration: bt.duration ? parseFloat(bt.duration) : 0
       })),
       breakTimes: breaks.map((bt: any) => ({
         id: bt.id,
         start: toOfficeDate(bt.start),
-        end: toOfficeDateSafe(bt.end),
+        end: toOfficeDateSafe(bt.end) || null,
         type: bt.type || 'break',
-        duration: bt.duration || 0
+        duration: bt.duration ? parseFloat(bt.duration) : 0
       })),
       isLate: dbData.is_late || false,
-      lateReason: dbData.late_reason || null,
+      lateReason: dbData.late_reason || dbData.audit_data || null,
       status: this.determineStatus(toOfficeDateSafe(dbData.login_time) || null),
       location: dbData.location as GeolocationData || null,
-      overtime: dbData.overtime || 0
-    } as AttendanceRecord;
-  }
+      overtime: overtime
+     } as AttendanceRecord;
+   }
 
-  async clockIn(userId: string, lateReason?: string, location?: GeolocationData, clientIP?: string): Promise<AttendanceRecord> {
+   async clockIn(userId: string, lateReason?: string, location?: GeolocationData, clientIP?: string): Promise<AttendanceRecord> {
     try {
       console.log('🕐 Starting clock in for user:', userId);
 
@@ -77,7 +124,6 @@ class GlobalAttendanceService {
 
       if (userError) throw new Error('User not found');
 
-      const today = getOfficeTodayDDMMYYYY();
       const todayIso = getOfficeTodayIso();
 
       // Check if already clocked in today
@@ -86,7 +132,7 @@ class GlobalAttendanceService {
         .select('login_time')
         .eq('user_id', userId)
         .eq('date', todayIso)
-        .single();
+        .maybeSingle();
 
       if (existingRecord?.login_time) {
         throw new Error('Already clocked in today');
@@ -124,7 +170,7 @@ class GlobalAttendanceService {
         employeeId: userData.employee_id,
         employeeName: userData.name || '',
         department: userData.department || 'Unknown',
-        date: today,
+        date: formatOffice(getOfficeNow(), 'dd-MM-yyyy'),
         clockIn: clockInTime,
         clockOut: undefined,
         lunchStart: undefined,
@@ -150,69 +196,86 @@ class GlobalAttendanceService {
     }
   }
 
-  async clockOut(userId: string, reason?: string): Promise<AttendanceRecord> {
-    try {
-      console.log('🕕 Starting clock out for user:', userId);
+    async clockOut(userId: string, reason?: string): Promise<AttendanceRecord> {
+      try {
+        console.log('🕕 Starting clock out for user:', userId);
 
-      const todayIso = new Date().toISOString().split('T')[0];
-      const today = format(new Date(), 'dd-MM-yyyy');
+        const todayIso = getOfficeTodayIso();
 
-      // Clock out with SERVER TIMESTAMP
-      const { data: attendanceRecord, error: updateError } = await supabase
-        .rpc('clock_out', {
-          p_user_id: userId,
-          p_date: todayIso
-        })
-        .single();
+        // Get attendance record ID for today
+        const { data: attendanceRecord, error: fetchError } = await supabase
+          .from(this.ATTENDANCE_TABLE)
+          .select('id, login_time, logout_time, worked_hours')
+          .eq('user_id', userId)
+          .eq('date', todayIso)
+          .maybeSingle();
 
-      if (updateError) throw updateError;
+        if (fetchError || !attendanceRecord) {
+          throw new Error('No attendance record found for today');
+        }
 
-      // Get full record with user and breaks
-      const { data: fullRecord, error: fetchError } = await supabase
-        .from(this.ATTENDANCE_TABLE)
-        .select(`
-          *,
-          employees:user_id (name, email, employee_id, department),
-          attendance_breaks (*)
-        `)
-        .eq('id', attendanceRecord.id)
-        .single();
+        console.log('📋 Pre-update record:', {
+          id: attendanceRecord.id,
+          login_time: attendanceRecord.login_time,
+          logout_time: attendanceRecord.logout_time,
+          worked_hours: attendanceRecord.worked_hours
+        });
 
-      if (fetchError) throw fetchError;
+        // Atomic update-and-fetch: update logout_time and immediately return full record with joins
+        const now = new Date();
+        const updateData: any = { logout_time: now.toISOString() };
+        if (reason) {
+          updateData.early_logout_reason = reason;
+        }
 
-      const clockInTime = toOfficeDate(fullRecord.login_time);
-      const clockOutTime = toOfficeDate(attendanceRecord.logout_time);
-      const hoursWorked = (clockOutTime.getTime() - clockInTime.getTime()) / (1000 * 60 * 60);
-      const overtime = Math.max(0, hoursWorked - WORKING_HOURS.STANDARD_WORK_HOURS);
+        console.log('📤 Update payload:', updateData);
 
-      // Update worked hours and overtime
-      await supabase
-        .from(this.ATTENDANCE_TABLE)
-        .update({
-          worked_hours: Math.round(hoursWorked * 100) / 100,
-          overtime: Math.round(overtime * 100) / 100,
-          early_logout_reason: reason
-        })
-        .eq('id', attendanceRecord.id);
+        const { data: fullRecord, error: updateError } = await supabase
+          .from(this.ATTENDANCE_TABLE)
+          .update(updateData)
+          .eq('id', attendanceRecord.id)
+          .select(`
+            *,
+            employees:user_id (name, email, employee_id, department),
+            attendance_breaks (*)
+          `)
+          .single();
 
-      const updatedRecord = this.convertDbToAttendance({
-        ...fullRecord,
-        logout_time: attendanceRecord.logout_time,
-        worked_hours: Math.round(hoursWorked * 100) / 100,
-        overtime: Math.round(overtime * 100) / 100
-      });
+        if (updateError) throw updateError;
+        if (!fullRecord) throw new Error('Failed to retrieve updated record');
 
-      console.log('✅ Clock out successful:', updatedRecord);
-      return updatedRecord;
-    } catch (error) {
-      console.error('❌ Clock out failed:', error);
-      throw error;
+        console.log('📥 Raw updated record (pre-convert):', {
+          id: fullRecord.id,
+          login_time: fullRecord.login_time,
+          logout_time: fullRecord.logout_time,
+          worked_hours: fullRecord.worked_hours,
+          breaksCount: fullRecord.attendance_breaks?.length || 0
+        });
+
+        // Convert using mapper (which will calculate hours dynamically)
+        const updatedRecord = this.convertDbToAttendance(fullRecord);
+
+        console.log('✅ Clock out successful:', {
+          id: updatedRecord.id,
+          date: updatedRecord.date,
+          clockIn: updatedRecord.clockIn,
+          clockOut: updatedRecord.clockOut,
+          hoursWorked: updatedRecord.hoursWorked,
+          totalHours: updatedRecord.totalHours,
+          totalBreakMinutes: updatedRecord.totalBreakMinutes,
+          breaksCount: updatedRecord.breaks.length
+        });
+
+        return updatedRecord;
+      } catch (error) {
+        console.error('❌ Clock out failed:', error);
+        throw error;
+      }
     }
-  }
 
   async getTodayAttendance(userId: string): Promise<AttendanceRecord | null> {
     try {
-      const todayIso = new Date().toISOString().split('T')[0];
+      const todayIso = getOfficeTodayIso();
 
       const { data, error } = await supabase
         .from(this.ATTENDANCE_TABLE)
@@ -223,14 +286,14 @@ class GlobalAttendanceService {
         `)
         .eq('user_id', userId)
         .eq('date', todayIso)
-        .single();
+        .maybeSingle();
 
       if (error) {
         if (error.code === 'PGRST116') return null;
         throw error;
       }
 
-      return this.convertDbToAttendance(data);
+      return data ? this.convertDbToAttendance(data) : null;
     } catch (error) {
       console.error('Error getting today attendance:', error);
       return null;
@@ -257,6 +320,10 @@ class GlobalAttendanceService {
 
       if (error) throw error;
 
+      if (!data || data.length === 0) {
+        return [];
+      }
+
       return data.map(this.convertDbToAttendance.bind(this));
     } catch (error) {
       console.error('Error getting attendance history:', error);
@@ -264,8 +331,28 @@ class GlobalAttendanceService {
     }
   }
 
-  async getAttendanceRange(userId: string, startDate: Date, endDate: Date): Promise<AttendanceRecord[]> {
-    try {
+   async getAttendanceRange(
+     userId: string,
+     startDate: Date | string,
+     endDate: Date | string
+   ): Promise<AttendanceRecord[]> {
+     try {
+       // Timezone-safe formatter: always uses Asia/Kolkata
+       const toOfficeIso = (d: Date | string) => {
+         const dateObj = typeof d === 'string' ? new Date(d) : d;
+         if (isNaN(dateObj.getTime())) return new Date().toISOString().split('T')[0];
+
+         const options = { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' } as const;
+         const parts = new Intl.DateTimeFormat('en-IN', options).formatToParts(dateObj);
+         const year = parts.find(p => p.type === 'year')?.value;
+         const month = parts.find(p => p.type === 'month')?.value;
+         const day = parts.find(p => p.type === 'day')?.value;
+         return `${year}-${month}-${day}`;
+       };
+
+       const startDateStr = toOfficeIso(startDate);
+       const endDateStr = toOfficeIso(endDate);
+
       const { data, error } = await supabase
         .from(this.ATTENDANCE_TABLE)
         .select(`
@@ -274,11 +361,15 @@ class GlobalAttendanceService {
           attendance_breaks (*)
         `)
         .eq('user_id', userId)
-        .gte('date', startDate.toISOString().split('T')[0])
-        .lte('date', endDate.toISOString().split('T')[0])
+        .gte('date', startDateStr)
+        .lte('date', endDateStr)
         .order('date', { ascending: false });
 
       if (error) throw error;
+
+      if (!data || data.length === 0) {
+        return [];
+      }
 
       return data.map(this.convertDbToAttendance.bind(this));
     } catch (error) {
@@ -312,6 +403,10 @@ class GlobalAttendanceService {
 
       if (error) throw error;
 
+      if (!data || data.length === 0) {
+        return [];
+      }
+
       return data.map(this.convertDbToAttendance.bind(this));
     } catch (error) {
       console.error('Error getting all attendance records:', error);
@@ -321,7 +416,7 @@ class GlobalAttendanceService {
 
   async getAttendanceForDate(userId: string, date: Date): Promise<AttendanceRecord | null> {
     try {
-      const dateStr = date.toISOString().split('T')[0];
+      const dateIso = date.toISOString().split('T')[0];
 
       const { data, error } = await supabase
         .from(this.ATTENDANCE_TABLE)
@@ -331,15 +426,15 @@ class GlobalAttendanceService {
           attendance_breaks (*)
         `)
         .eq('user_id', userId)
-        .eq('date', dateStr)
-        .single();
+        .eq('date', dateIso)
+        .maybeSingle();
 
       if (error) {
         if (error.code === 'PGRST116') return null;
         throw error;
       }
 
-      return this.convertDbToAttendance(data);
+      return data ? this.convertDbToAttendance(data) : null;
     } catch (error) {
       console.error('Error getting attendance for date:', error);
       return null;
@@ -350,8 +445,11 @@ class GlobalAttendanceService {
     try {
       console.log(`🔍 Fetching all attendance for date: ${date}`);
 
-      const dateIso = parseDDMMYYYY(date)?.toISOString().split('T')[0];
-      if (!dateIso) return {};
+      // Directly construct YYYY-MM-DD from DD-MM-YYYY without timezone conversion
+      const parts = date.split('-');
+      if (parts.length !== 3) return {};
+      const [day, month, year] = parts;
+      const dateIso = `${year}-${month}-${day}`;
 
       const { data, error } = await supabase
         .from(this.ATTENDANCE_TABLE)
@@ -363,6 +461,10 @@ class GlobalAttendanceService {
         .eq('date', dateIso);
 
       if (error) throw error;
+
+      if (!data || data.length === 0) {
+        return {};
+      }
 
       const attendanceByUser: { [userId: string]: AttendanceRecord } = {};
       data.forEach(record => {
@@ -393,6 +495,10 @@ class GlobalAttendanceService {
 
       if (error) throw error;
 
+      if (!data || data.length === 0) {
+        return [];
+      }
+
       const records = data.map(this.convertDbToAttendance.bind(this));
 
       console.log(`📊 Found ${records.length} records for ${employeeId}`);
@@ -415,8 +521,8 @@ class GlobalAttendanceService {
 
   async startBreak(userId: string): Promise<AttendanceRecord> {
     try {
-      const todayIso = new Date().toISOString().split('T')[0];
-      const today = format(new Date(), 'dd-MM-yyyy');
+      const todayIso = getOfficeTodayIso();
+      const now = new Date();
 
       // Get attendance record
       const { data: attendanceRecord, error: recordError } = await supabase
@@ -424,7 +530,7 @@ class GlobalAttendanceService {
         .select('id, login_time')
         .eq('user_id', userId)
         .eq('date', todayIso)
-        .single();
+        .maybeSingle();
 
       if (recordError || !attendanceRecord?.login_time) {
         throw new Error('Please clock in first');
@@ -441,12 +547,17 @@ class GlobalAttendanceService {
         throw new Error('A break is already in progress');
       }
 
-      // Start break with SERVER TIMESTAMP
-      const { data: newBreak } = await supabase
-        .rpc('start_break', {
-          p_attendance_record_id: attendanceRecord.id
+      // Start break with direct insert (no RPC)
+      const { data: newBreak, error: insertError } = await supabase
+        .from(this.BREAKS_TABLE)
+        .insert({
+          attendance_record_id: attendanceRecord.id,
+          start: now.toISOString()
         })
+        .select()
         .single();
+
+      if (insertError) throw insertError;
 
       // Get updated record
       const { data: updatedRecord } = await supabase
@@ -468,7 +579,7 @@ class GlobalAttendanceService {
 
   async endBreak(userId: string): Promise<AttendanceRecord> {
     try {
-      const todayIso = new Date().toISOString().split('T')[0];
+      const todayIso = getOfficeTodayIso();
 
       // Get attendance record
       const { data: attendanceRecord } = await supabase
@@ -476,39 +587,35 @@ class GlobalAttendanceService {
         .select('id')
         .eq('user_id', userId)
         .eq('date', todayIso)
-        .single();
+        .maybeSingle();
 
       if (!attendanceRecord) throw new Error('No attendance record found for today');
 
-      // Find active break
+      // Find active break (use maybeSingle to avoid 406 when no break exists)
       const { data: activeBreak } = await supabase
         .from(this.BREAKS_TABLE)
         .select('id')
         .eq('attendance_record_id', attendanceRecord.id)
         .is('end', null)
-        .single();
+        .maybeSingle();
 
-      if (!activeBreak) throw new Error('No active break found');
+      if (!activeBreak) {
+        throw new Error('No active break found to end.');
+      }
 
-      // End break with SERVER TIMESTAMP
-      const { data: endedBreak } = await supabase
-        .rpc('end_break', {
-          p_break_id: activeBreak.id
-        })
-        .single();
-
-      // Calculate duration
-      const { data } = await supabase.from(this.BREAKS_TABLE).select('start').eq('id', activeBreak.id).single();
-      const startTime = data?.start;
-      const duration = (new Date(endedBreak.end).getTime() - new Date(startTime).getTime()) / (1000 * 60);
-
-      await supabase
+      // End break with direct update (no RPC)
+      const now = new Date();
+      const { error: updateError } = await supabase
         .from(this.BREAKS_TABLE)
-        .update({ duration: Math.round(duration * 100) / 100 })
-        .eq('id', activeBreak.id);
+        .update({ end: now.toISOString() })
+        .eq('id', activeBreak.id)
+        .select()
+        .single();
+
+      if (updateError) throw updateError;
 
       // Get updated record
-      const { data: updatedRecord } = await supabase
+      const { data: updatedRecord, error: fetchError } = await supabase
         .from(this.ATTENDANCE_TABLE)
         .select(`
           *,
@@ -516,7 +623,10 @@ class GlobalAttendanceService {
           attendance_breaks (*)
         `)
         .eq('id', attendanceRecord.id)
-        .single();
+        .maybeSingle();
+
+      if (fetchError) throw fetchError;
+      if (!updatedRecord) throw new Error('Failed to fetch updated attendance record');
 
       return this.convertDbToAttendance(updatedRecord);
     } catch (error) {
@@ -527,14 +637,14 @@ class GlobalAttendanceService {
 
   async startLunchBreak(userId: string): Promise<AttendanceRecord> {
     try {
-      const todayIso = new Date().toISOString().split('T')[0];
+      const todayIso = getOfficeTodayIso();
 
       const { data: attendanceRecord, error: recordError } = await supabase
         .from(this.ATTENDANCE_TABLE)
         .select('id, login_time, lunch_start')
         .eq('user_id', userId)
         .eq('date', todayIso)
-        .single();
+        .maybeSingle();
 
       if (recordError || !attendanceRecord?.login_time) {
         throw new Error('Please clock in first');
@@ -546,7 +656,7 @@ class GlobalAttendanceService {
 
       await supabase
         .from(this.ATTENDANCE_TABLE)
-        .update({ lunch_start: supabase.raw('NOW()') })
+        .update({ lunch_start: new Date().toISOString() })
         .eq('id', attendanceRecord.id);
 
       // Get updated record
@@ -569,21 +679,21 @@ class GlobalAttendanceService {
 
   async endLunchBreak(userId: string, isLate?: boolean): Promise<AttendanceRecord> {
     try {
-      const todayIso = new Date().toISOString().split('T')[0];
+      const todayIso = getOfficeTodayIso();
 
       const { data: attendanceRecord, error: recordError } = await supabase
         .from(this.ATTENDANCE_TABLE)
         .select('id, lunch_start, lunch_end')
         .eq('user_id', userId)
         .eq('date', todayIso)
-        .single();
+        .maybeSingle();
 
-      if (recordError) throw new Error('No attendance record found for today');
+      if (recordError || !attendanceRecord) throw new Error('No attendance record found for today');
       if (!attendanceRecord.lunch_start) throw new Error('Lunch break not started');
       if (attendanceRecord.lunch_end) throw new Error('Lunch break already ended');
 
       const updateData: any = {
-        lunch_end: supabase.raw('NOW()')
+        lunch_end: new Date().toISOString()
       };
 
       if (isLate) {

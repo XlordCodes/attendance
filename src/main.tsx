@@ -10,8 +10,8 @@ const queryClient = new QueryClient({
     queries: {
       staleTime: 5 * 60 * 1000, // 5 minutes - consider data fresh for 5 minutes
       gcTime: 10 * 60 * 1000, // 10 minutes - cache garbage collection
-      refetchOnWindowFocus: true,
-      retry: 1,
+      refetchOnWindowFocus: false, // Critical UI fix - prevents alt-tab deadlocks
+      retry: 1, // Only 1 retry - prevent infinite hanging retries
     },
   },
 });

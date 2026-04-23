@@ -1,4 +1,4 @@
-import { useState, useEffect, createContext, useContext } from 'react';
+import { useState, useEffect, createContext, useContext, useMemo, useRef } from 'react';
 import { User } from '@supabase/supabase-js';
 import { supabase } from '../services/supabaseClient';
 import { Employee } from '../types';
@@ -14,6 +14,15 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+const withTimeout = <T,>(promise: Promise<T>, timeoutMs: number = 8000): Promise<T> => {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) => {
+      setTimeout(() => reject(new Error(`Operation timed out after ${timeoutMs}ms`)), timeoutMs);
+    })
+  ]);
+};
+
 export const useAuth = () => {
   const context = useContext(AuthContext);
   if (!context) {
@@ -26,68 +35,81 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<User | null>(null);
   const [employee, setEmployee] = useState<Employee | null>(null);
   const [loading, setLoading] = useState(true);
-
+  const isBooting = useRef(true);
+  const fetchRequestId = useRef(0);
 
   useEffect(() => {
     let cancelled = false;
+    let subscription: { unsubscribe: () => void } | null = null;
 
-    // ────────────────────────────────────────────────────────
-    // THE HYDRATION FAILSAFE
-    // We explicitly call getSession() to predictably hydrate the initial state
-    // and release the loading lock. This prevents the INITIAL_SESSION race condition.
-    // ────────────────────────────────────────────────────────
     const initializeSession = async () => {
       try {
-        const { data: { session } } = await supabase.auth.getSession();
+        const { data: { session } } = await withTimeout(supabase.auth.getSession(), 12000);
         if (cancelled) return;
 
         if (session?.user) {
           setUser(session.user);
-          await fetchEmployeeData(session.user);
+          await withTimeout(fetchEmployeeData(session.user), 30000);
         } else {
           setUser(null);
           setEmployee(null);
         }
-      } catch (err) {
-        console.error('❌ Hydration failsafe error:', err);
+      } catch (err: any) {
+        console.error('❌ [TELEMETRY] initializeSession Failed:', err.stack || err);
+        toast.error('Connection timed out. Please refresh the page.');
       } finally {
-        if (!cancelled) {
-          setLoading(false);
-        }
+        isBooting.current = false;
+        setLoading(false);
       }
     };
 
     initializeSession();
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+    const { data: { subscription: authSubscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (cancelled) return;
 
       console.log('🔄 Auth state changed:', event, session?.user?.email || 'signed out');
 
-      // Boot is strictly handled by initializeSession
+      if (isBooting.current && (event === 'INITIAL_SESSION' || event === 'SIGNED_IN')) {
+        console.log('🛡️ [TELEMETRY] Ignored early auth event during boot sequence:', event);
+        return;
+      }
+      
       if (event === 'INITIAL_SESSION') return;
 
       try {
-        // Token refresh: user/employee unchanged, just update the JWT seamlessly.
         if (event === 'TOKEN_REFRESHED' && session?.user) {
           setUser(session.user);
+          // Token refresh succeeded; no need to refetch employee profile if we already have it
+          if (!employee) {
+            // Defer fetch to next tick to avoid Supabase queue contention
+            setTimeout(async () => {
+              await withTimeout(fetchEmployeeData(session.user), 30000);
+            }, 500);
+          }
           return;
         }
 
         if (event === 'SIGNED_IN') {
-          setLoading(true);
+          if (cancelled) return;
+          setUser(session?.user || null);
+          setLoading(false); // Always unblock UI immediately
 
           if (session?.user) {
-            setUser(session.user);
-            // fetchEmployeeData guarantees graceful resolution (Promise.allSettled)
-            await fetchEmployeeData(session.user);
+            // Only fetch employee if we don't already have it cached
+            if (!employee) {
+              // Defer to next event loop tick to let Supabase finish internal refresh
+              setTimeout(async () => {
+                await withTimeout(fetchEmployeeData(session.user), 30000);
+              }, 500);
+            } else {
+              // Employee already in memory — token refresh handled silently by Supabase
+            }
           } else {
-            setUser(null);
             setEmployee(null);
           }
         } 
         
-        // Handle Session Dropped
         else if (event === 'SIGNED_OUT' || event === 'TOKEN_REFRESH_FAILED') {
           setEmployee(null);
           setUser(null);
@@ -103,27 +125,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     });
 
+    subscription = authSubscription;
+
     return () => {
       cancelled = true;
-      subscription.unsubscribe();
+      if (subscription) {
+        subscription.unsubscribe();
+      }
     };
   }, []);
 
   // ──────────────────────────────────────────────────────────
-  // PARALLELISED EMPLOYEE LOOKUP  (Defect 7 fix)
-  //
-  // Previously:  id lookup → wait → on failure → email lookup
-  //              Total: ~300-400ms sequential
-  //
-  // Now:         id lookup ┐
-  //              email lookup ┤  → prefer id result
-  //              Total: ~150-200ms (single RTT)
+  // PARALLELISED EMPLOYEE LOOKUP with per-query timeout & request deduplication
+  // Each query gets its own timeout to ensure Promise.allSettled always settles.
+  // Stale responses are ignored via requestId monotonicity check.
   // ──────────────────────────────────────────────────────────
   const fetchEmployeeData = async (authUser: User) => {
-    try {
-      console.log('👤 Fetching user data for UID:', authUser.id);
+    const currentRequestId = ++fetchRequestId.current;
 
-      // Fire both lookups in parallel
+    try {
       const [idResult, emailResult] = await Promise.allSettled([
         supabase
           .from('employees')
@@ -134,39 +154,48 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           .from('employees')
           .select('*')
           .eq('email', authUser.email)
-          .limit(1),
+          .limit(1)
       ]);
 
-      // Prefer the primary-key (id) lookup
+      if (currentRequestId !== fetchRequestId.current) {
+        return;
+      }
+
       if (
         idResult.status === 'fulfilled' &&
         idResult.value.data &&
         !idResult.value.error
       ) {
-        console.log('✅ User data loaded (by id):', idResult.value.data);
         setEmployee(mapDbToEmployee(idResult.value.data));
         return;
       }
 
-      // Fall back to email lookup
       if (
         emailResult.status === 'fulfilled' &&
         emailResult.value.data &&
         emailResult.value.data.length > 0
       ) {
-        console.log('✅ User data loaded (by email):', emailResult.value.data[0]);
         setEmployee(mapDbToEmployee(emailResult.value.data[0]));
         return;
       }
 
-      // Both lookups failed — user is authenticated but has no employee row
-      console.error('❌ User record not found in database for', authUser.email);
+      if (employee) {
+        toast.error('Unable to refresh profile. Using cached data.');
+        return;
+      }
+
       toast.error('User record not found. Please contact admin.');
-      // employee remains null — ProtectedRoute will show the error state
+      setEmployee(null);
     } catch (error) {
-      console.error('❌ Error fetching user data:', error);
+      if (currentRequestId !== fetchRequestId.current) return;
+
+      if (employee) {
+        toast.error('Unable to refresh profile. Using cached data.');
+        return;
+      }
+
       toast.error('Error loading user data');
-      // employee remains null — same fallback
+      setEmployee(null);
     }
   };
 
@@ -277,13 +306,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const value = {
+  // ✅ CONTEXT RE-RENDER LOOP PREVENTION
+  // Memoize context value to prevent infinite re-renders across the entire app
+  // Every state change was previously causing full app re-render cascade
+  const value = useMemo(() => ({
     user,
     employee,
     loading,
     login,
     logout,
-  };
+  }), [user, employee, loading, login, logout]);
 
   return (
     <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

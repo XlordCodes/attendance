@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useAuth } from '../../hooks/useAuth';
 import { 
   Calendar, 
   Clock,
@@ -28,6 +29,7 @@ interface MeetingFormData {
 }
 
 const AdminModePage: React.FC = () => {
+  const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<'meetings' | 'leaves'>('meetings');
   const [meetings, setMeetings] = useState<Meeting[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
@@ -110,7 +112,7 @@ const AdminModePage: React.FC = () => {
           date: formData.date,
           time: formData.time,
           assignedEmployees: formData.assignedEmployees,
-          createdBy: 'admin' // You can get the actual admin ID from auth context
+          createdBy: user?.id || ''
         });
         toast.success('Meeting created successfully');
       }

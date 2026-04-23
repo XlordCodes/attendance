@@ -23,49 +23,27 @@ class LeaveService {
     };
   }
 
-  async createLeaveRequest(leaveRequest: Omit<LeaveRequest, 'id' | 'appliedAt'>): Promise<void> {
-    try {
-      const { error } = await supabase
-        .from(this.TABLE_NAME)
-        .insert({
-          employee_id: leaveRequest.employeeId,
-          employee_name: leaveRequest.employeeName,
-          employee_email: leaveRequest.employeeEmail,
-          leave_type: leaveRequest.leaveType,
-          start_date: leaveRequest.startDate,
-          end_date: leaveRequest.endDate,
-          reason: leaveRequest.reason,
-          status: 'pending'
-        });
+   async submitLeaveRequest(leaveRequest: Omit<LeaveRequest, 'id' | 'appliedAt'>): Promise<void> {
+     try {
+       const { error } = await supabase
+         .from(this.TABLE_NAME)
+         .insert({
+           employee_id: leaveRequest.employeeId,
+           employee_name: leaveRequest.employeeName,
+           employee_email: leaveRequest.employeeEmail,
+           leave_type: leaveRequest.leaveType,
+           start_date: leaveRequest.startDate,
+           end_date: leaveRequest.endDate,
+           reason: leaveRequest.reason,
+           status: 'pending'
+         });
 
-      if (error) throw error;
-    } catch (error) {
-      console.error('Error creating leave request:', error);
-      throw error;
-    }
-  }
-
-  async submitLeaveRequest(leaveRequest: Omit<LeaveRequest, 'id' | 'appliedAt'>): Promise<void> {
-    try {
-      const { error } = await supabase
-        .from(this.TABLE_NAME)
-        .insert({
-          employee_id: leaveRequest.employeeId,
-          employee_name: leaveRequest.employeeName,
-          employee_email: leaveRequest.employeeEmail,
-          leave_type: leaveRequest.leaveType,
-          start_date: leaveRequest.startDate,
-          end_date: leaveRequest.endDate,
-          reason: leaveRequest.reason,
-          status: 'pending'
-        });
-
-      if (error) throw error;
-    } catch (error) {
-      console.error('Error submitting leave request:', error);
-      throw error;
-    }
-  }
+       if (error) throw error;
+     } catch (error) {
+       console.error('Error submitting leave request:', error);
+       throw error;
+     }
+   }
 
   async getLeaveRequestsForEmployee(employeeId: string): Promise<LeaveRequest[]> {
     try {
@@ -115,23 +93,26 @@ class LeaveService {
   }
 
   async updateLeaveRequestStatus(
-    requestId: string, 
+    requestId: string,
     status: 'approved' | 'rejected',
     reviewedBy: string,
     adminComments?: string
-  ): Promise<void> {
+  ): Promise<any> {
     try {
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from(this.TABLE_NAME)
         .update({
           status,
           reviewed_by: reviewedBy,
-          reviewed_at: supabase.raw('NOW()'),
-          admin_comments: adminComments || ''
+          reviewed_at: new Date().toISOString(),
+          ...(adminComments !== undefined && { admin_comments: adminComments })
         })
-        .eq('id', requestId);
+        .eq('id', requestId)
+        .select()
+        .single();
 
       if (error) throw error;
+      return data;
     } catch (error) {
       console.error('Error updating leave request status:', error);
       throw error;

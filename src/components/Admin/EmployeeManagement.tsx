@@ -262,7 +262,7 @@ const EmployeeModal: React.FC<{
     employeeId: employee?.employeeId || '',
     name: employee?.name || '',
     email: employee?.email || '',
-    // NO password field - users will set their own password via email reset
+    password: '', // Manual password set by admin
     department: employee?.department || '',
     position: employee?.position || '',
     role: employee?.role || 'employee' as 'employee' | 'admin',
@@ -277,16 +277,16 @@ const EmployeeModal: React.FC<{
     try {
       console.log('🔄 Submitting form data:', formData);
       
-      if (employee) {
-        // Update existing employee
-        await userService.updateUser(employee.id, formData);
-        toast.success('Employee updated successfully');
-      } else {
-        // Create new employee
-        console.log('🔄 Creating new employee...');
-        await userService.createUser(formData);
-        toast.success('Employee created successfully! Password reset email sent to ' + formData.email);
-      }
+        if (employee) {
+          // Update existing employee
+          await userService.updateUser(employee.id, formData);
+          toast.success('Employee updated successfully');
+        } else {
+          // Create new employee with manual password
+          console.log('🔄 Creating new employee with manual password...');
+          await userService.createUser(formData);
+          toast.success('Employee created successfully! Account credentials have been manually set.');
+        }
       onSave();
       onClose();
     } catch (error) {
@@ -349,20 +349,22 @@ const EmployeeModal: React.FC<{
           </div>
 
           {!employee && (
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-              <div className="flex items-start">
-                <div className="flex-shrink-0">
-                  <svg className="h-5 w-5 text-blue-400" viewBox="0 0 20 20" fill="currentColor">
-                    <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
-                  </svg>
-                </div>
-                <div className="ml-3">
-                  <p className="text-sm text-blue-800">
-                    <strong>Password Setup:</strong> The new employee will receive a password reset email 
-                    to set up their own secure password. No password input needed here.
-                  </p>
-                </div>
-              </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Temporary Password <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="password"
+                value={formData.password}
+                onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                required
+                minLength={8}
+                placeholder="At least 8 characters"
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                Admin manually sets the account password. Employee can change it after first login.
+              </p>
             </div>
           )}
           <div>

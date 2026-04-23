@@ -1,14 +1,12 @@
 import { useState, useEffect } from 'react';
 import { 
   BarChart3, 
-  Download, 
   Users,
   CheckCircle,
   XCircle,
   Clock,
   Search,
-  User,
-  MapPin
+  User
 } from 'lucide-react';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval } from 'date-fns';
 import { userService } from '../../services/userService';
@@ -31,6 +29,7 @@ interface EmployeeAttendance {
   clockOutTime?: string;
   totalHours?: number;
   breakDuration?: number;
+  lateReason?: string | null;
 }
 
 interface DailyAttendance {
@@ -130,8 +129,8 @@ const OverallAttendancePage: React.FC = () => {
             clockInTime,
             clockOutTime,
             totalHours: attendanceRecord.totalHours || attendanceRecord.hoursWorked || 0,
-            breakDuration: attendanceRecord.breaks?.reduce((total: number, breakTime: { duration?: number }) => 
-              total + (breakTime.duration || 0), 0) || 0
+            breakDuration: attendanceRecord.totalBreakMinutes || 0,
+            lateReason: attendanceRecord.lateReason || null
           });
           
           // Count by status
@@ -255,43 +254,7 @@ const OverallAttendancePage: React.FC = () => {
     return matchesSearch && matchesFilter;
   });
 
-  const exportAttendanceData = () => {
-    try {
-      let csvContent = '';
-      
-       if (viewMode === 'today') {
-         // Export today's attendance
-         csvContent = 'Employee Name,Employee ID,Designation,Status,Clock In,Clock Out,Total Hours,Break Duration,IP Address,GPS Coordinates\n';
-         employeeAttendance.forEach(attendance => {
-           const designation = attendance.employee.designation || attendance.employee.Designation || 'Employee';
-           const attendanceRecord = attendanceByUser[attendance.employee.uid || attendance.employee.id];
-           const ipAddress = attendanceRecord?.clientIP || 'N/A';
-           const gpsCoordinates = attendanceRecord?.location 
-             ? `${attendanceRecord.location.latitude}, ${attendanceRecord.location.longitude}` 
-             : 'N/A';
-           csvContent += `"${attendance.employee.name}","${attendance.employee.employeeId}","${designation}","${attendance.status}","${attendance.clockInTime || 'N/A'}","${attendance.clockOutTime || 'N/A'}","${attendance.totalHours || 0}","${attendance.breakDuration || 0}","${ipAddress}","${gpsCoordinates}"\n`;
-         });
-      } else {
-        // Export monthly data
-        csvContent = 'Date,Total Employees,Present,Absent,Late,Attendance Rate %\n';
-        dailyAttendance.forEach(day => {
-          csvContent += `"${day.date}","${day.totalEmployees}","${day.present}","${day.absent}","${day.late}","${day.attendanceRate}"\n`;
-        });
-      }
-      
-      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-      const link = document.createElement('a');
-      const url = URL.createObjectURL(blob);
-      link.setAttribute('href', url);
-      link.setAttribute('download', `attendance_${viewMode}_${selectedDate}.csv`);
-      link.style.visibility = 'hidden';
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-    } catch (error) {
-      console.error('Failed to export data:', error);
-    }
-  };
+
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -349,34 +312,27 @@ const OverallAttendancePage: React.FC = () => {
             >
               Today
             </button>
-            <button
-              onClick={() => setViewMode('monthly')}
-              className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${
-                viewMode === 'monthly' 
-                  ? 'bg-white text-gray-900 shadow-sm' 
-                  : 'text-gray-600 hover:text-gray-900'
-              }`}
-            >
-              Monthly
-            </button>
-          </div>
-          <input
-            type="date"
-            value={selectedDate.split('-').reverse().join('-')} // Convert dd-MM-yyyy to yyyy-MM-dd for input
-            onChange={(e) => {
-              const [year, month, day] = e.target.value.split('-');
-              setSelectedDate(`${day}-${month}-${year}`);
-            }}
-            className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-          />
-          <button
-            onClick={exportAttendanceData}
-            className="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
-          >
-            <Download className="w-4 h-4 mr-2" />
-            Export Data
-          </button>
-        </div>
+           <button
+             onClick={() => setViewMode('monthly')}
+             className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${
+               viewMode === 'monthly' 
+                 ? 'bg-white text-gray-900 shadow-sm' 
+                 : 'text-gray-600 hover:text-gray-900'
+             }`}
+           >
+             Monthly
+           </button>
+           </div>
+           <input
+             type="date"
+             value={selectedDate.split('-').reverse().join('-')} // Convert dd-MM-yyyy to yyyy-MM-dd for input
+             onChange={(e) => {
+               const [year, month, day] = e.target.value.split('-');
+               setSelectedDate(`${day}-${month}-${year}`);
+             }}
+             className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+           />
+         </div>
       </div>
 
       {/* Stats Cards */}
@@ -519,34 +475,20 @@ const OverallAttendancePage: React.FC = () => {
                       {attendance.clockOutTime || 'N/A'}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {attendance.totalHours ? `${attendance.totalHours.toFixed(1)}h` : 'N/A'}
+                      {typeof attendance.totalHours === 'number' ? `${attendance.totalHours.toFixed(1)}h` : 'N/A'}
                     </td>
                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                      {attendance.breakDuration ? `${attendance.breakDuration}m` : 'N/A'}
                    </td>
-                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                     <div className="flex flex-col space-y-1">
-                       {attendanceRecord && attendanceRecord.clientIP && (
-                         <span className="text-xs text-gray-600 font-mono">
-                           IP: {attendanceRecord.clientIP}
-                         </span>
-                       )}
-                       {attendanceRecord && attendanceRecord.location && (
-                         <a
-                           href={`https://www.google.com/maps/search/?api=1&query=${attendanceRecord.location.latitude},${attendanceRecord.location.longitude}`}
-                           target="_blank"
-                           rel="noopener noreferrer"
-                           className="flex items-center text-xs text-blue-600 hover:text-blue-800 transition-colors"
-                         >
-                           <MapPin className="w-3 h-3 mr-1" />
-                           {attendanceRecord.location.latitude.toFixed(4)}, {attendanceRecord.location.longitude.toFixed(4)}
-                         </a>
-                       )}
-                       {!attendanceRecord?.clientIP && !attendanceRecord?.location && (
-                         <span className="text-xs text-gray-400">N/A</span>
-                       )}
-                     </div>
-                   </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      {attendance.lateReason ? (
+                        <span className="text-xs text-amber-600 bg-amber-50 px-2 py-1 rounded border">
+                          {attendance.lateReason}
+                        </span>
+                      ) : (
+                        <span className="text-xs text-gray-400">N/A</span>
+                      )}
+                    </td>
                  </tr>
                 ))}
               </tbody>

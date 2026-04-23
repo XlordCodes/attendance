@@ -20,6 +20,8 @@ const LeaveRequestModal: React.FC<LeaveRequestModalProps> = ({ isOpen, onClose }
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  const todayLocal = new Date().toLocaleDateString('en-CA');
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -120,14 +122,14 @@ const LeaveRequestModal: React.FC<LeaveRequestModalProps> = ({ isOpen, onClose }
                 <Calendar className="h-4 w-4 inline mr-1" />
                 Start Date
               </label>
-              <input
-                type="date"
-                value={formData.startDate}
-                onChange={(e) => handleInputChange('startDate', e.target.value)}
-                min={new Date().toISOString().split('T')[0]}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                required
-              />
+               <input
+                 type="date"
+                 value={formData.startDate}
+                 onChange={(e) => handleInputChange('startDate', e.target.value)}
+                 min={todayLocal}
+                 className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                 required
+               />
             </div>
 
             <div>
@@ -135,14 +137,14 @@ const LeaveRequestModal: React.FC<LeaveRequestModalProps> = ({ isOpen, onClose }
                 <Calendar className="h-4 w-4 inline mr-1" />
                 End Date
               </label>
-              <input
-                type="date"
-                value={formData.endDate}
-                onChange={(e) => handleInputChange('endDate', e.target.value)}
-                min={formData.startDate || new Date().toISOString().split('T')[0]}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                required
-              />
+               <input
+                 type="date"
+                 value={formData.endDate}
+                 onChange={(e) => handleInputChange('endDate', e.target.value)}
+                 min={formData.startDate || todayLocal}
+                 className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                 required
+               />
             </div>
           </div>
 
