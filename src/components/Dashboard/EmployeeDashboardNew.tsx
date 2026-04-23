@@ -5,54 +5,110 @@ import { useAuth } from '../../hooks/useAuth';
 import { globalAttendanceService } from '../../services/globalAttendanceService';
 import { meetingService } from '../../services/meetingService';
 import { Meeting, AttendanceRecord } from '../../types';
-import { format, startOfWeek, endOfWeek } from 'date-fns';
+import { format } from 'date-fns';
+import { getOfficeNow, formatOffice } from '../../utils/timezoneUtils';
+import { zonedTimeToUtc } from 'date-fns-tz';
+import { OFFICE_TIMEZONE } from '../../utils/timezoneUtils';
 import ClockInOutNew from '../Employee/ClockInOutNew';
 import WorkingHoursInfo from '../common/WorkingHoursInfo';
+import { formatDuration } from '../../utils/formatDuration';
 
 const EmployeeDashboardNew: React.FC = () => {
   const { employee, user } = useAuth();
   const queryClient = useQueryClient();
   const [currentTime, setCurrentTime] = useState(new Date());
 
-  // ✅ TanStack Query: Today's attendance record
-  const { data: todayRecord, isLoading: todayLoading } = useQuery({
-    queryKey: ['employeeAttendanceToday', employee?.id],
-    queryFn: async () => {
-      if (!employee) return null;
-      return globalAttendanceService.getTodayAttendance(employee.id);
-    },
-    enabled: !!employee,
-  });
+    // ✅ TanStack Query: Today's attendance record
+    const { data: todayRecord, isLoading: todayLoading } = useQuery({
+      queryKey: ['employeeAttendanceToday', employee?.id],
+      queryFn: async () => {
+        if (!employee) return null;
+        return globalAttendanceService.getTodayAttendance(employee.id);
+      },
+      enabled: !!employee,
+    });
 
-  // ✅ TanStack Query: Weekly attendance statistics
-  const { data: weeklyStats, isLoading: weeklyLoading } = useQuery({
-    queryKey: ['employeeWeeklyStats', employee?.id],
-    queryFn: async () => {
-      if (!employee) return { totalHours: 0, daysPresent: 0, averageHours: 0, totalBreaks: 0 };
-      
-      const weekStart = startOfWeek(new Date());
-      const weekEnd = endOfWeek(new Date());
-      const weeklyRecords = await globalAttendanceService.getAttendanceRange(
-        employee.id,
-        weekStart,
-        weekEnd
-      );
+    // ✅ TanStack Query: Weekly attendance statistics
+   const { data: weeklyStats, isLoading: weeklyLoading } = useQuery({
+     queryKey: ['employeeWeeklyStats', employee?.id],
+     queryFn: async () => {
+       if (!employee) return { totalHours: 0, daysPresent: 0, averageHours: 0, totalBreaks: 0 };
+       
+        // Compute week boundaries in office timezone
+        const officeNow = getOfficeNow();
+        const officeYear = parseInt(formatOffice(officeNow, 'yyyy'), 10);
+        const officeMonth = parseInt(formatOffice(officeNow, 'MM'), 10) - 1; // 0-indexed
+        const officeDay = parseInt(formatOffice(officeNow, 'dd'), 10);
+        const officeDayOfWeek = parseInt(formatOffice(officeNow, 'u'), 10); // 1=Mon, 7=Sun
 
-      const totalHours = weeklyRecords.reduce((sum, record) => sum + (record.hoursWorked || 0), 0);
-      const daysPresent = weeklyRecords.filter(record => record.clockIn).length;
-      const totalBreaks = weeklyRecords.reduce((sum, record) => sum + record.breaks.length, 0);
+        const mondayDay = officeDay - (officeDayOfWeek - 1);
+        const sundayDay = officeDay + (7 - officeDayOfWeek);
 
-      return {
-        totalHours,
-        daysPresent,
-        averageHours: daysPresent > 0 ? totalHours / daysPresent : 0,
-        totalBreaks
-      };
-    },
-    enabled: !!employee,
-  });
+        const weekStart = zonedTimeToUtc(
+          {
+            year: officeYear,
+            month: officeMonth + 1,
+            day: mondayDay,
+            hour: 0,
+            minute: 0,
+            second: 0,
+            millisecond: 0
+          },
+          OFFICE_TIMEZONE
+        );
 
-  // ✅ TanStack Query: Upcoming meetings
+        const weekEnd = zonedTimeToUtc(
+          {
+            year: officeYear,
+            month: officeMonth + 1,
+            day: sundayDay,
+            hour: 23,
+            minute: 59,
+            second: 59,
+            millisecond: 999
+          },
+          OFFICE_TIMEZONE
+        );
+        const weeklyRecords = await globalAttendanceService.getAttendanceRange(
+          employee.id,
+          weekStart,
+          weekEnd
+        );
+
+        // 🕵️‍♂️ TRACE: Weekly Records Fetched
+        console.log('🕵️‍♂️ TRACE: Weekly Records Fetched:', {
+          count: weeklyRecords.length,
+          records: weeklyRecords.map(r => ({
+            date: r.date,
+            hoursWorked: r.hoursWorked,
+            totalHours: r.totalHours,
+            clockIn: r.clockIn,
+            clockOut: r.clockOut
+          }))
+        });
+
+        const rawTotalHours = weeklyRecords.reduce((sum, record) => sum + (record.hoursWorked || 0), 0);
+        // Round to 2 decimal places to preserve micro-shifts
+        const totalHours = Math.round(rawTotalHours * 100) / 100;
+        const daysPresent = weeklyRecords.filter(record => record.clockIn).length;
+        const totalBreaks = weeklyRecords.reduce((sum, record) => sum + record.breaks.length, 0);
+
+        const calculatedStats = {
+          totalHours,
+          daysPresent,
+          averageHours: daysPresent > 0 ? Math.round((rawTotalHours / daysPresent) * 100) / 100 : 0,
+          totalBreaks
+        };
+
+        // 🕵️‍♂️ TRACE: Calculated Weekly Stats
+        console.log('🕵️‍♂️ TRACE: Calculated Weekly Stats:', calculatedStats);
+
+        return calculatedStats;
+     },
+      enabled: !!employee,
+    });
+
+   // ✅ TanStack Query: Upcoming meetings
   const { data: meetings = [], isLoading: meetingsLoading, refetch: refetchMeetings } = useQuery({
     queryKey: ['employeeMeetings', employee?.id],
     queryFn: async () => {
@@ -150,12 +206,6 @@ const EmployeeDashboardNew: React.FC = () => {
   // TanStack Query's refetchInterval option if needed.
   // ────────────────────────────────────────────────────────
 
-  const formatDuration = (hours: number) => {
-    const h = Math.floor(hours);
-    const m = Math.floor((hours - h) * 60);
-    return `${h}h ${m}m`;
-  };
-
   // Loading state
   if (loading) {
     return (
@@ -239,11 +289,15 @@ const EmployeeDashboardNew: React.FC = () => {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Clock In/Out Section */}
-        <div className="space-y-6">
-          <ClockInOutNew onAttendanceChange={() => queryClient.invalidateQueries({ queryKey: ['employeeAttendanceToday', employee?.id] })} />
-        </div>
+       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+         {/* Clock In/Out Section */}
+         <div className="space-y-6">
+           <ClockInOutNew onAttendanceChange={() => {
+             queryClient.invalidateQueries({ queryKey: ['employeeAttendanceToday', employee?.id] });
+             queryClient.invalidateQueries({ queryKey: ['employeeWeeklyStats', employee?.id] });
+             queryClient.invalidateQueries({ queryKey: ['attendanceRecords'] });
+           }} />
+         </div>
 
         {/* Today's Status & Upcoming Meetings */}
         <div className="space-y-6">

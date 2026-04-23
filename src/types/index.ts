@@ -44,6 +44,7 @@ export interface AttendanceRecord {
   totalHours: number;
   hoursWorked?: number; // Alternative field name used in components
   totalBreakHours?: number;
+  totalBreakMinutes?: number; // Sum of break durations in minutes
   createdAt: Date;
   updatedAt?: Date;
 }

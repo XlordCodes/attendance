@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
-import { 
-  Calendar, 
-  Clock, 
-  Users, 
-  Search, 
+import {
+  Calendar,
+  Clock,
+  Users,
+  Search,
   ChevronLeft,
   ChevronRight,
   Download,
@@ -13,19 +13,19 @@ import {
   AlertCircle,
   Coffee,
   FileText,
-  Send,
   Info
 } from 'lucide-react';
 import { globalAttendanceService } from '../../services/globalAttendanceService';
 import { userService } from '../../services/userService';
 import { leaveService } from '../../services/leaveService';
 import { AttendanceRecord, Employee, LeaveRequest } from '../../types';
-import { startOfMonth, endOfMonth, subMonths, addMonths, eachDayOfInterval } from 'date-fns';
-import { formatOffice, formatOfficeTimeShort, formatOfficeMonth, getOfficeNow } from '../../utils/timezoneUtils';
+import { startOfMonth, endOfMonth, subMonths, addMonths, eachDayOfInterval, format } from 'date-fns';
+import { formatOfficeTimeShort, formatOfficeMonth, getOfficeNow } from '../../utils/timezoneUtils';
 import toast from 'react-hot-toast';
 import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
 import { useAuth } from '../../hooks/useAuth';
+import { formatDuration } from '../../utils/formatDuration';
 import TermsAndConditionsModal from '../common/TermsAndConditionsModal';
 
 interface AttendanceStats {
@@ -53,14 +53,9 @@ const AttendanceLogsNew: React.FC = () => {
   const [selectedMonth, setSelectedMonth] = useState(getOfficeNow());
   const [selectedEmployee, setSelectedEmployee] = useState<string>('all');
   const [employees, setEmployees] = useState<Employee[]>([]);
-  const [showLeaveRequestForm, setShowLeaveRequestForm] = useState(false);
   const [showTermsModal, setShowTermsModal] = useState(false);
-  const [leaveFormData, setLeaveFormData] = useState({
-    leaveType: 'vacation' as LeaveRequest['leaveType'],
-    startDate: '',
-    endDate: '',
-    reason: ''
-  });
+  const [employeeLeaveRequests, setEmployeeLeaveRequests] = useState<LeaveRequest[]>([]);
+  const [loadingLeaves, setLoadingLeaves] = useState(false);
 
   useEffect(() => {
     loadEmployees();
@@ -70,8 +65,14 @@ const AttendanceLogsNew: React.FC = () => {
     if (employees.length > 0) {
       loadAttendanceData();
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [employees, selectedMonth, selectedEmployee]);
+
+  useEffect(() => {
+    if (employee) {
+      fetchEmployeeLeaves();
+    }
+  }, [employee]);
 
   const loadEmployees = async () => {
     try {
@@ -88,10 +89,9 @@ const AttendanceLogsNew: React.FC = () => {
     try {
       const monthStart = startOfMonth(selectedMonth);
       const monthEnd = endOfMonth(selectedMonth);
-      // Load attendance data for all employees
 
-      const employeesToLoad = selectedEmployee === 'all' 
-        ? employees 
+      const employeesToLoad = selectedEmployee === 'all'
+        ? employees
         : employees.filter(emp => emp.id === selectedEmployee);
 
       const attendanceDataPromises = employeesToLoad.map(async (employee) => {
@@ -129,13 +129,27 @@ const AttendanceLogsNew: React.FC = () => {
     }
   };
 
+  const fetchEmployeeLeaves = async () => {
+    if (!employee) return;
+    setLoadingLeaves(true);
+    try {
+      const requests = await leaveService.getLeaveRequestsForEmployee(employee.id);
+      setEmployeeLeaveRequests(requests);
+    } catch (error) {
+      console.error('Error fetching leave requests:', error);
+      toast.error('Failed to load leave requests');
+    } finally {
+      setLoadingLeaves(false);
+    }
+  };
+
   const calculateAttendanceStats = (
-    records: AttendanceRecord[], 
-    monthStart: Date, 
+    records: AttendanceRecord[],
+    monthStart: Date,
     monthEnd: Date
   ): AttendanceStats => {
     const workingDays = eachDayOfInterval({ start: monthStart, end: monthEnd })
-      .filter(day => day.getDay() !== 0 && day.getDay() !== 6) // Exclude weekends
+      .filter(day => day.getDay() !== 0 && day.getDay() !== 6)
       .length;
 
     const presentDays = records.filter(r => r.clockIn).length;
@@ -179,12 +193,6 @@ const AttendanceLogsNew: React.FC = () => {
     return formatOfficeTimeShort(date);
   };
 
-  const formatDuration = (hours: number) => {
-    const h = Math.floor(hours);
-    const m = Math.floor((hours - h) * 60);
-    return `${h}h ${m}m`;
-  };
-
   const getStatusColor = (status: 'present' | 'late' | 'absent') => {
     switch (status) {
       case 'present': return 'text-green-600 bg-green-100';
@@ -210,7 +218,7 @@ const AttendanceLogsNew: React.FC = () => {
           'Employee Name': data.employee.name,
           'Email': data.employee.email,
           'Department': data.employee.department,
-          'Date': record.date, // Already in dd-MM-yyyy format
+          'Date': record.date,
           'Login Time': formatTime(record.clockIn || null),
           'Logout Time': formatTime(record.clockOut || null),
           'Hours Worked': formatDuration(record.hoursWorked || 0),
@@ -229,7 +237,7 @@ const AttendanceLogsNew: React.FC = () => {
 
       const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
       const file = new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-      
+
       const monthName = formatOfficeMonth(selectedMonth);
       saveAs(file, `attendance-${monthName}.xlsx`);
       toast.success('Attendance report exported successfully!');
@@ -255,49 +263,6 @@ const AttendanceLogsNew: React.FC = () => {
     totalAbsent: acc.totalAbsent + data.stats.absentDays
   }), { totalEmployees: 0, totalHours: 0, totalPresent: 0, totalLate: 0, totalAbsent: 0 });
 
-  const handleLeaveRequest = async () => {
-    if (!employee) {
-      toast.error('You must be logged in to submit a leave request');
-      return;
-    }
-
-    if (!leaveFormData.startDate || !leaveFormData.endDate || !leaveFormData.reason.trim()) {
-      toast.error('Please fill in all required fields');
-      return;
-    }
-
-    if (new Date(leaveFormData.startDate) > new Date(leaveFormData.endDate)) {
-      toast.error('End date must be after start date');
-      return;
-    }
-
-    try {
-      const leaveRequest: Omit<LeaveRequest, 'id' | 'createdAt'> = {
-        employeeId: employee.id,
-        employeeName: employee.name,
-        leaveType: leaveFormData.leaveType,
-        startDate: leaveFormData.startDate,
-        endDate: leaveFormData.endDate,
-        reason: leaveFormData.reason,
-        status: 'pending',
-        requestedAt: new Date().toISOString()
-      };
-
-      await leaveService.createLeaveRequest(leaveRequest);
-      toast.success('Leave request submitted successfully!');
-      setShowLeaveRequestForm(false);
-      setLeaveFormData({
-        leaveType: 'vacation',
-        startDate: '',
-        endDate: '',
-        reason: ''
-      });
-    } catch (error) {
-      console.error('Error submitting leave request:', error);
-      toast.error('Failed to submit leave request');
-    }
-  };
-
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -313,15 +278,6 @@ const AttendanceLogsNew: React.FC = () => {
           </button>
         </div>
         <div className="flex space-x-3">
-          {employee && (
-            <button
-              onClick={() => setShowLeaveRequestForm(true)}
-              className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center"
-            >
-              <FileText className="mr-2 h-4 w-4" />
-              Request Leave
-            </button>
-          )}
           <button
             onClick={exportToExcel}
             className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg flex items-center"
@@ -431,96 +387,62 @@ const AttendanceLogsNew: React.FC = () => {
         </div>
       </div>
 
-      {/* Leave Request Modal */}
-      {showLeaveRequestForm && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-semibold text-gray-900">Request Leave</h3>
-              <button
-                onClick={() => setShowLeaveRequestForm(false)}
-                className="text-gray-400 hover:text-gray-600"
-              >
-                <XCircle className="h-5 w-5" />
-              </button>
+      {/* My Leave Requests */}
+      {employee && (
+        <div className="bg-white rounded-lg shadow-sm border p-6">
+          <h4 className="font-medium text-gray-900 mb-3">My Leave Requests</h4>
+          {loadingLeaves ? (
+            <div className="text-center py-4">
+              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mx-auto"></div>
             </div>
+          ) : employeeLeaveRequests.length > 0 ? (
+            <div className="overflow-x-auto">
+              <table className="min-w-full">
+                <thead>
+                  <tr className="text-left text-sm font-medium text-gray-600">
+                    <th className="pb-2 pr-4">Type</th>
+                    <th className="pb-2 pr-4">Date Range</th>
+                    <th className="pb-2 pr-4">Status</th>
+                    <th className="pb-2">Reason</th>
+                  </tr>
+                </thead>
+                <tbody className="text-sm">
+                  {employeeLeaveRequests.map((leave) => {
+                    const statusColor =
+                      leave.status === 'approved' ? 'text-green-600 bg-green-100' :
+                      leave.status === 'rejected' ? 'text-red-600 bg-red-100' :
+                      'text-yellow-600 bg-yellow-100';
 
-            <form onSubmit={(e) => { e.preventDefault(); handleLeaveRequest(); }} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Leave Type
-                </label>
-                <select
-                  value={leaveFormData.leaveType}
-                  onChange={(e) => setLeaveFormData({ ...leaveFormData, leaveType: e.target.value as LeaveRequest['leaveType'] })}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                >
-                  <option value="vacation">Vacation</option>
-                  <option value="sick">Sick Leave</option>
-                  <option value="personal">Personal</option>
-                  <option value="emergency">Emergency</option>
-                </select>
-              </div>
+                    const start = new Date(`${leave.startDate}T00:00:00`);
+                    const end = new Date(`${leave.endDate}T00:00:00`);
+                    const days = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Start Date
-                  </label>
-                  <input
-                    type="date"
-                    value={leaveFormData.startDate}
-                    onChange={(e) => setLeaveFormData({ ...leaveFormData, startDate: e.target.value })}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    End Date
-                  </label>
-                  <input
-                    type="date"
-                    value={leaveFormData.endDate}
-                    onChange={(e) => setLeaveFormData({ ...leaveFormData, endDate: e.target.value })}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    required
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Reason
-                </label>
-                <textarea
-                  value={leaveFormData.reason}
-                  onChange={(e) => setLeaveFormData({ ...leaveFormData, reason: e.target.value })}
-                  rows={3}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="Please provide a reason for your leave request..."
-                  required
-                />
-              </div>
-
-              <div className="flex justify-end space-x-3 pt-4">
-                <button
-                  type="button"
-                  onClick={() => setShowLeaveRequestForm(false)}
-                  className="px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg flex items-center"
-                >
-                  <Send className="mr-2 h-4 w-4" />
-                  Submit Request
-                </button>
-              </div>
-            </form>
-          </div>
+                    return (
+                      <tr key={leave.id} className="border-t">
+                        <td className="py-2 capitalize pr-4">{leave.leaveType}</td>
+                        <td className="py-2 pr-4">
+                          {format(start, 'MMM dd, yyyy')} – {format(end, 'MMM dd, yyyy')}
+                          <span className="text-xs text-gray-500 ml-1">
+                            ({days} days)
+                          </span>
+                        </td>
+                        <td className="py-2 pr-4">
+                          <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${statusColor}`}>
+                            {leave.status.charAt(0).toUpperCase() + leave.status.slice(1)}
+                          </span>
+                        </td>
+                        <td className="py-2 max-w-xs truncate" title={leave.reason}>
+                          {leave.reason}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <p className="text-gray-500 italic py-4">No leave requests submitted yet.</p>
+          )}
         </div>
       )}
 
@@ -657,9 +579,9 @@ const AttendanceLogsNew: React.FC = () => {
       )}
 
       {/* Terms & Conditions Modal */}
-      <TermsAndConditionsModal 
-        isOpen={showTermsModal} 
-        onClose={() => setShowTermsModal(false)} 
+      <TermsAndConditionsModal
+        isOpen={showTermsModal}
+        onClose={() => setShowTermsModal(false)}
       />
     </div>
   );

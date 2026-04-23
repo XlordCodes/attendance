@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useQueryClient, useMutation } from '@tanstack/react-query';
 import { Clock, AlertCircle, Coffee, Play, Pause } from 'lucide-react';
 import { globalAttendanceService } from '../../services/globalAttendanceService';
 import { AttendanceRecord } from '../../types';
@@ -7,6 +8,7 @@ import { formatOfficeTimeLong, formatOfficeTimeAmPm, getOfficeNow, formatOffice 
 import { format } from 'date-fns';
 import toast from 'react-hot-toast';
 import { getWorkStartTime, getLunchStartTime, getLunchEndTime } from '../../constants/workingHours';
+import { formatDuration } from '../../utils/formatDuration';
 
 interface ClockInOutNewProps {
   onAttendanceChange?: () => void;
@@ -22,7 +24,34 @@ const ClockInOutNew: React.FC<ClockInOutNewProps> = ({ onAttendanceChange }) => 
   const [lateReason, setLateReason] = useState('');
   const [pendingClockIn, setPendingClockIn] = useState(false);
   const [currentLocation, setCurrentLocation] = useState<{ latitude: number; longitude: number } | null>(null);
-  const [locationError, setLocationError] = useState<string | null>(null);
+   const [locationError, setLocationError] = useState<string | null>(null);
+
+  const queryClient = useQueryClient();
+
+  const clockOutMutation = useMutation({
+    mutationFn: () => {
+      if (!employee?.id) throw new Error('Employee not authenticated');
+      return globalAttendanceService.clockOut(employee.id);
+    },
+    onMutate: () => {
+      setLoading(true);
+    },
+    onSuccess: (record: AttendanceRecord) => {
+      setTodayRecord(record);
+      toast.success(`Clocked out successfully! Worked ${(record.hoursWorked || 0).toFixed(2)} hours`);
+      onAttendanceChange?.();
+      // Invalidate all relevant queries to force UI refresh
+      queryClient.invalidateQueries({ queryKey: ['employeeAttendanceToday', employee?.id] });
+      queryClient.invalidateQueries({ queryKey: ['employeeWeeklyStats', employee?.id] });
+      queryClient.invalidateQueries({ queryKey: ['attendanceRecords'] });
+    },
+    onError: (error: Error) => {
+      toast.error(error.message);
+    },
+    onSettled: () => {
+      setLoading(false);
+    }
+  });
 
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(getOfficeNow()), 1000);
@@ -120,22 +149,9 @@ const ClockInOutNew: React.FC<ClockInOutNewProps> = ({ onAttendanceChange }) => 
     setPendingClockIn(false);
   };
 
-  const handleClockOut = async () => {
+  const handleClockOut = () => {
     if (!employee?.id) return;
-
-    setLoading(true);
-    try {
-      const record = await globalAttendanceService.clockOut(employee.id);
-      setTodayRecord(record);
-      toast.success(`Clocked out successfully! Worked ${(record.hoursWorked || 0).toFixed(2)} hours`);
-      
-      // Notify parent component of change
-      onAttendanceChange?.();
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Clock out failed');
-    } finally {
-      setLoading(false);
-    }
+    clockOutMutation.mutate();
   };
 
   const handleStartBreak = async () => {
@@ -173,16 +189,10 @@ const ClockInOutNew: React.FC<ClockInOutNewProps> = ({ onAttendanceChange }) => 
     }
   };
 
-  const formatTime = (date: Date | null) => {
-    if (!date) return '--:--';
-    return formatOfficeTimeLong(date);
-  };
-
-  const formatDuration = (hours: number) => {
-    const h = Math.floor(hours);
-    const m = Math.floor((hours - h) * 60);
-    return `${h}h ${m}m`;
-  };
+   const formatTime = (date: Date | null) => {
+     if (!date) return '--:--';
+     return formatOfficeTimeLong(date);
+   };
 
   const getWorkingHours = () => {
     if (!todayRecord?.clockIn) return '0h 0m';

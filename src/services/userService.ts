@@ -53,7 +53,7 @@ class UserService {
     return Array.from(array, (byte) => byte.toString(16).padStart(2, '0')).join('');
   }
 
-  async createUser(userData: Omit<Employee, 'id' | 'createdAt'>): Promise<Employee> {
+   async createUser(userData: Omit<Employee, 'id' | 'createdAt'> & { password: string }): Promise<Employee> {
     try {
       // Security: BFLA Protection - Only admins can create users
       const currentRole = await getCurrentUserRole();
@@ -61,52 +61,48 @@ class UserService {
         throw new Error('Not authorized: Only administrators can create users');
       }
 
-      // Generate secure random password - NO LONGER USING EMAIL AS PASSWORD
-      const securePassword = this.generateSecurePassword();
-      
-      // Create Supabase Auth user
-      const { data: authUser, error: authError } = await supabase.auth.admin.createUser({
-        email: userData.email,
-        password: securePassword,
-        email_confirm: true
-      });
-
-      if (authError) throw authError;
-
-      const userId = authUser.user.id;
-
-      // Create employee record in database
-      const employee: Employee = {
-        id: userId,
-        ...userData,
-        createdAt: new Date(),
-      };
-
-      const { error: dbError } = await supabase
-        .from(this.TABLE_NAME)
-        .insert({
-          id: userId,
-          uid: userId,
-          employee_id: userData.employeeId,
-          name: userData.name,
-          email: userData.email,
-          role: userData.role,
-          department: userData.department,
-          position: userData.position,
-          designation: userData.designation,
-          is_active: userData.isActive,
-          join_date: userData.joinDate,
-          created_at: new Date().toISOString()
-        });
-
-      if (dbError) {
-        // Rollback auth user if db insert fails
-        await supabase.auth.admin.deleteUser(userId);
-        throw dbError;
+      // Get current admin session for Authorization header
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        throw new Error('Missing authentication token. Please log in again.');
       }
 
-      console.log(`✅ Created user ${userData.email} with secure password`);
-      return employee;
+      // Invoke create-employee edge function with password support
+      const { data, error } = await supabase.functions.invoke('create-employee', {
+        body: {
+          employeeData: {
+            ...userData,
+            // Ensure role is set correctly
+            role: userData.role || 'employee'
+          }
+        },
+        headers: {
+          Authorization: `Bearer ${session.access_token}`
+        }
+      });
+
+      if (error) {
+        console.error('Edge Function error:', error);
+        throw error;
+      }
+
+      if (!data.success) {
+        throw new Error(data.error || data.message || 'Failed to create employee');
+      }
+
+      // Fetch the created employee from DB to return full Employee object
+      const { data: emp, error: fetchError } = await supabase
+        .from(this.TABLE_NAME)
+        .select('*')
+        .eq('id', data.userId)
+        .single();
+
+      if (fetchError || !emp) {
+        console.error('Failed to fetch created employee:', fetchError);
+        throw new Error('Employee created but could not be retrieved from database');
+      }
+
+      return this.mapDbToEmployee(emp);
     } catch (error) {
       console.error('Error creating user:', error);
       throw error;

@@ -13,11 +13,20 @@ if (!supabaseAnonKey || typeof supabaseAnonKey !== 'string' || supabaseAnonKey.t
   throw new Error('Missing or invalid VITE_SUPABASE_ANON_KEY environment variable. Ensure this variable is set before building.');
 }
 
+console.log('🔍 [TELEMETRY] Supabase URL exists:', !!import.meta.env.VITE_SUPABASE_URL);
+console.log('🔍 [TELEMETRY] Supabase Key exists:', !!import.meta.env.VITE_SUPABASE_ANON_KEY);
+
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
     autoRefreshToken: true,
     persistSession: true,
     detectSessionInUrl: true
+  },
+  global: {
+    fetch: (url, options) => {
+      console.log(`📡 [NETWORK SPY] Outbound Request: ${url}`);
+      return fetch(url, options);
+    }
   }
 });
 
