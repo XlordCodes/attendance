@@ -7,49 +7,9 @@
 -- ============================================================================
 -- PHASE 1: DROP EVERYTHING (Clean Slate)
 -- ============================================================================
-
--- Drop all policies (must be done before dropping tables)
--- EMPLOYEES
-DROP POLICY IF EXISTS "admins_employees_full_access" ON employees;
-DROP POLICY IF EXISTS "users_own_profile" ON employees;
-DROP POLICY IF EXISTS "employees_view_own_profile" ON employees;
-DROP POLICY IF EXISTS "employees_update_own_profile" ON employees;
-
--- ATTENDANCE_RECORDS
-DROP POLICY IF EXISTS "admins_attendance_full_access" ON attendance_records;
-DROP POLICY IF EXISTS "employees_view_own_attendance" ON attendance_records;
-DROP POLICY IF EXISTS "employees_select_own_attendance" ON attendance_records;
-DROP POLICY IF EXISTS "employees_insert_own_attendance" ON attendance_records;
-DROP POLICY IF EXISTS "employees_update_own_attendance" ON attendance_records;
-
--- ATTENDANCE_BREAKS
-DROP POLICY IF EXISTS "admins_breaks_full_access" ON attendance_breaks;
-DROP POLICY IF EXISTS "employees_manage_own_breaks" ON attendance_breaks;
-
--- LEAVE_REQUESTS
-DROP POLICY IF EXISTS "admins_leaves_full_access" ON leave_requests;
-DROP POLICY IF EXISTS "employees_view_own_leaves" ON leave_requests;
-DROP POLICY IF EXISTS "employees_insert_own_leaves" ON leave_requests;
-DROP POLICY IF EXISTS "employees_update_own_pending_leaves" ON leave_requests;
-
--- MEETINGS
-DROP POLICY IF EXISTS "admins_manage_meetings" ON meetings;
-DROP POLICY IF EXISTS "authenticated_view_meetings" ON meetings;
-DROP POLICY IF EXISTS "employees_view_all_meetings" ON meetings;
-
--- MEETING_EMPLOYEES
-DROP POLICY IF EXISTS "admins_manage_meeting_assignments" ON meeting_employees;
-DROP POLICY IF EXISTS "employees_view_own_meeting_assignments" ON meeting_employees;
-
--- NOTIFICATIONS
-DROP POLICY IF EXISTS "admins_notifications_full_access" ON notifications;
-DROP POLICY IF EXISTS "employees_view_own_notifications" ON notifications;
-DROP POLICY IF EXISTS "employees_select_own_notifications" ON notifications;
-DROP POLICY IF EXISTS "employees_update_own_notifications" ON notifications;
-
--- Drop all triggers
-DROP TRIGGER IF EXISTS update_attendance_updated_at ON attendance_records;
-DROP TRIGGER IF EXISTS update_employees_updated_at ON employees;
+-- NOTE: The DROP TABLE ... CASCADE statements below will automatically remove
+-- all dependent objects (policies, triggers, constraints, indexes). No need to
+-- drop them explicitly beforehand. Starting fresh with table drops.
 
 -- Drop all functions (RPCs and helpers) - order matters for dependencies
 -- Drop dependent functions first
@@ -73,8 +33,9 @@ DROP TABLE IF EXISTS leave_requests CASCADE;
 DROP TABLE IF EXISTS attendance_breaks CASCADE;
 DROP TABLE IF EXISTS attendance_records CASCADE;
 DROP TABLE IF EXISTS employees CASCADE;
+DROP TABLE IF EXISTS working_hours_config CASCADE;
 
--- Drop custom types (use CASCADE to force drop if anything remains)
+-- Drop custom types (must come after tables since tables depend on them)
 DROP TYPE IF EXISTS notification_priority CASCADE;
 DROP TYPE IF EXISTS notification_type CASCADE;
 DROP TYPE IF EXISTS meeting_status CASCADE;
@@ -82,6 +43,8 @@ DROP TYPE IF EXISTS leave_status CASCADE;
 DROP TYPE IF EXISTS leave_type CASCADE;
 DROP TYPE IF EXISTS user_role CASCADE;
 
+-- ============================================================================
+-- PHASE 2: EXTENSIONS
 -- ============================================================================
 -- PHASE 2: EXTENSIONS
 -- ============================================================================
@@ -150,7 +113,10 @@ CREATE TABLE attendance_records (
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     CONSTRAINT unique_employee_date UNIQUE (user_id, date),
-    CONSTRAINT hours_non_negative CHECK (worked_hours >= 0)
+    CONSTRAINT hours_non_negative CHECK (worked_hours >= 0),
+    CONSTRAINT logout_after_login CHECK (logout_time IS NULL OR logout_time >= login_time),
+    CONSTRAINT login_time_not_far_future CHECK (login_time IS NULL OR login_time <= NOW() + INTERVAL '1 hour'),
+    CONSTRAINT lunch_end_after_start CHECK (lunch_end IS NULL OR lunch_end >= lunch_start)
 );
 
 CREATE INDEX idx_attendance_user_id ON attendance_records(user_id);
@@ -195,6 +161,7 @@ CREATE TABLE leave_requests (
 );
 
 CREATE INDEX idx_leave_employee_id ON leave_requests(employee_id);
+CREATE INDEX idx_leave_employee_email ON leave_requests(employee_email);
 CREATE INDEX idx_leave_status ON leave_requests(status);
 CREATE INDEX idx_leave_dates ON leave_requests(start_date, end_date);
 CREATE INDEX idx_leave_reviewed_by ON leave_requests(reviewed_by);
@@ -247,6 +214,29 @@ CREATE INDEX idx_notifications_employee ON notifications(employee_id);
 CREATE INDEX idx_notifications_is_read ON notifications(is_read);
 CREATE INDEX idx_notifications_created_at ON notifications(created_at DESC);
 
+-- ----------------------------------------------------------------------------
+-- WORKING_HOURS_CONFIG TABLE
+-- ----------------------------------------------------------------------------
+CREATE TABLE working_hours_config (
+    id INT PRIMARY KEY DEFAULT 1,
+    start_hour INT NOT NULL DEFAULT 10,
+    start_minute INT NOT NULL DEFAULT 0,
+    end_hour INT NOT NULL DEFAULT 20,
+    end_minute INT NOT NULL DEFAULT 0,
+    standard_work_hours NUMERIC(5,2) NOT NULL DEFAULT 10,
+    lunch_start_hour INT NOT NULL DEFAULT 14,
+    lunch_start_minute INT NOT NULL DEFAULT 0,
+    lunch_end_hour INT NOT NULL DEFAULT 15,
+    lunch_end_minute INT NOT NULL DEFAULT 0,
+    overtime_threshold NUMERIC(5,2) NOT NULL DEFAULT 10,
+    updated_by UUID REFERENCES employees(id),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CONSTRAINT single_row CHECK (id = 1)
+);
+
+-- Insert the default single row
+INSERT INTO working_hours_config (id) VALUES (1) ON CONFLICT (id) DO NOTHING;
+
 -- ============================================================================
 -- PHASE 5: HELPER FUNCTIONS & RPCs
 -- ============================================================================
@@ -261,23 +251,32 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- Authorization helper function
+-- SECURITY DEFINER: bypasses RLS to prevent recursion when called from RLS policies
 CREATE OR REPLACE FUNCTION is_admin()
 RETURNS BOOLEAN AS $$
     SELECT EXISTS (
         SELECT 1 FROM employees
         WHERE id = auth.uid() AND role = 'admin'
     );
-$$ LANGUAGE sql STABLE;
+$$ LANGUAGE sql STABLE SECURITY DEFINER;
 
 -- RPC: Clock In (atomic upsert with server timestamp)
 CREATE OR REPLACE FUNCTION clock_in(p_user_id UUID, p_date DATE)
 RETURNS attendance_records AS $$
 DECLARE
     result attendance_records%ROWTYPE;
+    v_today DATE := CURRENT_DATE;
 BEGIN
-    IF (SELECT role FROM employees WHERE id = auth.uid()) != 'admin'
-       AND auth.uid() != p_user_id THEN
+    -- Authorization: must be admin or the same user
+    IF NOT is_admin() AND auth.uid() != p_user_id THEN
         RAISE EXCEPTION 'Not authorized to clock in for this user';
+    END IF;
+
+    -- Non-admins: restrict date to today or yesterday only (prevent back-dating)
+    IF NOT is_admin() THEN
+        IF p_date NOT IN (v_today, v_today - 1) THEN
+            RAISE EXCEPTION 'Clock-in restricted to current date or yesterday only';
+        END IF;
     END IF;
 
     INSERT INTO attendance_records (user_id, date, login_time, worked_hours)
@@ -293,41 +292,58 @@ END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- RPC: Clock Out (atomic update with server timestamp)
-CREATE OR REPLACE FUNCTION clock_out(p_user_id UUID, p_date DATE)
-RETURNS attendance_records AS $$
+CREATE OR REPLACE FUNCTION clock_out(
+    p_user_id UUID,
+    p_date DATE,
+    p_early_logout_reason TEXT DEFAULT NULL
+) RETURNS attendance_records AS $$
 DECLARE
     result attendance_records%ROWTYPE;
+    v_today DATE := CURRENT_DATE;
 BEGIN
-    IF (SELECT role FROM employees WHERE id = auth.uid()) != 'admin'
-       AND auth.uid() != p_user_id THEN
+    -- Authorization: must be admin or the same user
+    IF NOT is_admin() AND auth.uid() != p_user_id THEN
         RAISE EXCEPTION 'Not authorized to clock out for this user';
     END IF;
 
+    -- Non-admins: restrict date to today or yesterday only
+    IF NOT is_admin() THEN
+        IF p_date NOT IN (v_today, v_today - 1) THEN
+            RAISE EXCEPTION 'Clock-out restricted to current date or yesterday only';
+        END IF;
+    END IF;
+
     UPDATE attendance_records
-    SET logout_time = NOW(), updated_at = NOW()
+    SET logout_time = NOW(),
+        early_logout_reason = COALESCE(p_early_logout_reason, early_logout_reason),
+        updated_at = NOW()
     WHERE user_id = p_user_id AND date = p_date
     RETURNING * INTO result;
+
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'No attendance record found for the given user and date';
+    END IF;
 
     RETURN result;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- RPC: Update attendance record with full column access
+-- RPC: Update attendance record with full column access (partial-update safe)
 CREATE OR REPLACE FUNCTION update_attendance_record(
     p_record_id UUID,
-    p_login_time TIMESTAMPTZ,
-    p_logout_time TIMESTAMPTZ,
-    p_lunch_start TIMESTAMPTZ,
-    p_lunch_end TIMESTAMPTZ,
-    p_is_late BOOLEAN,
-    p_is_late_from_lunch BOOLEAN,
-    p_worked_hours NUMERIC,
-    p_late_reason TEXT,
-    p_lunch_late_reason TEXT,
-    p_early_logout_reason TEXT,
-    p_audit_data JSONB,
-    p_location JSONB,
-    p_client_ip VARCHAR
+    p_login_time TIMESTAMPTZ DEFAULT NULL,
+    p_logout_time TIMESTAMPTZ DEFAULT NULL,
+    p_lunch_start TIMESTAMPTZ DEFAULT NULL,
+    p_lunch_end TIMESTAMPTZ DEFAULT NULL,
+    p_is_late BOOLEAN DEFAULT NULL,
+    p_is_late_from_lunch BOOLEAN DEFAULT NULL,
+    p_worked_hours NUMERIC DEFAULT NULL,
+    p_late_reason TEXT DEFAULT NULL,
+    p_lunch_late_reason TEXT DEFAULT NULL,
+    p_early_logout_reason TEXT DEFAULT NULL,
+    p_audit_data JSONB DEFAULT NULL,
+    p_location JSONB DEFAULT NULL,
+    p_client_ip VARCHAR DEFAULT NULL
 )
 RETURNS attendance_records AS $$
 DECLARE
@@ -336,28 +352,57 @@ DECLARE
 BEGIN
     -- Get the record owner
     SELECT user_id INTO record_owner FROM attendance_records WHERE id = p_record_id;
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'Attendance record not found';
+    END IF;
 
     -- Authorization check: only admin or record owner can update
-    IF (SELECT role FROM employees WHERE id = auth.uid()) != 'admin'
-       AND auth.uid() != record_owner THEN
+    IF NOT is_admin() AND auth.uid() != record_owner THEN
         RAISE EXCEPTION 'Not authorized to update this attendance record';
     END IF;
 
+    -- Input validation
+    IF p_worked_hours IS NOT NULL AND p_worked_hours < 0 THEN
+        RAISE EXCEPTION 'Worked hours cannot be negative';
+    END IF;
+    IF p_login_time IS NOT NULL AND p_logout_time IS NOT NULL AND p_logout_time < p_login_time THEN
+        RAISE EXCEPTION 'Logout time must be after login time';
+    END IF;
+    -- Future bounds: prevent timestamps far in the future
+    IF p_login_time IS NOT NULL AND p_login_time > NOW() + INTERVAL '1 hour' THEN
+        RAISE EXCEPTION 'Login time cannot be in the far future';
+    END IF;
+    IF p_logout_time IS NOT NULL AND p_logout_time > NOW() + INTERVAL '1 hour' THEN
+        RAISE EXCEPTION 'Logout time cannot be in the far future';
+    END IF;
+    -- Past bounds: limit how far back timestamps can be set (allow reasonable correction window)
+    IF p_login_time IS NOT NULL AND p_login_time < NOW() - INTERVAL '30 days' THEN
+        RAISE EXCEPTION 'Login time cannot be more than 30 days in the past';
+    END IF;
+    IF p_logout_time IS NOT NULL AND p_logout_time < NOW() - INTERVAL '30 days' THEN
+        RAISE EXCEPTION 'Logout time cannot be more than 30 days in the past';
+    END IF;
+    -- Lunch consistency
+    IF p_lunch_start IS NOT NULL AND p_lunch_end IS NOT NULL AND p_lunch_end < p_lunch_start THEN
+        RAISE EXCEPTION 'Lunch end time must be after lunch start time';
+    END IF;
+
+    -- Perform partial UPDATE using COALESCE to preserve existing values for NULL parameters
     UPDATE attendance_records
     SET
-        login_time = p_login_time,
-        logout_time = p_logout_time,
-        lunch_start = p_lunch_start,
-        lunch_end = p_lunch_end,
-        is_late = p_is_late,
-        is_late_from_lunch = p_is_late_from_lunch,
-        worked_hours = p_worked_hours,
-        late_reason = p_late_reason,
-        lunch_late_reason = p_lunch_late_reason,
-        early_logout_reason = p_early_logout_reason,
-        audit_data = p_audit_data,
-        location = p_location,
-        client_ip = p_client_ip,
+        login_time = COALESCE(p_login_time, login_time),
+        logout_time = COALESCE(p_logout_time, logout_time),
+        lunch_start = COALESCE(p_lunch_start, lunch_start),
+        lunch_end = COALESCE(p_lunch_end, lunch_end),
+        is_late = COALESCE(p_is_late, is_late),
+        is_late_from_lunch = COALESCE(p_is_late_from_lunch, is_late_from_lunch),
+        worked_hours = COALESCE(p_worked_hours, worked_hours),
+        late_reason = COALESCE(p_late_reason, late_reason),
+        lunch_late_reason = COALESCE(p_lunch_late_reason, lunch_late_reason),
+        early_logout_reason = COALESCE(p_early_logout_reason, early_logout_reason),
+        audit_data = COALESCE(p_audit_data, audit_data),
+        location = COALESCE(p_location, location),
+        client_ip = COALESCE(p_client_ip, client_ip),
         updated_at = NOW()
     WHERE id = p_record_id
     RETURNING * INTO result;
@@ -368,7 +413,7 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- Grant execute permissions
 GRANT EXECUTE ON FUNCTION clock_in(UUID, DATE) TO authenticated;
-GRANT EXECUTE ON FUNCTION clock_out(UUID, DATE) TO authenticated;
+GRANT EXECUTE ON FUNCTION clock_out(UUID, DATE, TEXT) TO authenticated;
 GRANT EXECUTE ON FUNCTION update_attendance_record(
     UUID, TIMESTAMPTZ, TIMESTAMPTZ, TIMESTAMPTZ, TIMESTAMPTZ,
     BOOLEAN, BOOLEAN, NUMERIC, TEXT, TEXT, TEXT, JSONB, JSONB, VARCHAR
@@ -387,6 +432,131 @@ CREATE TRIGGER update_employees_updated_at
     FOR EACH ROW
     EXECUTE FUNCTION update_updated_at_column();
 
+CREATE TRIGGER update_working_hours_config_updated_at
+    BEFORE UPDATE ON working_hours_config
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at_column();
+
+-- Prevent non-admins from modifying sensitive employee columns (privilege escalation)
+CREATE OR REPLACE FUNCTION prevent_employee_privilege_escalation()
+RETURNS TRIGGER AS $$
+BEGIN
+    -- Admins can modify any column
+    IF is_admin() THEN
+        RETURN NEW;
+    END IF;
+
+    -- Block changes to critical columns for non-admins
+    IF NEW.role IS DISTINCT FROM OLD.role THEN
+        RAISE EXCEPTION 'Cannot modify role field';
+    END IF;
+    IF NEW.is_active IS DISTINCT FROM OLD.is_active THEN
+        RAISE EXCEPTION 'Cannot modify is_active field';
+    END IF;
+    IF NEW.email IS DISTINCT FROM OLD.email THEN
+        RAISE EXCEPTION 'Cannot modify email field';
+    END IF;
+    IF NEW.employee_id IS DISTINCT FROM OLD.employee_id THEN
+        RAISE EXCEPTION 'Cannot modify employee_id field (immutable)';
+    END IF;
+    IF NEW.uid IS DISTINCT FROM OLD.uid THEN
+        RAISE EXCEPTION 'Cannot modify uid field';
+    END IF;
+    IF NEW.id IS DISTINCT FROM OLD.id THEN
+        RAISE EXCEPTION 'Cannot modify id field';
+    END IF;
+
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- ============================================================================
+-- SECURITY DEFINER FUNCTIONS FOR SAFE EMPLOYEE SELF-SERVICE
+-- ============================================================================
+-- These functions allow an employee to update their own profile and settings
+-- without requiring direct table UPDATE privileges. They enforce column-level
+-- restrictions at the database boundary, preventing mass assignment attacks.
+
+-- Function: update_own_profile
+-- Allows an employee to update only their own non-sensitive fields.
+-- Sensitive fields (role, is_active, email, employee_id, uid) are NOT permitted.
+CREATE OR REPLACE FUNCTION update_own_profile(
+    p_name VARCHAR,
+    p_department VARCHAR,
+    p_position VARCHAR,
+    p_designation VARCHAR,
+    p_join_date DATE
+) RETURNS employees AS $$
+DECLARE
+    updated employees%ROWTYPE;
+    v_user_id UUID := auth.uid();
+BEGIN
+    IF v_user_id IS NULL THEN
+        RAISE EXCEPTION 'Not authenticated';
+    END IF;
+
+    UPDATE employees
+    SET
+        name = p_name,
+        department = p_department,
+        position = p_position,
+        designation = p_designation,
+        join_date = p_join_date,
+        updated_at = NOW()
+    WHERE id = v_user_id
+    RETURNING * INTO updated;
+
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'Employee record not found';
+    END IF;
+
+    RETURN updated;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+GRANT EXECUTE ON FUNCTION update_own_profile(
+    VARCHAR, VARCHAR, VARCHAR, VARCHAR, DATE
+) TO authenticated;
+
+GRANT EXECUTE ON FUNCTION update_own_profile(
+    VARCHAR, VARCHAR, VARCHAR, VARCHAR, DATE
+) TO service_role;
+
+-- Function: update_own_settings
+-- Allows an employee to update their own settings JSONB only.
+CREATE OR REPLACE FUNCTION update_own_settings(p_settings JSONB)
+RETURNS employees AS $$
+DECLARE
+    updated employees%ROWTYPE;
+    v_user_id UUID := auth.uid();
+BEGIN
+    IF v_user_id IS NULL THEN
+        RAISE EXCEPTION 'Not authenticated';
+    END IF;
+
+    UPDATE employees
+    SET settings = p_settings, updated_at = NOW()
+    WHERE id = v_user_id
+    RETURNING * INTO updated;
+
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'Employee record not found';
+    END IF;
+
+    RETURN updated;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+GRANT EXECUTE ON FUNCTION update_own_settings(JSONB) TO authenticated;
+GRANT EXECUTE ON FUNCTION update_own_settings(JSONB) TO service_role;
+
+-- Enforce column-level protections for all direct/indirect updates (defense-in-depth)
+DROP TRIGGER IF EXISTS prevent_employee_privilege_escalation_trigger ON employees;
+CREATE TRIGGER prevent_employee_privilege_escalation_trigger
+    BEFORE UPDATE ON employees
+    FOR EACH ROW
+    EXECUTE FUNCTION prevent_employee_privilege_escalation();
+
 -- ============================================================================
 -- PHASE 7: ROW LEVEL SECURITY (RLS) ENABLEMENT
 -- ============================================================================
@@ -397,6 +567,7 @@ ALTER TABLE leave_requests ENABLE ROW LEVEL SECURITY;
 ALTER TABLE meetings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE meeting_employees ENABLE ROW LEVEL SECURITY;
 ALTER TABLE notifications ENABLE ROW LEVEL SECURITY;
+ALTER TABLE working_hours_config ENABLE ROW LEVEL SECURITY;
 
 -- ============================================================================
 -- PHASE 8: RLS POLICIES
@@ -413,10 +584,12 @@ CREATE POLICY "admins_employees_full_access" ON employees
 CREATE POLICY "employees_view_own_profile" ON employees
     FOR SELECT USING (auth.uid() = id);
 
--- Employee: Can update their own profile
--- Simple ownership check; row-level constraints already prevent privilege escalation
-CREATE POLICY "employees_update_own_profile" ON employees
-    FOR UPDATE USING (auth.uid() = id);
+-- NOTE: Direct employee UPDATE on own profile is intentionally RESTRICTED.
+-- Employees must use the SECURITY DEFINER function `update_own_profile()` for
+-- safe self-service updates (name, department, position, designation, join_date).
+-- This prevents mass assignment attacks (role, is_active, email, employee_id, uid).
+-- The BEFORE UPDATE trigger provides defense-in-depth, but the RLS policy is
+-- deliberately absent to enforce the secure-by-default principle.
 
 -- ============================================================================
 -- ATTENDANCE_RECORDS TABLE POLICIES
@@ -429,16 +602,13 @@ CREATE POLICY "admins_attendance_full_access" ON attendance_records
 CREATE POLICY "employees_select_own_attendance" ON attendance_records
     FOR SELECT USING (user_id = auth.uid());
 
--- Employee: Can INSERT their own attendance records (clock-in via RPC)
-CREATE POLICY "employees_insert_own_attendance" ON attendance_records
-    FOR INSERT WITH CHECK (user_id = auth.uid());
-
--- Employee: Can UPDATE their own attendance records
--- NO column-level WITH CHECK restrictions on logout_time, login_time, worked_hours
--- Only prevents reassignment of user_id to another employee
-CREATE POLICY "employees_update_own_attendance" ON attendance_records
-    FOR UPDATE USING (user_id = auth.uid())
-    WITH CHECK (user_id = auth.uid());
+-- NOTE: Direct INSERT/UPDATE on attendance_records by employees is intentionally RESTRICTED.
+-- All attendance mutations must go through SECURITY DEFINER RPCs:
+--   - clock_in(p_user_id, p_date)        → creates record with server timestamp, date-limited
+--   - clock_out(p_user_id, p_date, ...)   → updates logout, date-limited
+--   - update_attendance_record(...)       → fine-grained field updates with validation
+-- These RPCs enforce authorization, input validation, and temporal constraints.
+-- The admin policy "admins_attendance_full_access" permits direct modifications for admins.
 
 -- ============================================================================
 -- ATTENDANCE_BREAKS TABLE POLICIES
@@ -531,6 +701,17 @@ CREATE POLICY "employees_select_own_notifications" ON notifications
 CREATE POLICY "employees_update_own_notifications" ON notifications
     FOR UPDATE USING (employee_id = auth.uid())
     WITH CHECK (employee_id = auth.uid());
+
+-- ============================================================================
+-- WORKING_HOURS_CONFIG POLICIES
+-- ============================================================================
+-- Admin: Full access to working hours configuration
+CREATE POLICY "admins_working_hours_full_access" ON working_hours_config
+    FOR ALL USING (is_admin());
+
+-- Authenticated employees: Can view working hours (read-only)
+CREATE POLICY "employees_view_working_hours" ON working_hours_config
+    FOR SELECT USING (auth.role() = 'authenticated');
 
 -- ============================================================================
 -- END OF SCHEMA INITIALIZATION

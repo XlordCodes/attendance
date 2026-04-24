@@ -1,9 +1,10 @@
-import React, { Suspense, Component } from 'react';
+import React, { Suspense, Component, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import { AuthProvider, useAuth } from './hooks/useAuth';
 import ProtectedRoute from './components/common/ProtectedRoute';
 import Sidebar from './components/Layout/Sidebar';
+import { loadWorkingHoursFromDB } from './constants/workingHours';
 
 // ────────────────────────────────────────────────────────────
 // LAZY IMPORTS — Code-split every page-level component.
@@ -144,6 +145,11 @@ const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 // ────────────────────────────────────────────────────────────
 const AppContent: React.FC = () => {
   const { user, employee, loading } = useAuth();
+
+  // Load working hours configuration from the database once on app mount
+  useEffect(() => {
+    loadWorkingHoursFromDB();
+  }, []);
 
   // Strict guard: hold the loading screen until auth state machine settles
   if (loading) {

@@ -1,3 +1,5 @@
+import { getWorkStartTime, getWorkEndTime } from '../constants/workingHours';
+
 interface UserSettings {
   notifications: {
     clockInReminder: boolean;
@@ -16,8 +18,6 @@ interface UserSettings {
 
 class BrowserNotificationService {
   private notificationIntervals: { [key: string]: NodeJS.Timeout } = {};
-  private readonly WORK_START_HOUR = 9; // 9 AM
-  private readonly WORK_END_HOUR = 17; // 5 PM
   private readonly BREAK_REMINDER_INTERVAL = 2 * 60 * 60 * 1000; // 2 hours
 
   /**
@@ -54,21 +54,20 @@ class BrowserNotificationService {
     // Play sound if enabled
     if (playSound) {
       try {
-        // Create a simple beep sound
         const AudioContext = window.AudioContext || (window as { webkitAudioContext?: typeof window.AudioContext }).webkitAudioContext;
         if (AudioContext) {
           const audioContext = new AudioContext();
           const oscillator = audioContext.createOscillator();
           const gainNode = audioContext.createGain();
-          
+
           oscillator.connect(gainNode);
           gainNode.connect(audioContext.destination);
-          
+
           oscillator.frequency.value = 800;
           oscillator.type = 'sine';
           gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
           gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.5);
-          
+
           oscillator.start(audioContext.currentTime);
           oscillator.stop(audioContext.currentTime + 0.5);
         }
@@ -88,14 +87,14 @@ class BrowserNotificationService {
    */
   private setupClockInReminder(playSound: boolean): void {
     const now = new Date();
-    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate(), this.WORK_START_HOUR, 0, 0);
-    
-    // If it's already past work start time, set for tomorrow
-    if (now > today) {
-      today.setDate(today.getDate() + 1);
-    }
+    const workStartToday = getWorkStartTime(now);
 
-    const timeUntilReminder = today.getTime() - now.getTime();
+    // Determine the next work start time (today or tomorrow)
+    const target = now >= workStartToday
+      ? getWorkStartTime(new Date(now.getTime() + 24 * 60 * 60 * 1000)) // tomorrow
+      : workStartToday;
+
+    const timeUntilReminder = target.getTime() - now.getTime();
 
     this.notificationIntervals.clockIn = setTimeout(() => {
       this.sendNotification(
@@ -104,7 +103,7 @@ class BrowserNotificationService {
         undefined,
         playSound
       );
-      
+
       // Set up for next day
       this.setupClockInReminder(playSound);
     }, timeUntilReminder);
@@ -115,14 +114,14 @@ class BrowserNotificationService {
    */
   private setupClockOutReminder(playSound: boolean): void {
     const now = new Date();
-    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate(), this.WORK_END_HOUR, 0, 0);
-    
-    // If it's already past work end time, set for tomorrow
-    if (now > today) {
-      today.setDate(today.getDate() + 1);
-    }
+    const workEndToday = getWorkEndTime(now);
 
-    const timeUntilReminder = today.getTime() - now.getTime();
+    // Determine the next work end time (today or tomorrow)
+    const target = now >= workEndToday
+      ? getWorkEndTime(new Date(now.getTime() + 24 * 60 * 60 * 1000))
+      : workEndToday;
+
+    const timeUntilReminder = target.getTime() - now.getTime();
 
     this.notificationIntervals.clockOut = setTimeout(() => {
       this.sendNotification(
@@ -131,7 +130,7 @@ class BrowserNotificationService {
         undefined,
         playSound
       );
-      
+
       // Set up for next day
       this.setupClockOutReminder(playSound);
     }, timeUntilReminder);
@@ -143,10 +142,11 @@ class BrowserNotificationService {
   private setupBreakReminder(playSound: boolean): void {
     this.notificationIntervals.breakReminder = setInterval(() => {
       const now = new Date();
-      const currentHour = now.getHours();
-      
+      const workStart = getWorkStartTime(now);
+      const workEnd = getWorkEndTime(now);
+
       // Only send break reminders during work hours
-      if (currentHour >= this.WORK_START_HOUR && currentHour < this.WORK_END_HOUR) {
+      if (now >= workStart && now < workEnd) {
         this.sendNotification(
           'Time for a Break! ☕',
           'Take a short break to rest and recharge.',
@@ -187,7 +187,7 @@ class BrowserNotificationService {
         undefined,
         playSound
       );
-      
+
       // Set up for next week
       this.setupWeeklyReportReminder(playSound);
     }, timeUntilFriday);
