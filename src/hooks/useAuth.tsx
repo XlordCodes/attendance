@@ -55,7 +55,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setEmployee(null);
         }
       } catch (err: any) {
-        console.error('❌ [TELEMETRY] initializeSession Failed:', err.stack || err);
+        if (import.meta.env.DEV) {
+          console.error('❌ [TELEMETRY] initializeSession Failed:', err.stack || err);
+        }
         toast.error('Connection timed out. Please refresh the page.');
       } finally {
         isBooting.current = false;
@@ -68,10 +70,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const { data: { subscription: authSubscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (cancelled) return;
 
-      console.log('🔄 Auth state changed:', event, session?.user?.email || 'signed out');
+      if (import.meta.env.DEV) {
+        console.log('🔄 Auth state changed:', event, session?.user?.email || 'signed out');
+      }
 
       if (isBooting.current && (event === 'INITIAL_SESSION' || event === 'SIGNED_IN')) {
-        console.log('🛡️ [TELEMETRY] Ignored early auth event during boot sequence:', event);
+        if (import.meta.env.DEV) {
+          console.log('🛡️ [TELEMETRY] Ignored early auth event during boot sequence:', event);
+        }
         return;
       }
       

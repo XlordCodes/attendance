@@ -5,8 +5,10 @@ import { meetingService } from '../../services/meetingService';
 import { Employee, Meeting } from '../../types';
 import { format } from 'date-fns';
 import toast from 'react-hot-toast';
+import { useAuth } from '../../hooks/useAuth';
 
 const AssignMeeting: React.FC = () => {
+  const { user, loading: authLoading } = useAuth();
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [selectedEmployees, setSelectedEmployees] = useState<string[]>([]);
   const [meetingTitle, setMeetingTitle] = useState('');
@@ -52,6 +54,10 @@ const AssignMeeting: React.FC = () => {
   };
 
   const handleAssignMeeting = async () => {
+    if (!user) {
+      toast.error('Authentication required. Please log in again.');
+      return;
+    }
     if (!meetingTitle.trim()) {
       toast.error('Please enter a meeting title');
       return;
@@ -73,7 +79,7 @@ const AssignMeeting: React.FC = () => {
         date: meetingDate,
         time: meetingTime,
         assignedEmployees: selectedEmployees,
-        createdBy: 'current-admin-id', // TODO: Get actual admin ID
+        createdBy: user.id,
       });
 
       // Add to local state

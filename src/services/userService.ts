@@ -1,11 +1,11 @@
 import { supabase } from './supabaseClient';
-import { Employee } from '../types';
+import type { Employee } from '../types';
 
 /**
  * Security: Get current authenticated user's role
  * @returns 'admin' | 'employee' | null
  */
-const getCurrentUserRole = async (): Promise<string | null> => {
+export const getCurrentUserRole = async (): Promise<string | null> => {
   try {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return null;
@@ -20,6 +20,26 @@ const getCurrentUserRole = async (): Promise<string | null> => {
   } catch {
     return null;
   }
+};
+
+/**
+ * Security: Require current user to be admin, throw if not
+ * @throws {Error} if user is not an admin
+ */
+export const requireAdmin = async (): Promise<void> => {
+  const role = await getCurrentUserRole();
+  if (role !== 'admin') {
+    throw new Error('Not authorized: Administrator access required');
+  }
+};
+
+/**
+ * Security: Check if current user is admin
+ * @returns true if user is admin, false otherwise
+ */
+export const isAdmin = async (): Promise<boolean> => {
+  const role = await getCurrentUserRole();
+  return role === 'admin';
 };
 
 interface UserSettings {
@@ -109,39 +129,45 @@ class UserService {
     }
   }
 
-  async updateUser(id: string, updates: Partial<Employee>): Promise<void> {
-    try {
-      const currentRole = await getCurrentUserRole();
-      const isAdmin = currentRole === 'admin';
-      
-      const dbUpdates: any = {};
-      
-      if (updates.employeeId !== undefined) dbUpdates.employee_id = updates.employeeId;
-      if (updates.name !== undefined) dbUpdates.name = updates.name;
-      if (updates.email !== undefined) dbUpdates.email = updates.email;
-      if (updates.department !== undefined) dbUpdates.department = updates.department;
-      if (updates.position !== undefined) dbUpdates.position = updates.position;
-      if (updates.designation !== undefined) dbUpdates.designation = updates.designation;
-      if (updates.joinDate !== undefined) dbUpdates.join_date = updates.joinDate;
-      if (updates.lastLogin !== undefined) dbUpdates.last_login = updates.lastLogin;
+   async updateUser(id: string, updates: Partial<Employee>): Promise<void> {
+     try {
+       const currentRole = await getCurrentUserRole();
+       const isAdmin = currentRole === 'admin';
+       
+       const dbUpdates: any = {};
+       
+       // Non-admin mutable fields (self-service)
+       if (updates.name !== undefined) dbUpdates.name = updates.name;
+       if (updates.department !== undefined) dbUpdates.department = updates.department;
+       if (updates.position !== undefined) dbUpdates.position = updates.position;
+       if (updates.designation !== undefined) dbUpdates.designation = updates.designation;
+       if (updates.joinDate !== undefined) dbUpdates.join_date = updates.joinDate;
+       
+       // Immutable fields: employee_id cannot be changed through this interface
+       // (database trigger prevents non-admin changes; admins should use dedicated function if ever needed)
+       // Note: updates.employeeId is intentionally ignored to prevent mass assignment
 
-      // Security: Only admins can modify role and isActive
-      if (isAdmin) {
-        if (updates.role !== undefined) dbUpdates.role = updates.role;
-        if (updates.isActive !== undefined) dbUpdates.is_active = updates.isActive;
-      }
+       // Admin-only fields
+       if (isAdmin) {
+         if (updates.role !== undefined) dbUpdates.role = updates.role;
+         if (updates.isActive !== undefined) dbUpdates.is_active = updates.isActive;
+         if (updates.email !== undefined) dbUpdates.email = updates.email;
+         // Admins may change employee_id with caution (though typically immutable)
+         if (updates.employeeId !== undefined) dbUpdates.employee_id = updates.employeeId;
+         if (updates.lastLogin !== undefined) dbUpdates.last_login = updates.lastLogin;
+       }
 
-      const { error } = await supabase
-        .from(this.TABLE_NAME)
-        .update(dbUpdates)
-        .eq('id', id);
+       const { error } = await supabase
+         .from(this.TABLE_NAME)
+         .update(dbUpdates)
+         .eq('id', id);
 
-      if (error) throw error;
-    } catch (error) {
-      console.error('Error updating user:', error);
-      throw error;
-    }
-  }
+       if (error) throw error;
+     } catch (error) {
+       console.error('Error updating user:', error);
+       throw error;
+     }
+   }
 
   async deleteUser(id: string): Promise<void> {
     try {
@@ -429,6 +455,30 @@ class UserService {
 
   async updateUserSettings(userId: string, settings: UserSettings): Promise<void> {
     try {
+      const currentRole = await getCurrentUserRole();
+      const isAdmin = currentRole === 'admin';
+
+      const { data: { user } } = await supabase.auth.getUser();
+      const currentUserId = user?.id;
+
+      if (!currentUserId) {
+        throw new Error('Not authenticated');
+      }
+
+      if (!isAdmin && userId !== currentUserId) {
+        throw new Error('Not authorized: Can only update your own settings');
+      }
+
+      if (!isAdmin) {
+        // Non-admins: use RPC to update only their own settings safely
+        const { error } = await supabase.rpc('update_own_settings', {
+          p_settings: settings
+        }).single();
+        if (error) throw error;
+        return;
+      }
+
+      // Admins: direct update allowed via admin RLS policy
       const { error } = await supabase
         .from(this.TABLE_NAME)
         .update({
@@ -445,5 +495,7 @@ class UserService {
   }
 }
 
+// Standalone helper functions (operate independently of UserService class)
+// They are exported above the class instantiation to avoid circular reference issues.
 export const userService = new UserService();
 export default userService;

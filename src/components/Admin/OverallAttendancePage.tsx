@@ -6,13 +6,16 @@ import {
   XCircle,
   Clock,
   Search,
-  User
+  User,
+  Filter,
+  ChevronDown
 } from 'lucide-react';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval } from 'date-fns';
 import { userService } from '../../services/userService';
 import { globalAttendanceService } from '../../services/globalAttendanceService';
 import { Employee } from '../../types';
 import { formatToDDMMYYYY, parseDDMMYYYY } from '../../utils/dateUtils';
+import toast from 'react-hot-toast';
 
 interface AttendanceStats {
   totalEmployees: number;
@@ -54,36 +57,35 @@ const OverallAttendancePage: React.FC = () => {
   const [dailyAttendance, setDailyAttendance] = useState<DailyAttendance[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState<string>('all');
+  const [selectedEmployeeId, setSelectedEmployeeId] = useState<string | 'ALL'>('ALL');
+  const [employeeSearchText, setEmployeeSearchText] = useState('');
+  const [allEmployees, setAllEmployees] = useState<Employee[]>([]);
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState<'today' | 'monthly'>('today');
 
   useEffect(() => {
-    const loadAttendanceData = async () => {
+    const loadEmployees = async () => {
       try {
-        setLoading(true);
-        console.log(`🔄 Loading attendance data for ${selectedDate} in ${viewMode} mode`);
-        
-        // Get all employees
         const employees = await userService.getAllEmployees();
-      console.log(`👥 Found ${employees.length} employees:`, employees.map(emp => ({
-        uid: emp.uid,
-        id: emp.id,
-        name: emp.name,
-        email: emp.email,
-        role: emp.role
-      })));
-      
-      if (viewMode === 'today') {
-        await loadTodayAttendance(employees);
-      } else {
-        await loadMonthlyData(employees);
+        setAllEmployees(employees);
+      } catch (error) {
+        console.error('Error loading employees:', error);
       }
-    } catch (error) {
-      console.error('❌ Failed to load attendance data:', error);
-    } finally {
-      setLoading(false);
+    };
+    loadEmployees();
+  }, []);
+
+  // Sync search text when selected employee changes (e.g., reset to ALL)
+  useEffect(() => {
+    if (selectedEmployeeId === 'ALL') {
+      setEmployeeSearchText('');
+    } else {
+      const emp = allEmployees.find(e => e.id === selectedEmployeeId);
+      if (emp) {
+        setEmployeeSearchText(emp.name);
+      }
     }
-  };
+  }, [selectedEmployeeId, allEmployees]);
 
   const loadTodayAttendance = async (employees: Employee[]) => {
     try {
@@ -244,8 +246,35 @@ const OverallAttendancePage: React.FC = () => {
     }
     };
 
+  useEffect(() => {
+    const loadAttendanceData = async () => {
+      try {
+        setLoading(true);
+        console.log(`🔄 Loading attendance data for ${selectedDate} in ${viewMode} mode`);
+        
+        if (allEmployees.length === 0) {
+          setLoading(false);
+          return;
+        }
+        
+        if (viewMode === 'today') {
+          await loadTodayAttendance(allEmployees);
+        } else {
+          // Monthly view: filter by selected employee if any
+          const employeesToLoad = selectedEmployeeId === 'ALL'
+            ? allEmployees
+            : allEmployees.filter(emp => emp.id === selectedEmployeeId);
+          await loadMonthlyData(employeesToLoad);
+        }
+      } catch (error) {
+        console.error('❌ Failed to load attendance data:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    
     loadAttendanceData();
-  }, [selectedDate, viewMode]);
+  }, [selectedDate, viewMode, allEmployees, selectedEmployeeId]);
 
   const filteredEmployeeAttendance = employeeAttendance.filter(attendance => {
     const matchesSearch = attendance.employee.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -254,7 +283,22 @@ const OverallAttendancePage: React.FC = () => {
     return matchesSearch && matchesFilter;
   });
 
-
+  const handleEmployeeSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    const val = employeeSearchText.trim();
+    if (val === '') {
+      setSelectedEmployeeId('ALL');
+      return;
+    }
+    
+    const emp = allEmployees.find(employee => employee.name === val);
+    if (emp) {
+      setSelectedEmployeeId(emp.id);
+    } else {
+      toast.error('Employee not found. Please select from the dropdown.');
+    }
+  };
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -392,28 +436,28 @@ const OverallAttendancePage: React.FC = () => {
               <h2 className="text-lg font-semibold text-gray-900">
                 Employee Attendance - {selectedDate}
               </h2>
-              <div className="mt-4 sm:mt-0 flex items-center space-x-4">
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-                  <input
-                    type="text"
-                    placeholder="Search employees..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  />
-                </div>
-                <select
-                  value={filterStatus}
-                  onChange={(e) => setFilterStatus(e.target.value)}
-                  className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                >
-                  <option value="all">All Status</option>
-                  <option value="present">Present</option>
-                  <option value="absent">Absent</option>
-                  <option value="late">Late</option>
-                </select>
-              </div>
+               <div className="mt-4 sm:mt-0 flex items-center space-x-4">
+                 <div className="relative">
+                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                   <input
+                     type="text"
+                     placeholder="Search employees..."
+                     value={searchTerm}
+                     onChange={(e) => setSearchTerm(e.target.value)}
+                     className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                   />
+                 </div>
+                 <select
+                   value={filterStatus}
+                   onChange={(e) => setFilterStatus(e.target.value)}
+                   className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                 >
+                   <option value="all">All Status</option>
+                   <option value="present">Present</option>
+                   <option value="absent">Absent</option>
+                   <option value="late">Late</option>
+                 </select>
+               </div>
             </div>
           </div>
 
@@ -502,14 +546,46 @@ const OverallAttendancePage: React.FC = () => {
             </div>
           )}
         </div>
-      ) : (
-        // Monthly View
-        <div className="bg-white rounded-lg border border-gray-200">
-          <div className="p-6 border-b border-gray-200">
-            <h2 className="text-lg font-semibold text-gray-900">
-              Monthly Attendance Overview - {parseDDMMYYYY(selectedDate) ? format(parseDDMMYYYY(selectedDate)!, 'MMMM yyyy') : selectedDate}
-            </h2>
-          </div>
+       ) : (
+         // Monthly View
+         <div className="bg-white rounded-lg border border-gray-200">
+           <div className="p-6 border-b border-gray-200">
+             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
+               <h2 className="text-lg font-semibold text-gray-900">
+                 Monthly Attendance Overview - {parseDDMMYYYY(selectedDate) ? format(parseDDMMYYYY(selectedDate)!, 'MMMM yyyy') : selectedDate}
+               </h2>
+                 <div className="mt-4 sm:mt-0">
+                   <form onSubmit={handleEmployeeSearch} className="flex items-center space-x-2">
+                     <div className="relative w-full">
+                       <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
+                       <input
+                         type="text"
+                         list="employee-list-monthly"
+                         placeholder="All Employees"
+                         value={employeeSearchText}
+                         onChange={(e) => setEmployeeSearchText(e.target.value)}
+                         className="w-full pl-10 pr-10 py-2 bg-transparent border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#6633ee] focus:border-transparent appearance-none"
+                       />
+                       <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                     </div>
+                     <datalist id="employee-list-monthly">
+                       <option value="All Employees">All Employees</option>
+                       {allEmployees.map((employee) => (
+                         <option key={employee.id} value={employee.name}>
+                           {employee.name}
+                         </option>
+                       ))}
+                     </datalist>
+                     <button
+                       type="submit"
+                       className="px-3 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors"
+                     >
+                       Search
+                     </button>
+                   </form>
+                 </div>
+             </div>
+           </div>
 
           <div className="overflow-x-auto">
             <table className="w-full">

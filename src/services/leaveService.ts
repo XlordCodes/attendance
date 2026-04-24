@@ -1,5 +1,6 @@
 import { supabase } from './supabaseClient';
 import { LeaveRequest } from '../types';
+import { requireAdmin } from './userService';
 
 class LeaveService {
   private readonly TABLE_NAME = 'leave_requests';
@@ -23,20 +24,20 @@ class LeaveService {
     };
   }
 
-   async submitLeaveRequest(leaveRequest: Omit<LeaveRequest, 'id' | 'appliedAt'>): Promise<void> {
-     try {
-       const { error } = await supabase
-         .from(this.TABLE_NAME)
-         .insert({
-           employee_id: leaveRequest.employeeId,
-           employee_name: leaveRequest.employeeName,
-           employee_email: leaveRequest.employeeEmail,
-           leave_type: leaveRequest.leaveType,
-           start_date: leaveRequest.startDate,
-           end_date: leaveRequest.endDate,
-           reason: leaveRequest.reason,
-           status: 'pending'
-         });
+  async submitLeaveRequest(leaveRequest: Omit<LeaveRequest, 'id' | 'appliedAt'>): Promise<void> {
+      try {
+        const { error } = await supabase
+          .from(this.TABLE_NAME)
+          .insert({
+            employee_id: leaveRequest.employeeId,
+            employee_name: leaveRequest.employeeName,
+            employee_email: leaveRequest.employeeEmail,
+            leave_type: leaveRequest.leaveType,
+            start_date: leaveRequest.startDate,
+            end_date: leaveRequest.endDate,
+            reason: leaveRequest.reason,
+            status: 'pending'
+          });
 
        if (error) throw error;
      } catch (error) {
@@ -61,52 +62,61 @@ class LeaveService {
     }
   }
 
-  async getAllLeaveRequests(): Promise<LeaveRequest[]> {
-    try {
-      const { data, error } = await supabase
-        .from(this.TABLE_NAME)
-        .select('*')
-        .order('applied_at', { ascending: false });
+   async getAllLeaveRequests(): Promise<LeaveRequest[]> {
+     try {
+       const { data, error } = await supabase
+         .from(this.TABLE_NAME)
+         .select('*')
+         .order('applied_at', { ascending: false });
 
-      if (error) throw error;
-      return data.map(this.mapDbToLeaveRequest);
-    } catch (error) {
-      console.error('Error fetching all leave requests:', error);
-      throw error;
-    }
-  }
+       if (error) throw error;
+       return data.map(this.mapDbToLeaveRequest);
+     } catch (error) {
+       console.error('Error fetching all leave requests:', error);
+       throw error;
+     }
+   }
 
-  async getPendingLeaveRequests(): Promise<LeaveRequest[]> {
-    try {
-      const { data, error } = await supabase
-        .from(this.TABLE_NAME)
-        .select('*')
-        .eq('status', 'pending')
-        .order('applied_at', { ascending: false });
+   async getPendingLeaveRequests(): Promise<LeaveRequest[]> {
+     try {
+       const { data, error } = await supabase
+         .from(this.TABLE_NAME)
+         .select('*')
+         .eq('status', 'pending')
+         .order('applied_at', { ascending: false });
 
-      if (error) throw error;
-      return data.map(this.mapDbToLeaveRequest);
-    } catch (error) {
-      console.error('Error fetching pending leave requests:', error);
-      throw error;
-    }
-  }
+       if (error) throw error;
+       return data.map(this.mapDbToLeaveRequest);
+     } catch (error) {
+       console.error('Error fetching pending leave requests:', error);
+       throw error;
+     }
+   }
 
   async updateLeaveRequestStatus(
     requestId: string,
     status: 'approved' | 'rejected',
-    reviewedBy: string,
+    reviewedBy: string, // Note: client-provided, ignored — server uses authenticated user
     adminComments?: string
   ): Promise<any> {
     try {
+      // Security: Require admin role
+      await requireAdmin();
+
+      // Authenticated user is the reviewer — never trust client-supplied reviewedBy
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Not authenticated');
+
+      const updateData: any = {
+        status,
+        reviewed_by: user.id,
+        reviewed_at: new Date().toISOString()
+      };
+      if (adminComments !== undefined) updateData.admin_comments = adminComments;
+
       const { data, error } = await supabase
         .from(this.TABLE_NAME)
-        .update({
-          status,
-          reviewed_by: reviewedBy,
-          reviewed_at: new Date().toISOString(),
-          ...(adminComments !== undefined && { admin_comments: adminComments })
-        })
+        .update(updateData)
         .eq('id', requestId)
         .select()
         .single();

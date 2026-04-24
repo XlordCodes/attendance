@@ -1,5 +1,6 @@
 import { supabase } from './supabaseClient';
 import { Meeting } from '../types';
+import { requireAdmin } from './userService';
 
 class MeetingService {
   private readonly MEETINGS_TABLE = 'meetings';
@@ -21,6 +22,13 @@ class MeetingService {
 
   async createMeeting(meetingData: Omit<Meeting, 'id' | 'createdAt' | 'status'>): Promise<Meeting> {
     try {
+      // Security: Require admin role
+      await requireAdmin();
+
+      // Get authenticated user ID — the true source of truth
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Not authenticated');
+
       // Start transaction
       const { data: meeting, error: meetingError } = await supabase
         .from(this.MEETINGS_TABLE)
@@ -29,7 +37,7 @@ class MeetingService {
           description: meetingData.description,
           date: meetingData.date,
           time: meetingData.time,
-          created_by: meetingData.createdBy,
+          created_by: user.id, // Server-side authority, never trust client
           status: 'scheduled'
         })
         .select()
@@ -54,6 +62,7 @@ class MeetingService {
       const createdMeeting: Meeting = {
         id: meeting.id,
         ...meetingData,
+        createdBy: user.id, // Server-side source of truth; override any client-provided value
         createdAt: new Date(meeting.created_at),
         status: 'scheduled'
       };
@@ -65,37 +74,52 @@ class MeetingService {
     }
   }
 
-  async getAllMeetings(): Promise<Meeting[]> {
-    try {
-      const { data, error } = await supabase
-        .from(this.MEETINGS_TABLE)
-        .select(`
-          *,
-          meeting_employees (employee_id)
-        `)
-        .order('created_at', { ascending: false });
+   async getAllMeetings(): Promise<Meeting[]> {
+     try {
+       const { data, error } = await supabase
+         .from(this.MEETINGS_TABLE)
+         .select(`
+           *,
+           meeting_employees (employee_id)
+         `)
+         .order('created_at', { ascending: false });
 
-      if (error) throw error;
+       if (error) throw error;
 
-      return data.map(meeting => ({
-        id: meeting.id,
-        title: meeting.title,
-        description: meeting.description,
-        date: meeting.date,
-        time: meeting.time,
-        assignedEmployees: meeting.meeting_employees?.map((a: any) => a.employee_id) || [],
-        createdBy: meeting.created_by,
-        createdAt: new Date(meeting.created_at),
-        status: meeting.status
-      }));
-    } catch (error) {
-      console.error('Error getting all meetings:', error);
-      throw error;
-    }
-  }
+       return data.map(meeting => ({
+         id: meeting.id,
+         title: meeting.title,
+         description: meeting.description,
+         date: meeting.date,
+         time: meeting.time,
+         assignedEmployees: meeting.meeting_employees?.map((a: any) => a.employee_id) || [],
+         createdBy: meeting.created_by,
+         createdAt: new Date(meeting.created_at),
+         status: meeting.status
+       }));
+     } catch (error) {
+       console.error('Error getting all meetings:', error);
+       throw error;
+     }
+   }
 
   async getMeetingsForEmployee(employeeId: string): Promise<Meeting[]> {
     try {
+      // Security: Require admin OR access to own meetings only
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Not authenticated');
+
+      const { data: profile } = await supabase
+        .from('employees')
+        .select('role')
+        .eq('id', user.id)
+        .single();
+
+      const isAdmin = profile?.role === 'admin';
+      if (!isAdmin && user.id !== employeeId) {
+        throw new Error('Not authorized: You can only view your own meetings');
+      }
+
       const { data, error } = await supabase
         .from(this.MEETINGS_TABLE)
         .select(`
@@ -126,6 +150,9 @@ class MeetingService {
 
   async updateMeetingStatus(meetingId: string, status: Meeting['status']): Promise<void> {
     try {
+      // Security: Require admin role
+      await requireAdmin();
+
       const { error } = await supabase
         .from(this.MEETINGS_TABLE)
         .update({ status })
@@ -140,6 +167,9 @@ class MeetingService {
 
   async deleteMeeting(meetingId: string): Promise<void> {
     try {
+      // Security: Require admin role
+      await requireAdmin();
+
       // Delete assignments first (cascade will handle this but explicit is safe)
       await supabase
         .from(this.ASSIGNMENTS_TABLE)
@@ -160,14 +190,17 @@ class MeetingService {
 
   async updateMeeting(meetingId: string, meetingData: Partial<Omit<Meeting, 'id' | 'createdAt'>>): Promise<void> {
     try {
+      // Security: Require admin role
+      await requireAdmin();
+
       const dbUpdates: any = {};
-      
+
       if (meetingData.title !== undefined) dbUpdates.title = meetingData.title;
       if (meetingData.description !== undefined) dbUpdates.description = meetingData.description;
       if (meetingData.date !== undefined) dbUpdates.date = meetingData.date;
       if (meetingData.time !== undefined) dbUpdates.time = meetingData.time;
       if (meetingData.status !== undefined) dbUpdates.status = meetingData.status;
-      if (meetingData.createdBy !== undefined) dbUpdates.created_by = meetingData.createdBy;
+      // Note: createdBy is intentionally not updable via this method to preserve ownership integrity
 
       const { error: meetingError } = await supabase
         .from(this.MEETINGS_TABLE)

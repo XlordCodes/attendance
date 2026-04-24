@@ -11,7 +11,8 @@ import {
   CheckCircle,
   XCircle,
   AlertCircle,
-  FileText
+  FileText,
+  Settings
 } from 'lucide-react';
 import { userService } from '../../services/userService';
 import { meetingService } from '../../services/meetingService';
@@ -19,6 +20,7 @@ import { Employee, Meeting } from '../../types';
 import { format, parseISO, isToday } from 'date-fns';
 import toast from 'react-hot-toast';
 import LeaveManagement from './LeaveManagement';
+import WorkingHoursSettingsForm from './WorkingHoursSettingsForm';
 
 interface MeetingFormData {
   title: string;
@@ -30,7 +32,7 @@ interface MeetingFormData {
 
 const AdminModePage: React.FC = () => {
   const { user } = useAuth();
-  const [activeTab, setActiveTab] = useState<'meetings' | 'leaves'>('meetings');
+  const [activeTab, setActiveTab] = useState<'meetings' | 'leaves' | 'working-hours'>('meetings');
   const [meetings, setMeetings] = useState<Meeting[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
@@ -252,11 +254,24 @@ const AdminModePage: React.FC = () => {
               <span>Leave Requests</span>
             </div>
           </button>
+          <button
+            onClick={() => setActiveTab('working-hours')}
+            className={`py-2 px-1 border-b-2 font-medium text-sm ${
+              activeTab === 'working-hours'
+                ? 'border-blue-500 text-blue-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            }`}
+          >
+            <div className="flex items-center space-x-2">
+              <Settings className="h-4 w-4" />
+              <span>Working Hours</span>
+            </div>
+          </button>
         </nav>
       </div>
 
       {/* Tab Content */}
-      {activeTab === 'meetings' ? (
+       {activeTab === 'meetings' && (
         <div className="space-y-6">
           {/* Header */}
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
@@ -595,9 +610,9 @@ const AdminModePage: React.FC = () => {
         </div>
       )}
         </div>
-      ) : (
-        <LeaveManagement />
-      )}
+       )}
+       {activeTab === 'leaves' && <LeaveManagement />}
+       {activeTab === 'working-hours' && <WorkingHoursSettingsForm />}
     </div>
   );
 };

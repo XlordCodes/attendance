@@ -7,7 +7,8 @@ import { useAuth } from '../../hooks/useAuth';
 import { formatOfficeTimeLong, formatOfficeTimeAmPm, getOfficeNow, formatOffice } from '../../utils/timezoneUtils';
 import { format } from 'date-fns';
 import toast from 'react-hot-toast';
-import { getWorkStartTime, getLunchStartTime, getLunchEndTime } from '../../constants/workingHours';
+import { getWorkStartTime, getLunchStartTime, getLunchEndTime, loadWorkingHoursFromDB } from '../../constants/workingHours';
+import { configService } from '../../services/configService';
 import { formatDuration } from '../../utils/formatDuration';
 
 interface ClockInOutNewProps {
@@ -24,7 +25,10 @@ const ClockInOutNew: React.FC<ClockInOutNewProps> = ({ onAttendanceChange }) => 
   const [lateReason, setLateReason] = useState('');
   const [pendingClockIn, setPendingClockIn] = useState(false);
   const [currentLocation, setCurrentLocation] = useState<{ latitude: number; longitude: number } | null>(null);
-   const [locationError, setLocationError] = useState<string | null>(null);
+  const [locationError, setLocationError] = useState<string | null>(null);
+  // Reactive work start time from DB config (falls back to default if not loaded)
+  const [workStartTime, setWorkStartTime] = useState<Date>(getWorkStartTime(new Date()));
+  const [lunchEndTime, setLunchEndTime] = useState<Date>(getLunchEndTime(new Date()));
 
   const queryClient = useQueryClient();
 
@@ -268,24 +272,49 @@ const ClockInOutNew: React.FC<ClockInOutNewProps> = ({ onAttendanceChange }) => 
     }
   }, [employee?.id, onAttendanceChange]);
 
-  // Check for automatic lunch break
-  useEffect(() => {
-    if (!todayRecord?.clockIn || todayRecord?.clockOut || todayRecord?.lunchStart) return;
+   // Check for automatic lunch break
+   useEffect(() => {
+     if (!todayRecord?.clockIn || todayRecord?.clockOut || todayRecord?.lunchStart) return;
 
-    const checkLunchTime = () => {
-      const now = new Date();
-      const lunchStartTime = getLunchStartTime(now);
+     const checkLunchTime = () => {
+       const now = new Date();
+       const lunchStartTime = getLunchStartTime(now);
 
-      // Automatically start lunch break at 2:00 PM
-      if (now >= lunchStartTime && !todayRecord.lunchStart) {
-        handleAutomaticLunchStart();
-      }
-    };
+       // Automatically start lunch break at 2:00 PM
+       if (now >= lunchStartTime && !todayRecord.lunchStart) {
+         handleAutomaticLunchStart();
+       }
+     };
 
-    const lunchTimer = setInterval(checkLunchTime, 60000); // Check every minute
-    
-    return () => clearInterval(lunchTimer);
-  }, [todayRecord, handleAutomaticLunchStart]);
+     const lunchTimer = setInterval(checkLunchTime, 60000); // Check every minute
+
+     return () => clearInterval(lunchTimer);
+   }, [todayRecord, handleAutomaticLunchStart]);
+
+   // Load working hours configuration to keep UI in sync with admin updates
+   useEffect(() => {
+     const fetchConfig = async () => {
+       try {
+         const dbConfig = await configService.getWorkingHoursConfig();
+         if (dbConfig) {
+           const now = new Date();
+           const startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), dbConfig.start_hour, dbConfig.start_minute, 0);
+           const lunchEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), dbConfig.lunch_end_hour, dbConfig.lunch_end_minute, 0);
+           setWorkStartTime(startDate);
+           setLunchEndTime(lunchEnd);
+         } else {
+           setWorkStartTime(getWorkStartTime(new Date()));
+           setLunchEndTime(getLunchEndTime(new Date()));
+         }
+       } catch (error) {
+         console.error('Error loading work start time:', error);
+         setWorkStartTime(getWorkStartTime(new Date()));
+         setLunchEndTime(getLunchEndTime(new Date()));
+       }
+     };
+
+     fetchConfig();
+   }, []);
 
   const handleLunchReturn = async () => {
     if (!employee?.id) return;
@@ -385,17 +414,17 @@ const ClockInOutNew: React.FC<ClockInOutNewProps> = ({ onAttendanceChange }) => 
 
       {/* Lunch Break Status */}
       {todayRecord?.lunchStart && !todayRecord?.lunchEnd && (
-        <div className="bg-orange-50 border border-orange-200 rounded-lg p-4 mb-4">
-          <div className="flex items-center">
-            <Coffee className="h-5 w-5 text-orange-600 mr-2" />
-            <div>
-              <p className="text-sm font-medium text-orange-900">Lunch Break Active</p>
-              <p className="text-sm text-orange-700">
-                Started at {formatTime(todayRecord.lunchStart)} • Return before 3:00 PM
-              </p>
-            </div>
-          </div>
-        </div>
+         <div className="bg-orange-50 border border-orange-200 rounded-lg p-4 mb-4">
+           <div className="flex items-center">
+             <Coffee className="h-5 w-5 text-orange-600 mr-2" />
+             <div>
+               <p className="text-sm font-medium text-orange-900">Lunch Break Active</p>
+               <p className="text-sm text-orange-700">
+                 Started at {formatTime(todayRecord.lunchStart)} • Return before {lunchEndTime ? format(lunchEndTime, 'h:mm a') : '...'}
+               </p>
+             </div>
+           </div>
+         </div>
       )}
 
       {/* Location Status */}
@@ -552,7 +581,7 @@ const ClockInOutNew: React.FC<ClockInOutNewProps> = ({ onAttendanceChange }) => 
           <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">Late Arrival</h3>
             <p className="text-gray-600 mb-4">
-              You're arriving after {format(getWorkStartTime(new Date()), 'h:mm a')}. Please provide a reason for your late arrival:
+              You're arriving after {workStartTime ? format(workStartTime, 'h:mm a') : '...'}. Please provide a reason for your late arrival:
             </p>
             <textarea
               value={lateReason}

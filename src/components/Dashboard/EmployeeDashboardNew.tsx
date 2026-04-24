@@ -108,39 +108,30 @@ const EmployeeDashboardNew: React.FC = () => {
       enabled: !!employee,
     });
 
-   // ✅ TanStack Query: Upcoming meetings
-  const { data: meetings = [], isLoading: meetingsLoading, refetch: refetchMeetings } = useQuery({
-    queryKey: ['employeeMeetings', employee?.id],
-    queryFn: async () => {
-      if (!employee) return [];
-      
-      const allMeetings = await meetingService.getAllMeetings();
-      
-      // Find meetings where this employee is assigned
-      const employeeMeetings = allMeetings.filter(meeting => {
-        return meeting.assignedEmployees && 
-               meeting.assignedEmployees.includes(employee.id);
-      });
-      
-      if (employeeMeetings.length === 0) {
-        return [];
-      }
+   // ✅ TanStack Query: Upcoming meetings (use employee-specific endpoint)
+   const { data: meetings = [], isLoading: meetingsLoading, refetch: refetchMeetings } = useQuery({
+     queryKey: ['employeeMeetings', employee?.id],
+     queryFn: async () => {
+       if (!employee) return [];
 
-      // Filter for today and future meetings
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      
-      const upcomingMeetings = employeeMeetings.filter(meeting => {
-        const meetingDate = new Date(meeting.date);
-        return !isNaN(meetingDate.getTime()) && meetingDate >= today;
-      });
+       // Fetch meetings assigned to this employee only (server enforces authorization)
+       const allMeetings = await meetingService.getMeetingsForEmployee(employee.id);
 
-      // Sort by date and take next 5 meetings
-      upcomingMeetings.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-      return upcomingMeetings.slice(0, 5);
-    },
-    enabled: !!employee,
-  });
+       // Filter for today and future meetings
+       const today = new Date();
+       today.setHours(0, 0, 0, 0);
+
+       const upcomingMeetings = allMeetings.filter(meeting => {
+         const meetingDate = new Date(meeting.date);
+         return !isNaN(meetingDate.getTime()) && meetingDate >= today;
+       });
+
+       // Sort by date and take next 5 meetings
+       upcomingMeetings.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+       return upcomingMeetings.slice(0, 5);
+     },
+     enabled: !!employee,
+   });
 
   // Combined loading state (derived from TanStack Query — no manual useState)
   const loading = todayLoading || weeklyLoading || meetingsLoading;

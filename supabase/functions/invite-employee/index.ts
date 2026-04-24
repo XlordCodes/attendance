@@ -59,19 +59,19 @@ serve(async (req) => {
        throw new Error('Missing required fields: email, name, department, position')
      }
 
-     // Invite user via Supabase Auth (native email invitation system)
-     const { data: authUser, error: inviteError } = await supabaseAdmin.auth.admin.inviteUserByEmail(
-       email,
-       {
-         data: {
-           name,
-           department,
-           position,
-           ...(employeeId && { employeeId })
-         },
-         redirectTo: Deno.env.get('SITE_URL') || 'http://localhost:5173'
-       }
-     )
+      // Invite user via Supabase Auth (native email invitation system)
+      const { data: authUser, error: inviteError } = await supabaseAdmin.auth.admin.inviteUserByEmail(
+        email,
+        {
+          data: {
+            name,
+            department,
+            position,
+            ...(employeeId && { employeeId })
+          },
+          redirectTo: Deno.env.get('SITE_URL') || undefined
+        }
+      )
 
      if (inviteError) {
        throw new Error(`Failed to invite user: ${inviteError.message}`)

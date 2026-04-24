@@ -1,39 +1,116 @@
 import { createOfficeTime } from '../utils/timezoneUtils';
+import { configService, type WorkingHoursDBConfig } from '../services/configService';
 
-// Working Hours Configuration
-export const WORKING_HOURS = {
-  START_HOUR: 10,          // 10:00 AM OFFICE TIME
+// ----------------------------------------------------------------------------
+// Types & Defaults
+// ----------------------------------------------------------------------------
+export interface WorkingHoursConfig {
+  START_HOUR: number;
+  START_MINUTE: number;
+  END_HOUR: number;
+  END_MINUTE: number;
+  STANDARD_WORK_HOURS: number;
+  LUNCH_START_HOUR: number;
+  LUNCH_START_MINUTE: number;
+  LUNCH_END_HOUR: number;
+  LUNCH_END_MINUTE: number;
+  OVERTIME_THRESHOLD: number;
+}
+
+const DEFAULT_CONFIG: WorkingHoursConfig = {
+  START_HOUR: 10,
   START_MINUTE: 0,
-  END_HOUR: 20,            // 8:00 PM OFFICE TIME (20:00 in 24-hour format)
+  END_HOUR: 20,
   END_MINUTE: 0,
-  STANDARD_WORK_HOURS: 10, // 10 hours (10 AM to 8 PM)
-  
-  // Lunch break configuration
-  LUNCH_START_HOUR: 14,    // 2:00 PM OFFICE TIME
+  STANDARD_WORK_HOURS: 10,
+  LUNCH_START_HOUR: 14,
   LUNCH_START_MINUTE: 0,
-  LUNCH_END_HOUR: 15,      // 3:00 PM OFFICE TIME  
+  LUNCH_END_HOUR: 15,
   LUNCH_END_MINUTE: 0,
-  
-  // Overtime calculation
-  OVERTIME_THRESHOLD: 10,  // Hours after which overtime kicks in
-} as const;
+  OVERTIME_THRESHOLD: 10,
+};
 
-// Helper functions for working hours - ALL USE OFFICE TIMEZONE EXCLUSIVELY
-// These functions will return the SAME ABSOLUTE TIME regardless of user's browser timezone
+// Mutable reference that is exported. All getter functions read from this object.
+let currentConfig: WorkingHoursConfig = { ...DEFAULT_CONFIG };
+
+// Export both the mutable object and individual helpers
+export const WORKING_HOURS = currentConfig;
+
+// ----------------------------------------------------------------------------
+// Database Loading & Updates
+// ----------------------------------------------------------------------------
+
+/**
+ * Load the working hours configuration from the database.
+ * This overwrites the in-memory config with persisted values.
+ * Call once at application startup to ensure correct values.
+ * If no config is available (e.g., unauthenticated), silently fall back to defaults.
+ */
+export async function loadWorkingHoursFromDB(): Promise<void> {
+  const db: WorkingHoursDBConfig | null = await configService.getWorkingHoursConfig();
+
+  if (!db) {
+    // No configuration returned (could be unauthenticated, or row missing). Use defaults silently.
+    return;
+  }
+
+  currentConfig.START_HOUR = db.start_hour;
+  currentConfig.START_MINUTE = db.start_minute;
+  currentConfig.END_HOUR = db.end_hour;
+  currentConfig.END_MINUTE = db.end_minute;
+  currentConfig.STANDARD_WORK_HOURS = db.standard_work_hours;
+  currentConfig.LUNCH_START_HOUR = db.lunch_start_hour;
+  currentConfig.LUNCH_START_MINUTE = db.lunch_start_minute;
+  currentConfig.LUNCH_END_HOUR = db.lunch_end_hour;
+  currentConfig.LUNCH_END_MINUTE = db.lunch_end_minute;
+  currentConfig.OVERTIME_THRESHOLD = db.overtime_threshold;
+  if (import.meta.env.DEV) {
+    console.log('✅ Working hours configuration loaded from database');
+  }
+}
+
+/**
+ * Update the working hours configuration. Only admins can call this.
+ * The new values are persisted to the database and then re-loaded into memory.
+ */
+export async function updateWorkingHours(updates: Partial<WorkingHoursConfig>): Promise<void> {
+  // Map camelCase UPPERCASE keys to snake_case DB columns
+  const dbUpdates: Partial<WorkingHoursDBConfig> = {};
+
+  if (updates.START_HOUR !== undefined) dbUpdates.start_hour = updates.START_HOUR;
+  if (updates.START_MINUTE !== undefined) dbUpdates.start_minute = updates.START_MINUTE;
+  if (updates.END_HOUR !== undefined) dbUpdates.end_hour = updates.END_HOUR;
+  if (updates.END_MINUTE !== undefined) dbUpdates.end_minute = updates.END_MINUTE;
+  if (updates.STANDARD_WORK_HOURS !== undefined) dbUpdates.standard_work_hours = updates.STANDARD_WORK_HOURS;
+  if (updates.LUNCH_START_HOUR !== undefined) dbUpdates.lunch_start_hour = updates.LUNCH_START_HOUR;
+  if (updates.LUNCH_START_MINUTE !== undefined) dbUpdates.lunch_start_minute = updates.LUNCH_START_MINUTE;
+  if (updates.LUNCH_END_HOUR !== undefined) dbUpdates.lunch_end_hour = updates.LUNCH_END_HOUR;
+  if (updates.LUNCH_END_MINUTE !== undefined) dbUpdates.lunch_end_minute = updates.LUNCH_END_MINUTE;
+  if (updates.OVERTIME_THRESHOLD !== undefined) dbUpdates.overtime_threshold = updates.OVERTIME_THRESHOLD;
+
+  await configService.updateWorkingHoursConfig(dbUpdates);
+  // Refresh local config from DB to ensure consistency
+  await loadWorkingHoursFromDB();
+}
+
+// ----------------------------------------------------------------------------
+// Helper Functions (unchanged API, now use mutable currentConfig)
+// ----------------------------------------------------------------------------
+
 export const getWorkStartTime = (date: Date): Date => {
-  return createOfficeTime(date, WORKING_HOURS.START_HOUR, WORKING_HOURS.START_MINUTE);
+  return createOfficeTime(date, currentConfig.START_HOUR, currentConfig.START_MINUTE);
 };
 
 export const getWorkEndTime = (date: Date): Date => {
-  return createOfficeTime(date, WORKING_HOURS.END_HOUR, WORKING_HOURS.END_MINUTE);
+  return createOfficeTime(date, currentConfig.END_HOUR, currentConfig.END_MINUTE);
 };
 
 export const getLunchStartTime = (date: Date): Date => {
-  return createOfficeTime(date, WORKING_HOURS.LUNCH_START_HOUR, WORKING_HOURS.LUNCH_START_MINUTE);
+  return createOfficeTime(date, currentConfig.LUNCH_START_HOUR, currentConfig.LUNCH_START_MINUTE);
 };
 
 export const getLunchEndTime = (date: Date): Date => {
-  return createOfficeTime(date, WORKING_HOURS.LUNCH_END_HOUR, WORKING_HOURS.LUNCH_END_MINUTE);
+  return createOfficeTime(date, currentConfig.LUNCH_END_HOUR, currentConfig.LUNCH_END_MINUTE);
 };
 
 export const isLateArrival = (clockInTime: Date): boolean => {
@@ -47,7 +124,7 @@ export const isEarlyDeparture = (clockOutTime: Date): boolean => {
 };
 
 export const calculateOvertime = (workedHours: number): number => {
-  return Math.max(0, workedHours - WORKING_HOURS.OVERTIME_THRESHOLD);
+  return Math.max(0, workedHours - currentConfig.OVERTIME_THRESHOLD);
 };
 
 export const calculateLateMinutes = (clockInTime: Date): number => {
@@ -57,5 +134,13 @@ export const calculateLateMinutes = (clockInTime: Date): number => {
 };
 
 export const formatWorkingHours = (): string => {
-  return `${WORKING_HOURS.START_HOUR}:${WORKING_HOURS.START_MINUTE.toString().padStart(2, '0')} AM - ${WORKING_HOURS.END_HOUR - 12}:${WORKING_HOURS.END_MINUTE.toString().padStart(2, '0')} PM`;
+  const { START_HOUR, START_MINUTE, END_HOUR, END_MINUTE } = currentConfig;
+
+  const format = (h: number, m: number) => {
+    const period = h >= 12 ? 'PM' : 'AM';
+    const displayHour = h % 12 === 0 ? 12 : h % 12;
+    return `${displayHour}:${m.toString().padStart(2, '0')} ${period}`;
+  };
+
+  return `${format(START_HOUR, START_MINUTE)} - ${format(END_HOUR, END_MINUTE)}`;
 };

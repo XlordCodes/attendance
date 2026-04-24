@@ -151,16 +151,15 @@ class GlobalAttendanceService {
       const clockInTime = toOfficeDate(attendanceRecord.login_time);
       const isLate = this.isLateArrival(clockInTime);
 
-      // Update with late status, location, reason and audit data
-      await supabase
-        .from(this.ATTENDANCE_TABLE)
-        .update({
-          is_late: isLate,
-          late_reason: isLate ? (lateReason || 'Late arrival') : null,
-          location: location,
-          client_ip: clientIP
-        })
-        .eq('id', attendanceRecord.id);
+      // Apply additional fields via update_attendance_record RPC (server-side validation)
+      const { error: updateError } = await supabase.rpc('update_attendance_record', {
+        p_record_id: attendanceRecord.id,
+        p_is_late: isLate,
+        p_late_reason: isLate ? (lateReason || 'Late arrival') : null,
+        p_location: location,
+        p_client_ip: clientIP
+      }).single();
+      if (updateError) throw updateError;
 
       const newAttendanceRecord: AttendanceRecord = {
         id: attendanceRecord.id,
@@ -214,35 +213,42 @@ class GlobalAttendanceService {
           throw new Error('No attendance record found for today');
         }
 
-        console.log('📋 Pre-update record:', {
-          id: attendanceRecord.id,
-          login_time: attendanceRecord.login_time,
-          logout_time: attendanceRecord.logout_time,
-          worked_hours: attendanceRecord.worked_hours
-        });
+         console.log('📋 Pre-update record:', {
+           id: attendanceRecord.id,
+           login_time: attendanceRecord.login_time,
+           logout_time: attendanceRecord.logout_time,
+           worked_hours: attendanceRecord.worked_hours
+         });
 
-        // Atomic update-and-fetch: update logout_time and immediately return full record with joins
-        const now = new Date();
-        const updateData: any = { logout_time: now.toISOString() };
-        if (reason) {
-          updateData.early_logout_reason = reason;
-        }
+         // Update via SECURITY DEFINER RPC with server-side validation
+         console.log('🔄 Invoking clock_out RPC with params:', {
+           p_user_id: userId,
+           p_date: todayIso,
+           p_early_logout_reason: reason || null
+         });
 
-        console.log('📤 Update payload:', updateData);
+         const { data: rpcResult, error: rpcError } = await supabase.rpc('clock_out', {
+           p_user_id: userId,
+           p_date: todayIso,
+           p_early_logout_reason: reason || null
+         }).single();
 
-        const { data: fullRecord, error: updateError } = await supabase
-          .from(this.ATTENDANCE_TABLE)
-          .update(updateData)
-          .eq('id', attendanceRecord.id)
-          .select(`
-            *,
-            employees:user_id (name, email, employee_id, department),
-            attendance_breaks (*)
-          `)
-          .single();
+         if (rpcError) throw rpcError;
+         if (!rpcResult) throw new Error('Clock out RPC did not return a record');
 
-        if (updateError) throw updateError;
-        if (!fullRecord) throw new Error('Failed to retrieve updated record');
+          // Fetch the full updated record with joins to get breaks and employee details
+          const { data: fullRecord, error: fetchFullError } = await supabase
+            .from(this.ATTENDANCE_TABLE)
+            .select(`
+              *,
+              employees:user_id (name, email, employee_id, department),
+              attendance_breaks (*)
+            `)
+            .eq('id', rpcResult.id)
+            .single();
+
+          if (fetchFullError) throw fetchFullError;
+         if (!fullRecord) throw new Error('Failed to retrieve updated record');
 
         console.log('📥 Raw updated record (pre-convert):', {
           id: fullRecord.id,
@@ -654,10 +660,12 @@ class GlobalAttendanceService {
         throw new Error('Lunch break already started');
       }
 
-      await supabase
-        .from(this.ATTENDANCE_TABLE)
-        .update({ lunch_start: new Date().toISOString() })
-        .eq('id', attendanceRecord.id);
+      const now = new Date();
+      const { error: updateError } = await supabase.rpc('update_attendance_record', {
+        p_record_id: attendanceRecord.id,
+        p_lunch_start: now.toISOString()
+      }).single();
+      if (updateError) throw updateError;
 
       // Get updated record
       const { data: updatedRecord } = await supabase
@@ -692,19 +700,18 @@ class GlobalAttendanceService {
       if (!attendanceRecord.lunch_start) throw new Error('Lunch break not started');
       if (attendanceRecord.lunch_end) throw new Error('Lunch break already ended');
 
-      const updateData: any = {
-        lunch_end: new Date().toISOString()
+      const now = new Date();
+      const updateParams: any = {
+        p_record_id: attendanceRecord.id,
+        p_lunch_end: now.toISOString()
       };
-
       if (isLate) {
-        updateData.is_late_from_lunch = true;
-        updateData.lunch_late_reason = 'Late return from lunch break';
+        updateParams.p_is_late_from_lunch = true;
+        updateParams.p_lunch_late_reason = 'Late return from lunch break';
       }
 
-      await supabase
-        .from(this.ATTENDANCE_TABLE)
-        .update(updateData)
-        .eq('id', attendanceRecord.id);
+      const { error: updateError } = await supabase.rpc('update_attendance_record', updateParams).single();
+      if (updateError) throw updateError;
 
       // Get updated record
       const { data: updatedRecord } = await supabase
