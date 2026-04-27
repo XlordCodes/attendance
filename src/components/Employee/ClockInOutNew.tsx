@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useQueryClient, useMutation } from '@tanstack/react-query';
 import { Clock, AlertCircle, Coffee, Play, Pause } from 'lucide-react';
 import { globalAttendanceService } from '../../services/globalAttendanceService';
@@ -10,6 +10,8 @@ import toast from 'react-hot-toast';
 import { getWorkStartTime, getLunchStartTime, getLunchEndTime, loadWorkingHoursFromDB } from '../../constants/workingHours';
 import { configService } from '../../services/configService';
 import { formatDuration } from '../../utils/formatDuration';
+import { getClientIP, verifyIPAddress, verifyGeofence } from '../../utils/security';
+import { envConfig } from '../../config/env';
 
 interface ClockInOutNewProps {
   onAttendanceChange?: () => void;
@@ -24,83 +26,161 @@ const ClockInOutNew: React.FC<ClockInOutNewProps> = ({ onAttendanceChange }) => 
   const [showLateReasonModal, setShowLateReasonModal] = useState(false);
   const [lateReason, setLateReason] = useState('');
   const [pendingClockIn, setPendingClockIn] = useState(false);
-  const [currentLocation, setCurrentLocation] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [currentLocation, setCurrentLocation] = useState<{ latitude: number; longitude: number; accuracy?: number } | null>(null);
   const [locationError, setLocationError] = useState<string | null>(null);
+  const [isValidating, setIsValidating] = useState(false);
+  const [isInitializing, setIsInitializing] = useState(true);
   // Reactive work start time from DB config (falls back to default if not loaded)
   const [workStartTime, setWorkStartTime] = useState<Date>(getWorkStartTime(new Date()));
   const [lunchEndTime, setLunchEndTime] = useState<Date>(getLunchEndTime(new Date()));
 
-  const queryClient = useQueryClient();
+  // Synchronous lock to prevent concurrent clock-in submissions
+  const clockInLock = useRef(false);
+  // Stores the location that passed geofence validation, protecting against stale state updates before modal submission
+  const validatedLocationRef = useRef<{ latitude: number; longitude: number; accuracy: number } | null>(null);
 
-  const clockOutMutation = useMutation({
-    mutationFn: () => {
-      if (!employee?.id) throw new Error('Employee not authenticated');
-      return globalAttendanceService.clockOut(employee.id);
-    },
-    onMutate: () => {
-      setLoading(true);
-    },
-    onSuccess: (record: AttendanceRecord) => {
-      setTodayRecord(record);
-      toast.success(`Clocked out successfully! Worked ${(record.hoursWorked || 0).toFixed(2)} hours`);
-      onAttendanceChange?.();
-      // Invalidate all relevant queries to force UI refresh
-      queryClient.invalidateQueries({ queryKey: ['employeeAttendanceToday', employee?.id] });
-      queryClient.invalidateQueries({ queryKey: ['employeeWeeklyStats', employee?.id] });
-      queryClient.invalidateQueries({ queryKey: ['attendanceRecords'] });
-    },
-    onError: (error: Error) => {
-      toast.error(error.message);
-    },
-    onSettled: () => {
-      setLoading(false);
-    }
-  });
+   const queryClient = useQueryClient();
 
-  useEffect(() => {
-    const timer = setInterval(() => setCurrentTime(getOfficeNow()), 1000);
-    return () => clearInterval(timer);
-  }, []);
+   const clockOutMutation = useMutation({
+     mutationFn: () => {
+       if (!employee?.id) throw new Error('Employee not authenticated');
+       return globalAttendanceService.clockOut(employee.id);
+     },
+     onMutate: () => {
+       setLoading(true);
+     },
+     onSuccess: (record: AttendanceRecord) => {
+       setTodayRecord(record);
+       toast.success(`Clocked out successfully! Worked ${(record.hoursWorked || 0).toFixed(2)} hours`);
+       onAttendanceChange?.();
+       queryClient.invalidateQueries({ queryKey: ['employeeAttendanceToday', employee?.id] });
+       queryClient.invalidateQueries({ queryKey: ['employeeWeeklyStats', employee?.id] });
+       queryClient.invalidateQueries({ queryKey: ['attendanceRecords'] });
+     },
+     onError: (error: Error) => {
+       toast.error(error.message);
+     },
+     onSettled: () => {
+       setLoading(false);
+     }
+   });
 
-  const loadTodayRecord = useCallback(async () => {
-    if (!employee?.id) return;
-    
+   // Helper: fetch a fresh GPS reading with high accuracy
+  const getFreshLocation = (): Promise<{ latitude: number; longitude: number; accuracy: number } | null> => {
+    return new Promise((resolve) => {
+      if (!navigator.geolocation) {
+        resolve(null);
+        return;
+      }
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          const { latitude, longitude, accuracy } = position.coords;
+          resolve({ latitude, longitude, accuracy });
+        },
+        () => resolve(null),
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+      );
+    });
+  };
+
+  /**
+   * Validate IP and Geolocation constraints before allowing clock-in
+   * Fetches current settings from database (Admin-configurable)
+   */
+  const validateLocationConstraints = async (): Promise<void> => {
+    // Fetch current validation settings from database
+    // Default to true (strict) if fetch fails - security-first approach
+    let requireIpMatch = true;
+    let requireGeoMatch = true;
+
     try {
-      const record = await globalAttendanceService.getTodayAttendance(employee.id);
-      setTodayRecord(record);
-      
-      if (record) {
-        const onBreak = record.breaks.some(breakSession => !breakSession.endTime);
-        setIsOnBreak(onBreak);
+      const config = await configService.getWorkingHoursConfig();
+      if (config) {
+        requireIpMatch = config.require_ip_match ?? true;
+        requireGeoMatch = config.require_geo_match ?? true;
       }
     } catch (error) {
-      console.error('Error loading today record:', error);
+      console.warn('Failed to fetch validation config, using strict defaults:', error);
     }
-  }, [employee]);
 
-  useEffect(() => {
-    if (employee) {
-      loadTodayRecord();
+    // IP Address Validation
+    if (requireIpMatch) {
+      const clientIP = await getClientIP();
+      const ipCheck = await verifyIPAddress(envConfig.officeIpAddress);
+
+      if (!ipCheck.valid) {
+        throw new Error(
+          'You must be on the office network to clock in. '
+          + (clientIP ? `` : 'Unable to determine your IP address.')
+        );
+      }
     }
-  }, [employee, loadTodayRecord]);
+
+    // Geolocation Validation
+    if (requireGeoMatch) {
+      const freshLocation = await getFreshLocation();
+      if (!freshLocation) {
+        throw new Error('Unable to acquire a fresh GPS lock. Please check your location permissions and try again.');
+      }
+
+      const geoCheck = verifyGeofence(
+        freshLocation.latitude,
+        freshLocation.longitude,
+        envConfig.officeLatitude,
+        envConfig.officeLongitude,
+        envConfig.geofenceRadiusMeters
+      );
+
+      if (!geoCheck.valid) {
+        throw new Error(
+          `You must be within the office premises to clock in. `
+          + `You are ${geoCheck.distance} meters away from the office.`
+        );
+      }
+
+      // Update UI with the verified location (including accuracy)
+      setCurrentLocation({ latitude: freshLocation.latitude, longitude: freshLocation.longitude, accuracy: freshLocation.accuracy });
+      setLocationError(null);
+
+      // Store the validated location for the actual clock-in call (protects against stale state)
+      validatedLocationRef.current = freshLocation;
+    }
+  };
 
   const handleClockIn = async () => {
-    if (!employee?.id) return;
+    if (!employee?.id || clockInLock.current) return;
 
-    // Check if it would be a late arrival based on configured work start time
-    const now = new Date();
-    const workStartTime = getWorkStartTime(now);
-    
-    const isLateArrival = now > workStartTime;
-    
-    if (isLateArrival && !pendingClockIn) {
-      // Show modal to ask for late reason
-      setPendingClockIn(true);
-      setShowLateReasonModal(true);
-      return;
+    clockInLock.current = true;
+    let goingToModal = false;
+
+    try {
+      setIsValidating(true);
+      await validateLocationConstraints();
+
+      // Check if it would be a late arrival based on configured work start time
+      const now = new Date();
+      const workStartTime = getWorkStartTime(now);
+
+      const isLateArrival = now > workStartTime;
+
+      if (isLateArrival && !pendingClockIn) {
+        // Show modal to ask for late reason
+        setPendingClockIn(true);
+        setShowLateReasonModal(true);
+        goingToModal = true;
+        return;
+      }
+
+      await performClockIn();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Location validation failed');
+      setLocationError(error instanceof Error ? error.message : 'Location validation failed');
+    } finally {
+      setIsValidating(false);
+      if (!goingToModal) {
+        clockInLock.current = false;
+      }
     }
-
-    await performClockIn();
   };
 
   const performClockIn = async () => {
@@ -108,19 +188,32 @@ const ClockInOutNew: React.FC<ClockInOutNewProps> = ({ onAttendanceChange }) => 
 
     setLoading(true);
     try {
+      // Use the validated location if available; otherwise fall back to current state
+      const validatedLoc = validatedLocationRef.current;
+      const locationPayload = validatedLoc
+        ? {
+            latitude: validatedLoc.latitude,
+            longitude: validatedLoc.longitude,
+            accuracy: validatedLoc.accuracy,
+            timestamp: new Date()
+          }
+        : currentLocation
+        ? {
+            latitude: currentLocation.latitude,
+            longitude: currentLocation.longitude,
+            accuracy: currentLocation.accuracy || 0,
+            timestamp: new Date()
+          }
+        : undefined;
+
       const record = await globalAttendanceService.clockIn(
-        employee.id, 
+        employee.id,
         lateReason.trim() || undefined,
-        currentLocation ? {
-          latitude: currentLocation.latitude,
-          longitude: currentLocation.longitude,
-          accuracy: 0,
-          timestamp: new Date()
-        } : undefined
+        locationPayload
       );
       setTodayRecord(record);
       toast.success('Clocked in successfully!');
-      
+
       if (record.isLate) {
         toast.error(`Late arrival: ${record.lateReason}`);
       }
@@ -129,21 +222,32 @@ const ClockInOutNew: React.FC<ClockInOutNewProps> = ({ onAttendanceChange }) => 
       setShowLateReasonModal(false);
       setLateReason('');
       setPendingClockIn(false);
-      
+
+      // Clear the validated location reference
+      validatedLocationRef.current = null;
+
       // Notify parent component of change
       onAttendanceChange?.();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Clock in failed');
+      // Note: keep validatedLocationRef intact so a retry (e.g., after network error) can reuse same location
     } finally {
       setLoading(false);
     }
   };
 
-  const handleLateReasonSubmit = () => {
-    if (lateReason.trim()) {
-      performClockIn();
-    } else {
+  const handleLateReasonSubmit = async () => {
+    if (!lateReason.trim()) {
       toast.error('Please provide a reason for late arrival');
+      return;
+    }
+
+    try {
+      await performClockIn();
+    } catch (error) {
+      // performClockIn already displays error toast; keep modal open for retry
+    } finally {
+      clockInLock.current = false;
     }
   };
 
@@ -151,6 +255,8 @@ const ClockInOutNew: React.FC<ClockInOutNewProps> = ({ onAttendanceChange }) => 
     setShowLateReasonModal(false);
     setLateReason('');
     setPendingClockIn(false);
+    clockInLock.current = false;
+    validatedLocationRef.current = null;
   };
 
   const handleClockOut = () => {
@@ -167,7 +273,7 @@ const ClockInOutNew: React.FC<ClockInOutNewProps> = ({ onAttendanceChange }) => 
       setTodayRecord(record);
       setIsOnBreak(true);
       toast.success('Break started');
-      
+
       // Notify parent component of change
       onAttendanceChange?.();
     } catch (error) {
@@ -193,17 +299,17 @@ const ClockInOutNew: React.FC<ClockInOutNewProps> = ({ onAttendanceChange }) => 
     }
   };
 
-   const formatTime = (date: Date | null) => {
-     if (!date) return '--:--';
-     return formatOfficeTimeLong(date);
-   };
+  const formatTime = (date: Date | null) => {
+    if (!date) return '--:--';
+    return formatOfficeTimeLong(date);
+  };
 
   const getWorkingHours = () => {
     if (!todayRecord?.clockIn) return '0h 0m';
-    
+
     const endTime = todayRecord.clockOut || currentTime;
     const workingMs = endTime.getTime() - todayRecord.clockIn.getTime();
-    
+
     // Subtract break time
     const breakMs = todayRecord.breaks.reduce((total, breakSession) => {
       if (breakSession.endTime && breakSession.startTime) {
@@ -213,7 +319,7 @@ const ClockInOutNew: React.FC<ClockInOutNewProps> = ({ onAttendanceChange }) => 
       }
       return total;
     }, 0);
-    
+
     const actualWorkingMs = Math.max(0, workingMs - breakMs);
     const hours = actualWorkingMs / (1000 * 60 * 60);
     return formatDuration(hours);
@@ -222,44 +328,77 @@ const ClockInOutNew: React.FC<ClockInOutNewProps> = ({ onAttendanceChange }) => 
   const getCurrentBreakDuration = () => {
     const currentBreak = todayRecord?.breaks.find(b => !b.endTime);
     if (!currentBreak || !currentBreak.startTime) return '0m';
-    
+
     const duration = (currentTime.getTime() - currentBreak.startTime.getTime()) / (1000 * 60);
     return `${Math.floor(duration)}m`;
   };
 
-  // Get user location
-  useEffect(() => {
-    const requestLocation = () => {
-      if (navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition(
-          (position) => {
-            setCurrentLocation({
-              latitude: position.coords.latitude,
-              longitude: position.coords.longitude,
-            });
-            setLocationError(null);
-            console.log('📍 Location obtained:', position.coords.latitude, position.coords.longitude);
-          },
-          (error) => {
-            console.error('📍 Location error:', error);
-            setLocationError(`Location access denied: ${error.message}`);
-          },
-          { enableHighAccuracy: true, timeout: 10000, maximumAge: 300000 }
-        );
-      } else {
-        setLocationError('Geolocation is not supported by this browser');
-      }
-    };
+   // Get user location (background refresh – actual clock-in uses fresh GPS)
+   useEffect(() => {
+     const requestLocation = () => {
+       if (navigator.geolocation) {
+         navigator.geolocation.getCurrentPosition(
+           (position) => {
+             const { latitude, longitude, accuracy } = position.coords;
+             setCurrentLocation({ latitude, longitude, accuracy });
+             setLocationError(null);
+             console.log('📍 Location obtained:', latitude, longitude, `accuracy: ${accuracy}m`);
+           },
+           (error) => {
+             console.error('📍 Location error:', error);
+             setLocationError(`Location access denied: ${error.message}`);
+           },
+           { enableHighAccuracy: true, timeout: 10000, maximumAge: 300000 }
+         );
+       } else {
+         setLocationError('Geolocation is not supported by this browser');
+       }
+     };
 
-    requestLocation();
-    
-    // Update location every 5 minutes
-    const locationInterval = setInterval(requestLocation, 5 * 60 * 1000);
-    
-    return () => clearInterval(locationInterval);
-  }, []);
+     requestLocation();
 
-  const handleAutomaticLunchStart = useCallback(async () => {
+     // Update location every 5 minutes
+     const locationInterval = setInterval(requestLocation, 5 * 60 * 1000);
+
+     return () => clearInterval(locationInterval);
+   }, []);
+
+   // Fetch today's attendance record on mount (or when employee changes)
+   useEffect(() => {
+     let mounted = true;
+
+     if (!employee?.id) {
+       setIsInitializing(false);
+       return;
+     }
+
+     const fetchTodayRecord = async () => {
+       try {
+         const record = await globalAttendanceService.getTodayAttendance(employee.id);
+         if (mounted) {
+           setTodayRecord(record);
+           if (record) {
+             const onBreak = record.breaks.some(breakSession => !breakSession.endTime);
+             setIsOnBreak(onBreak);
+           }
+         }
+       } catch (error) {
+         console.error('Error loading today record on mount:', error);
+       } finally {
+         if (mounted) {
+           setIsInitializing(false);
+         }
+       }
+     };
+
+     fetchTodayRecord();
+
+     return () => {
+       mounted = false;
+     };
+   }, [employee?.id]);
+
+   const handleAutomaticLunchStart = useCallback(async () => {
     if (!employee?.id) return;
 
     try {
@@ -272,69 +411,69 @@ const ClockInOutNew: React.FC<ClockInOutNewProps> = ({ onAttendanceChange }) => 
     }
   }, [employee?.id, onAttendanceChange]);
 
-   // Check for automatic lunch break
-   useEffect(() => {
-     if (!todayRecord?.clockIn || todayRecord?.clockOut || todayRecord?.lunchStart) return;
+  // Check for automatic lunch break
+  useEffect(() => {
+    if (!todayRecord?.clockIn || todayRecord?.clockOut || todayRecord?.lunchStart) return;
 
-     const checkLunchTime = () => {
-       const now = new Date();
-       const lunchStartTime = getLunchStartTime(now);
+    const checkLunchTime = () => {
+      const now = new Date();
+      const lunchStartTime = getLunchStartTime(now);
 
-       // Automatically start lunch break at 2:00 PM
-       if (now >= lunchStartTime && !todayRecord.lunchStart) {
-         handleAutomaticLunchStart();
-       }
-     };
+      // Automatically start lunch break at 2:00 PM
+      if (now >= lunchStartTime && !todayRecord.lunchStart) {
+        handleAutomaticLunchStart();
+      }
+    };
 
-     const lunchTimer = setInterval(checkLunchTime, 60000); // Check every minute
+    const lunchTimer = setInterval(checkLunchTime, 60000); // Check every minute
 
-     return () => clearInterval(lunchTimer);
-   }, [todayRecord, handleAutomaticLunchStart]);
+    return () => clearInterval(lunchTimer);
+  }, [todayRecord, handleAutomaticLunchStart]);
 
-   // Load working hours configuration to keep UI in sync with admin updates
-   useEffect(() => {
-     const fetchConfig = async () => {
-       try {
-         const dbConfig = await configService.getWorkingHoursConfig();
-         if (dbConfig) {
-           const now = new Date();
-           const startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), dbConfig.start_hour, dbConfig.start_minute, 0);
-           const lunchEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), dbConfig.lunch_end_hour, dbConfig.lunch_end_minute, 0);
-           setWorkStartTime(startDate);
-           setLunchEndTime(lunchEnd);
-         } else {
-           setWorkStartTime(getWorkStartTime(new Date()));
-           setLunchEndTime(getLunchEndTime(new Date()));
-         }
-       } catch (error) {
-         console.error('Error loading work start time:', error);
-         setWorkStartTime(getWorkStartTime(new Date()));
-         setLunchEndTime(getLunchEndTime(new Date()));
-       }
-     };
+  // Load working hours configuration to keep UI in sync with admin updates
+  useEffect(() => {
+    const fetchConfig = async () => {
+      try {
+        const dbConfig = await configService.getWorkingHoursConfig();
+        if (dbConfig) {
+          const now = new Date();
+          const startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), dbConfig.start_hour, dbConfig.start_minute, 0);
+          const lunchEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), dbConfig.lunch_end_hour, dbConfig.lunch_end_minute, 0);
+          setWorkStartTime(startDate);
+          setLunchEndTime(lunchEnd);
+        } else {
+          setWorkStartTime(getWorkStartTime(new Date()));
+          setLunchEndTime(getLunchEndTime(new Date()));
+        }
+      } catch (error) {
+        console.error('Error loading work start time:', error);
+        setWorkStartTime(getWorkStartTime(new Date()));
+        setLunchEndTime(getLunchEndTime(new Date()));
+      }
+    };
 
-     fetchConfig();
-   }, []);
+    fetchConfig();
+  }, []);
 
   const handleLunchReturn = async () => {
     if (!employee?.id) return;
 
     const now = new Date();
     const lunchEndTime = getLunchEndTime(now);
-    
+
     const isLate = now > lunchEndTime;
 
     setLoading(true);
     try {
       const record = await globalAttendanceService.endLunchBreak(employee.id, isLate);
       setTodayRecord(record);
-      
+
       if (isLate) {
         toast.error('⏰ Late return from lunch break!');
       } else {
         toast.success('🍽️ Lunch break ended');
       }
-      
+
       onAttendanceChange?.();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Failed to end lunch break');
@@ -342,6 +481,20 @@ const ClockInOutNew: React.FC<ClockInOutNewProps> = ({ onAttendanceChange }) => 
       setLoading(false);
     }
   };
+
+  if (isInitializing) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-12 h-12 bg-gray-900 rounded-lg flex items-center justify-center animate-pulse mx-auto mb-4">
+            <div className="w-6 h-6 bg-white rounded opacity-80"></div>
+          </div>
+          <h3 className="font-semibold text-gray-900 mb-1">Loading Attendance</h3>
+          <p className="text-sm text-gray-500">Please wait...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
@@ -414,17 +567,17 @@ const ClockInOutNew: React.FC<ClockInOutNewProps> = ({ onAttendanceChange }) => 
 
       {/* Lunch Break Status */}
       {todayRecord?.lunchStart && !todayRecord?.lunchEnd && (
-         <div className="bg-orange-50 border border-orange-200 rounded-lg p-4 mb-4">
-           <div className="flex items-center">
-             <Coffee className="h-5 w-5 text-orange-600 mr-2" />
-             <div>
-               <p className="text-sm font-medium text-orange-900">Lunch Break Active</p>
-               <p className="text-sm text-orange-700">
-                 Started at {formatTime(todayRecord.lunchStart)} • Return before {lunchEndTime ? format(lunchEndTime, 'h:mm a') : '...'}
-               </p>
-             </div>
-           </div>
-         </div>
+        <div className="bg-orange-50 border border-orange-200 rounded-lg p-4 mb-4">
+          <div className="flex items-center">
+            <Coffee className="h-5 w-5 text-orange-600 mr-2" />
+            <div>
+              <p className="text-sm font-medium text-orange-900">Lunch Break Active</p>
+              <p className="text-sm text-orange-700">
+                Started at {formatTime(todayRecord.lunchStart)} • Return before {lunchEndTime ? format(lunchEndTime, 'h:mm a') : '...'}
+              </p>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Location Status */}
@@ -434,8 +587,8 @@ const ClockInOutNew: React.FC<ClockInOutNewProps> = ({ onAttendanceChange }) => 
           <div>
             <p className="text-sm font-medium text-gray-900">Location Status</p>
             <p className="text-sm text-gray-600">
-              {currentLocation 
-                ? `📍 Location detected (${currentLocation.latitude.toFixed(6)}, ${currentLocation.longitude.toFixed(6)})` 
+              {currentLocation
+                ? `📍 Location detected (${currentLocation.latitude.toFixed(6)}, ${currentLocation.longitude.toFixed(6)})`
                 : locationError || 'Location access required for attendance'}
             </p>
           </div>
@@ -449,11 +602,11 @@ const ClockInOutNew: React.FC<ClockInOutNewProps> = ({ onAttendanceChange }) => 
         {!todayRecord?.clockIn ? (
           <button
             onClick={handleClockIn}
-            disabled={loading}
+            disabled={loading || isValidating}
             className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white font-medium py-3 px-4 rounded-lg transition-colors flex items-center justify-center"
           >
             <Play className="mr-2 h-5 w-5" />
-            {loading ? 'Clocking In...' : 'Clock In'}
+            {isValidating ? 'Verifying Location & Network...' : loading ? 'Clocking In...' : 'Clock In'}
           </button>
         ) : !todayRecord?.clockOut ? (
           <div className="space-y-3">
@@ -501,9 +654,9 @@ const ClockInOutNew: React.FC<ClockInOutNewProps> = ({ onAttendanceChange }) => 
               className="w-full bg-red-600 hover:bg-red-700 disabled:bg-gray-400 text-white font-medium py-3 px-4 rounded-lg transition-colors flex items-center justify-center"
             >
               <Pause className="mr-2 h-5 w-5" />
-              {loading ? 'Clocking Out...' : 
-               isOnBreak ? 'End Break First' : 
-               (todayRecord?.lunchStart && !todayRecord?.lunchEnd) ? 'Return from Lunch First' : 'Clock Out'}
+              {loading ? 'Clocking Out...' :
+                isOnBreak ? 'End Break First' :
+                  (todayRecord?.lunchStart && !todayRecord?.lunchEnd) ? 'Return from Lunch First' : 'Clock Out'}
             </button>
           </div>
         ) : (
@@ -552,8 +705,8 @@ const ClockInOutNew: React.FC<ClockInOutNewProps> = ({ onAttendanceChange }) => 
             <div>
               <span className="text-gray-600">Lunch Break:</span>
               <span className="ml-2 font-medium">
-                {todayRecord.lunchStart ? 
-                  (todayRecord.lunchEnd ? 'Completed' : 'Active') : 
+                {todayRecord.lunchStart ?
+                  (todayRecord.lunchEnd ? 'Completed' : 'Active') :
                   'Not taken'}
               </span>
             </div>
