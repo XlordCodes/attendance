@@ -13,6 +13,8 @@ export interface WorkingHoursDBConfig {
   lunch_end_hour: number;
   lunch_end_minute: number;
   overtime_threshold: number;
+  require_ip_match: boolean;
+  require_geo_match: boolean;
   updated_by?: string;
   updated_at: string;
 }

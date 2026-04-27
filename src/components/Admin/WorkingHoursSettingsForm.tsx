@@ -15,6 +15,8 @@ interface FormData {
   LUNCH_END_HOUR: number;
   LUNCH_END_MINUTE: number;
   OVERTIME_THRESHOLD: number;
+  REQUIRE_IP_MATCH: boolean;
+  REQUIRE_GEO_MATCH: boolean;
 }
 
 const WorkingHoursSettingsForm: React.FC = () => {
@@ -29,6 +31,8 @@ const WorkingHoursSettingsForm: React.FC = () => {
     LUNCH_END_HOUR: 15,
     LUNCH_END_MINUTE: 0,
     OVERTIME_THRESHOLD: 10,
+    REQUIRE_IP_MATCH: true,
+    REQUIRE_GEO_MATCH: true,
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -48,6 +52,8 @@ const WorkingHoursSettingsForm: React.FC = () => {
           LUNCH_END_HOUR: dbConfig.lunch_end_hour,
           LUNCH_END_MINUTE: dbConfig.lunch_end_minute,
           OVERTIME_THRESHOLD: dbConfig.overtime_threshold,
+          REQUIRE_IP_MATCH: dbConfig.require_ip_match,
+          REQUIRE_GEO_MATCH: dbConfig.require_geo_match,
         });
       } catch (error) {
         console.error('Failed to load config:', error);
@@ -293,6 +299,56 @@ const WorkingHoursSettingsForm: React.FC = () => {
             <p className="text-xs text-gray-500 mt-1">
               Hours above this count as overtime
             </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Security & Validation Section */}
+      <div className="bg-gray-50 p-4 rounded-lg">
+        <div className="flex items-center mb-4">
+          <svg className="h-5 w-5 text-blue-600 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+          </svg>
+          <h3 className="text-lg font-semibold text-gray-900">Security & Validation</h3>
+        </div>
+
+        <div className="space-y-4">
+          <div className="flex items-center justify-between py-3 border-b border-gray-200">
+            <div>
+              <h4 className="font-medium text-gray-900">IP Address Verification</h4>
+              <p className="text-sm text-gray-600">Require employees to be on the office network to clock in</p>
+            </div>
+            <button
+              onClick={() => setFormData(prev => ({ ...prev, REQUIRE_IP_MATCH: !prev.REQUIRE_IP_MATCH }))}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                formData.REQUIRE_IP_MATCH ? 'bg-blue-600' : 'bg-gray-200'
+              }`}
+            >
+              <span
+                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                  formData.REQUIRE_IP_MATCH ? 'translate-x-6' : 'translate-x-1'
+                }`}
+              />
+            </button>
+          </div>
+
+          <div className="flex items-center justify-between py-3 border-b border-gray-200">
+            <div>
+              <h4 className="font-medium text-gray-900">Geofence Verification</h4>
+              <p className="text-sm text-gray-600">Require employees to be within office premises to clock in</p>
+            </div>
+            <button
+              onClick={() => setFormData(prev => ({ ...prev, REQUIRE_GEO_MATCH: !prev.REQUIRE_GEO_MATCH }))}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                formData.REQUIRE_GEO_MATCH ? 'bg-blue-600' : 'bg-gray-200'
+              }`}
+            >
+              <span
+                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                  formData.REQUIRE_GEO_MATCH ? 'translate-x-6' : 'translate-x-1'
+                }`}
+              />
+            </button>
           </div>
         </div>
       </div>

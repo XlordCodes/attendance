@@ -15,6 +15,8 @@ export interface WorkingHoursConfig {
   LUNCH_END_HOUR: number;
   LUNCH_END_MINUTE: number;
   OVERTIME_THRESHOLD: number;
+  REQUIRE_IP_MATCH: boolean;
+  REQUIRE_GEO_MATCH: boolean;
 }
 
 const DEFAULT_CONFIG: WorkingHoursConfig = {
@@ -28,6 +30,8 @@ const DEFAULT_CONFIG: WorkingHoursConfig = {
   LUNCH_END_HOUR: 15,
   LUNCH_END_MINUTE: 0,
   OVERTIME_THRESHOLD: 10,
+  REQUIRE_IP_MATCH: true,
+  REQUIRE_GEO_MATCH: true,
 };
 
 // Mutable reference that is exported. All getter functions read from this object.
@@ -64,6 +68,8 @@ export async function loadWorkingHoursFromDB(): Promise<void> {
   currentConfig.LUNCH_END_HOUR = db.lunch_end_hour;
   currentConfig.LUNCH_END_MINUTE = db.lunch_end_minute;
   currentConfig.OVERTIME_THRESHOLD = db.overtime_threshold;
+  currentConfig.REQUIRE_IP_MATCH = db.require_ip_match;
+  currentConfig.REQUIRE_GEO_MATCH = db.require_geo_match;
   if (import.meta.env.DEV) {
     console.log('✅ Working hours configuration loaded from database');
   }
@@ -87,6 +93,8 @@ export async function updateWorkingHours(updates: Partial<WorkingHoursConfig>): 
   if (updates.LUNCH_END_HOUR !== undefined) dbUpdates.lunch_end_hour = updates.LUNCH_END_HOUR;
   if (updates.LUNCH_END_MINUTE !== undefined) dbUpdates.lunch_end_minute = updates.LUNCH_END_MINUTE;
   if (updates.OVERTIME_THRESHOLD !== undefined) dbUpdates.overtime_threshold = updates.OVERTIME_THRESHOLD;
+  if (updates.REQUIRE_IP_MATCH !== undefined) dbUpdates.require_ip_match = updates.REQUIRE_IP_MATCH;
+  if (updates.REQUIRE_GEO_MATCH !== undefined) dbUpdates.require_geo_match = updates.REQUIRE_GEO_MATCH;
 
   await configService.updateWorkingHoursConfig(dbUpdates);
   // Refresh local config from DB to ensure consistency
