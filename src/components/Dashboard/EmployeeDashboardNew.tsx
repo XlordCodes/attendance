@@ -4,7 +4,7 @@ import { Clock, Calendar, TrendingUp } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { globalAttendanceService } from '../../services/globalAttendanceService';
 import { meetingService } from '../../services/meetingService';
-import { Meeting, AttendanceRecord } from '../../types';
+
 import { format } from 'date-fns';
 import { getOfficeNow, formatOffice } from '../../utils/timezoneUtils';
 import { zonedTimeToUtc } from 'date-fns-tz';
@@ -14,7 +14,7 @@ import WorkingHoursInfo from '../common/WorkingHoursInfo';
 import { formatDuration } from '../../utils/formatDuration';
 
 const EmployeeDashboardNew: React.FC = () => {
-  const { employee, user } = useAuth();
+  const { employee } = useAuth();
   const queryClient = useQueryClient();
   const [currentTime, setCurrentTime] = useState(new Date());
 

@@ -12,7 +12,6 @@ import {
   XCircle,
   AlertCircle,
   Coffee,
-  FileText,
   Info
 } from 'lucide-react';
 import { globalAttendanceService } from '../../services/globalAttendanceService';

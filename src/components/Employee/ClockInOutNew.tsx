@@ -4,10 +4,10 @@ import { Clock, AlertCircle, Coffee, Play, Pause } from 'lucide-react';
 import { globalAttendanceService } from '../../services/globalAttendanceService';
 import { AttendanceRecord } from '../../types';
 import { useAuth } from '../../hooks/useAuth';
-import { formatOfficeTimeLong, formatOfficeTimeAmPm, getOfficeNow, formatOffice } from '../../utils/timezoneUtils';
+import { formatOfficeTimeLong, getOfficeNow } from '../../utils/timezoneUtils';
 import { format } from 'date-fns';
 import toast from 'react-hot-toast';
-import { getWorkStartTime, getLunchStartTime, getLunchEndTime, loadWorkingHoursFromDB } from '../../constants/workingHours';
+import { getWorkStartTime, getLunchStartTime, getLunchEndTime } from '../../constants/workingHours';
 import { configService } from '../../services/configService';
 import { formatDuration } from '../../utils/formatDuration';
 import { getClientIP, verifyIPAddress, verifyGeofence } from '../../utils/security';
@@ -21,7 +21,7 @@ const ClockInOutNew: React.FC<ClockInOutNewProps> = ({ onAttendanceChange }) => 
   const { employee } = useAuth();
   const [todayRecord, setTodayRecord] = useState<AttendanceRecord | null>(null);
   const [loading, setLoading] = useState(false);
-  const [currentTime, setCurrentTime] = useState(getOfficeNow());
+  const [currentTime] = useState(getOfficeNow());
   const [isOnBreak, setIsOnBreak] = useState(false);
   const [showLateReasonModal, setShowLateReasonModal] = useState(false);
   const [lateReason, setLateReason] = useState('');
@@ -244,7 +244,7 @@ const ClockInOutNew: React.FC<ClockInOutNewProps> = ({ onAttendanceChange }) => 
 
     try {
       await performClockIn();
-    } catch (error) {
+    } catch {
       // performClockIn already displays error toast; keep modal open for retry
     } finally {
       clockInLock.current = false;

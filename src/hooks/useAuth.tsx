@@ -54,9 +54,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setUser(null);
           setEmployee(null);
         }
-      } catch (err: any) {
+      } catch (err: unknown) {
         if (import.meta.env.DEV) {
-          console.error('❌ [TELEMETRY] initializeSession Failed:', err.stack || err);
+          console.error('❌ [TELEMETRY] initializeSession Failed:', err instanceof Error ? err.stack : err);
         }
         toast.error('Connection timed out. Please refresh the page.');
       } finally {
@@ -192,7 +192,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       toast.error('User record not found. Please contact admin.');
       setEmployee(null);
-    } catch (error) {
+    } catch {
       if (currentRequestId !== fetchRequestId.current) return;
 
       if (employee) {
@@ -205,21 +205,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const mapDbToEmployee = (dbData: any): Employee => {
+  const mapDbToEmployee = (dbData: unknown): Employee => {
+    const data = dbData as Record<string, unknown>;
     return {
-      id: dbData.id,
-      uid: dbData.uid || dbData.id,
-      employeeId: dbData.employee_id,
-      name: dbData.name,
-      email: dbData.email,
-      role: dbData.role,
-      department: dbData.department,
-      position: dbData.position,
-      designation: dbData.designation,
-      isActive: dbData.is_active,
-      joinDate: dbData.join_date,
-      createdAt: new Date(dbData.created_at),
-      lastLogin: dbData.last_login ? new Date(dbData.last_login) : undefined
+      id: data.id as string,
+      uid: (data.uid as string | undefined) || (data.id as string),
+      employeeId: data.employee_id as string | undefined,
+      name: data.name as string,
+      email: data.email as string,
+      role: data.role as 'employee' | 'admin',
+      department: data.department as string,
+      position: data.position as string,
+      designation: data.designation as string | undefined,
+      isActive: data.is_active as boolean,
+      joinDate: data.join_date as string | undefined,
+      createdAt: new Date(data.created_at as string),
+      lastLogin: data.last_login ? new Date(data.last_login as string) : undefined
     };
   };
 

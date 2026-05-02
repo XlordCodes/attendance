@@ -20,41 +20,44 @@ class GlobalAttendanceService {
   private readonly BREAKS_TABLE = 'attendance_breaks';
   private readonly USERS_TABLE = 'employees';
 
-   private convertDbToAttendance(dbData: any): AttendanceRecord {
-    const breaks = (dbData.attendance_breaks || []) as Array<any>;
+    private convertDbToAttendance(dbData: unknown): AttendanceRecord {
+     const data = dbData as Record<string, unknown>;
+     const rawBreaks = data.attendance_breaks as unknown[] | undefined;
+     const breaks: unknown[] = Array.isArray(rawBreaks) ? rawBreaks : [];
 
     // Calculate total break minutes from completed breaks
     let totalBreakMins = 0;
      if (Array.isArray(breaks)) {
-       breaks.forEach((b: any) => {
-         if (b.start && b.end) {
-           const startTime = new Date(b.start);
-           const endTime = new Date(b.end);
-           if (!isNaN(startTime.getTime()) && !isNaN(endTime.getTime())) {
-             totalBreakMins += (endTime.getTime() - startTime.getTime()) / (1000 * 60);
-           }
-         }
-       });
+        breaks.forEach((b: unknown) => {
+          const breakData = b as Record<string, unknown>;
+          if (breakData.start && breakData.end) {
+            const startTime = new Date(breakData.start as string);
+            const endTime = new Date(breakData.end as string);
+            if (!isNaN(startTime.getTime()) && !isNaN(endTime.getTime())) {
+              totalBreakMins += (endTime.getTime() - startTime.getTime()) / (1000 * 60);
+            }
+          }
+        });
      }
 
        // Round break minutes to 2 decimal places
        totalBreakMins = Math.round(totalBreakMins * 100) / 100;
 
        // Guard: validate critical timestamps before parsing
-       if (!dbData.login_time && !dbData.logout_time) {
+        if (!data.login_time && !data.logout_time) {
          console.warn(
-           `⚠️ convertDbToAttendance: Both login_time and logout_time are missing for record ${dbData.id || '(no id)'}. ` +
+            `⚠️ convertDbToAttendance: Both login_time and logout_time are missing for record ${(data.id as string) || '(no id)'}. ` +
            `Hours will default to 0 unless worked_hours is present.`
          );
        }
 
        // Parse worked_hours (Postgres NUMERIC may return string)
-       let calcHours = dbData.worked_hours ? parseFloat(dbData.worked_hours) : 0;
+        let calcHours = data.worked_hours ? parseFloat(data.worked_hours as string) : 0;
 
       // Fallback: if worked_hours is missing/0 but we have clock times, recalculate
-      if (!calcHours && dbData.login_time && dbData.logout_time) {
-        const loginTime = new Date(dbData.login_time);
-        const logoutTime = new Date(dbData.logout_time);
+       if (!calcHours && data.login_time && data.logout_time) {
+         const loginTime = new Date(data.login_time as string);
+         const logoutTime = new Date(data.logout_time as string);
         if (!isNaN(loginTime.getTime()) && !isNaN(logoutTime.getTime())) {
           const totalMs = logoutTime.getTime() - loginTime.getTime();
           const breakMs = totalBreakMins * 60 * 1000;
@@ -69,44 +72,51 @@ class GlobalAttendanceService {
     // Compute overtime based on standard work hours
     const overtime = Math.max(0, calcHours - WORKING_HOURS.STANDARD_WORK_HOURS);
 
-    return {
-      id: dbData.id,
-      userId: dbData.user_id || '',
-      userName: dbData.employees?.name || '',
-      userEmail: dbData.employees?.email || '',
-      employeeId: dbData.employees?.employee_id,
-      employeeName: dbData.employees?.name || '',
-      department: dbData.employees?.department || '',
-      date: dbData.date,
-      clockIn: toOfficeDateSafe(dbData.login_time) || null,
-      clockOut: toOfficeDateSafe(dbData.logout_time) || null,
-      lunchStart: toOfficeDateSafe(dbData.lunch_start) || null,
-      lunchEnd: toOfficeDateSafe(dbData.lunch_end) || null,
-      createdAt: toOfficeDate(dbData.created_at),
-      updatedAt: toOfficeDate(dbData.updated_at),
+     const employees = data.employees as Record<string, unknown> | undefined;
+     return {
+       id: data.id as string,
+       userId: (data.user_id as string) || '',
+       userName: (employees?.name as string | undefined) || '',
+       userEmail: (employees?.email as string | undefined) || '',
+       employeeId: employees?.employee_id as string | undefined,
+       employeeName: (employees?.name as string | undefined) || '',
+       department: (employees?.department as string | undefined) || '',
+       date: data.date as string,
+       clockIn: toOfficeDateSafe(data.login_time as string | undefined) || null,
+       clockOut: toOfficeDateSafe(data.logout_time as string | undefined) || null,
+       lunchStart: toOfficeDateSafe(data.lunch_start as string | undefined) || null,
+       lunchEnd: toOfficeDateSafe(data.lunch_end as string | undefined) || null,
+       createdAt: toOfficeDate(data.created_at as string),
+       updatedAt: toOfficeDate(data.updated_at as string),
       // Use calculated hours with fallback
       hoursWorked: calcHours,
       totalHours: calcHours,
       totalBreakMinutes: totalBreakMins,
       totalBreakHours: totalBreakMins / 60,
-      breaks: breaks.map((bt: any) => ({
-        id: bt.id,
-        startTime: toOfficeDate(bt.start),
-        endTime: toOfficeDateSafe(bt.end) || null,
-        type: bt.type || 'break',
-        duration: bt.duration ? parseFloat(bt.duration) : 0
-      })),
-      breakTimes: breaks.map((bt: any) => ({
-        id: bt.id,
-        start: toOfficeDate(bt.start),
-        end: toOfficeDateSafe(bt.end) || null,
-        type: bt.type || 'break',
-        duration: bt.duration ? parseFloat(bt.duration) : 0
-      })),
-      isLate: dbData.is_late || false,
-      lateReason: dbData.late_reason || dbData.audit_data || null,
-      status: this.determineStatus(toOfficeDateSafe(dbData.login_time) || null),
-      location: dbData.location as GeolocationData || null,
+       breaks: breaks.map((bt) => {
+         const btData = bt as Record<string, unknown>;
+         return {
+           id: btData.id as string,
+           startTime: toOfficeDate(btData.start as string),
+           endTime: toOfficeDateSafe(btData.end as string) || null,
+           type: (btData.type as string) || 'break',
+           duration: btData.duration ? parseFloat(btData.duration as string) : 0
+         };
+       }),
+       breakTimes: breaks.map((bt) => {
+         const btData = bt as Record<string, unknown>;
+         return {
+           id: btData.id as string,
+           start: toOfficeDate(btData.start as string),
+           end: toOfficeDateSafe(btData.end as string) || null,
+           type: (btData.type as string) || 'break',
+           duration: btData.duration ? parseFloat(btData.duration as string) : 0
+         };
+       }),
+       isLate: (data.is_late as boolean) || false,
+       lateReason: (data.late_reason as string | undefined) || (data.audit_data as string | undefined) || null,
+       status: this.determineStatus(toOfficeDateSafe(data.login_time as string | undefined) || null),
+       location: data.location as GeolocationData || null,
       overtime: overtime
      } as AttendanceRecord;
    }
@@ -554,7 +564,7 @@ class GlobalAttendanceService {
       }
 
       // Start break with direct insert (no RPC)
-      const { data: newBreak, error: insertError } = await supabase
+       const { error: insertError } = await supabase
         .from(this.BREAKS_TABLE)
         .insert({
           attendance_record_id: attendanceRecord.id,
@@ -701,7 +711,7 @@ class GlobalAttendanceService {
       if (attendanceRecord.lunch_end) throw new Error('Lunch break already ended');
 
       const now = new Date();
-      const updateParams: any = {
+       const updateParams = {
         p_record_id: attendanceRecord.id,
         p_lunch_end: now.toISOString()
       };
