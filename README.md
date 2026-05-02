@@ -1,6 +1,6 @@
 # Aintrix Attendance Management System
 
-A modern, responsive attendance management system built with React, TypeScript, Tailwind CSS, and Firebase.
+A modern, responsive attendance management system built with React, TypeScript, Tailwind CSS, and Supabase.
 
 ## 🚀 Features
 
@@ -16,21 +16,25 @@ A modern, responsive attendance management system built with React, TypeScript, 
 ## 🎯 Key Features
 
 ### Authentication
+
 - **Multi-mode Access**: Employee and Admin modes
 - **No Password Hints**: Clean UI without password rule mentions
 
 ### Attendance Management
+
 - **Individual Records**: Each employee's attendance is stored in their own database record
 - **Break Time Calculation**: Break time automatically reduces total work time
 - **Real-time Updates**: All attendance data fetched from and written to Firestore
 - **Status Tracking**: Present, Late, Absent status with automatic determination
 
 ### Responsive Design
+
 - **Mobile-First**: Optimized for mobile devices with reduced DPI
 - **Responsive Layout**: Adapts to all screen sizes
 - **Touch-Friendly**: Large buttons and touch targets for mobile use
 
 ### Admin Features
+
 - **Employee Management**: Create, update, and manage employee accounts
 - **Meeting Assignment**: Assign meetings to employees with scheduling
 - **Attendance Reports**: View and export attendance data for all employees
@@ -52,6 +56,5 @@ All data is stored in Firestore with the following structure:
 - **employees**: Employee profiles and settings
 - **attendance**: Daily attendance records for each employee
 - **meetings**: Meeting schedules and assignments
-
 
 This project is proprietary and confidential. All rights reserved by Aintrix.

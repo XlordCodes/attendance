@@ -144,7 +144,7 @@ const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 // APP CONTENT — Route definitions wrapped in Suspense
 // ────────────────────────────────────────────────────────────
 const AppContent: React.FC = () => {
-  const { user, employee, loading } = useAuth();
+  const { loading } = useAuth();
 
   // Load working hours configuration from the database once on app mount
   useEffect(() => {

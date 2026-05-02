@@ -6,17 +6,18 @@ class MeetingService {
   private readonly MEETINGS_TABLE = 'meetings';
   private readonly ASSIGNMENTS_TABLE = 'meeting_employees';
 
-  private mapDbToMeeting(dbData: any): Meeting {
+   private mapDbToMeeting(dbData: unknown): Meeting {
+    const data = dbData as Record<string, unknown>;
     return {
-      id: dbData.id,
-      title: dbData.title,
-      description: dbData.description,
-      date: dbData.date,
-      time: dbData.time,
-      assignedEmployees: dbData.employee_ids || [],
-      createdBy: dbData.created_by,
-      createdAt: new Date(dbData.created_at),
-      status: dbData.status
+      id: data.id as string,
+      title: data.title as string,
+      description: data.description as string | undefined,
+      date: data.date as string,
+      time: data.time as string,
+      assignedEmployees: (data.employee_ids as string[]) || [],
+      createdBy: data.created_by as string,
+      createdAt: new Date(data.created_at as string),
+      status: data.status as Meeting['status']
     };
   }
 
@@ -92,7 +93,7 @@ class MeetingService {
          description: meeting.description,
          date: meeting.date,
          time: meeting.time,
-         assignedEmployees: meeting.meeting_employees?.map((a: any) => a.employee_id) || [],
+          assignedEmployees: meeting.meeting_employees?.map((a: unknown) => (a as Record<string, unknown>).employee_id as string) || [],
          createdBy: meeting.created_by,
          createdAt: new Date(meeting.created_at),
          status: meeting.status
@@ -193,7 +194,7 @@ class MeetingService {
       // Security: Require admin role
       await requireAdmin();
 
-      const dbUpdates: any = {};
+       const dbUpdates = {};
 
       if (meetingData.title !== undefined) dbUpdates.title = meetingData.title;
       if (meetingData.description !== undefined) dbUpdates.description = meetingData.description;

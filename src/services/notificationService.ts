@@ -4,17 +4,18 @@ import { Notification } from '../types';
 class NotificationService {
   private readonly TABLE_NAME = 'notifications';
 
-  private mapDbToNotification(dbData: any): Notification {
+  private mapDbToNotification(dbData: unknown): Notification {
+    const data = dbData as Record<string, unknown>;
     return {
-      id: dbData.id,
-      type: dbData.type,
-      title: dbData.title,
-      message: dbData.message,
-      employeeId: dbData.employee_id,
-      employeeName: dbData.employee_name,
-      isRead: dbData.is_read,
-      createdAt: new Date(dbData.created_at),
-      priority: dbData.priority
+      id: data.id as string,
+      type: data.type as unknown as Notification['type'],
+      title: data.title as string,
+      message: data.message as string,
+      employeeId: data.employee_id as string | undefined,
+      employeeName: data.employee_name as string,
+      isRead: data.is_read as boolean,
+      createdAt: new Date(data.created_at as string),
+      priority: data.priority as unknown as Notification['priority']
     };
   }
 

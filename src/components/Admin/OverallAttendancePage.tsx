@@ -7,7 +7,6 @@ import {
   Clock,
   Search,
   User,
-  Filter,
   ChevronDown
 } from 'lucide-react';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval } from 'date-fns';

@@ -35,7 +35,7 @@ const DEFAULT_CONFIG: WorkingHoursConfig = {
 };
 
 // Mutable reference that is exported. All getter functions read from this object.
-let currentConfig: WorkingHoursConfig = { ...DEFAULT_CONFIG };
+const currentConfig: WorkingHoursConfig = { ...DEFAULT_CONFIG };
 
 // Export both the mutable object and individual helpers
 export const WORKING_HOURS = currentConfig;

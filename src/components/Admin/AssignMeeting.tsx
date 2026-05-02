@@ -8,7 +8,7 @@ import toast from 'react-hot-toast';
 import { useAuth } from '../../hooks/useAuth';
 
 const AssignMeeting: React.FC = () => {
-  const { user, loading: authLoading } = useAuth();
+  const { user } = useAuth();
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [selectedEmployees, setSelectedEmployees] = useState<string[]>([]);
   const [meetingTitle, setMeetingTitle] = useState('');

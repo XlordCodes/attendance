@@ -5,22 +5,23 @@ import { requireAdmin } from './userService';
 class LeaveService {
   private readonly TABLE_NAME = 'leave_requests';
 
-  private mapDbToLeaveRequest(dbData: any): LeaveRequest {
+  private mapDbToLeaveRequest(dbData: unknown): LeaveRequest {
+    const data = dbData as Record<string, unknown>;
     return {
-      id: dbData.id,
-      employeeId: dbData.employee_id,
-      employeeName: dbData.employee_name,
-      employeeEmail: dbData.employee_email,
-      leaveType: dbData.leave_type,
-      startDate: dbData.start_date,
-      endDate: dbData.end_date,
-      reason: dbData.reason,
-      status: dbData.status,
-      appliedAt: new Date(dbData.applied_at),
-      requestedAt: dbData.applied_at,
-      reviewedAt: dbData.reviewed_at ? new Date(dbData.reviewed_at) : undefined,
-      reviewedBy: dbData.reviewed_by,
-      adminComments: dbData.admin_comments
+      id: data.id as string,
+      employeeId: data.employee_id as string,
+      employeeName: data.employee_name as string,
+      employeeEmail: data.employee_email as string | undefined,
+      leaveType: data.leave_type as LeaveRequest['leaveType'],
+      startDate: data.start_date as string,
+      endDate: data.end_date as string,
+      reason: data.reason as string,
+      status: data.status as LeaveRequest['status'],
+      appliedAt: new Date(data.applied_at as string),
+      requestedAt: data.applied_at as string,
+      reviewedAt: data.reviewed_at ? new Date(data.reviewed_at as string) : undefined,
+      reviewedBy: data.reviewed_by as string | undefined,
+      adminComments: data.admin_comments as string | undefined
     };
   }
 
@@ -98,7 +99,7 @@ class LeaveService {
     status: 'approved' | 'rejected',
     reviewedBy: string, // Note: client-provided, ignored — server uses authenticated user
     adminComments?: string
-  ): Promise<any> {
+   ): Promise<LeaveRequest> {
     try {
       // Security: Require admin role
       await requireAdmin();
@@ -107,7 +108,7 @@ class LeaveService {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Not authenticated');
 
-      const updateData: any = {
+       const updateData = {
         status,
         reviewed_by: user.id,
         reviewed_at: new Date().toISOString()

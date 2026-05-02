@@ -134,7 +134,7 @@ class UserService {
        const currentRole = await getCurrentUserRole();
        const isAdmin = currentRole === 'admin';
        
-       const dbUpdates: any = {};
+        const dbUpdates = {};
        
        // Non-admin mutable fields (self-service)
        if (updates.name !== undefined) dbUpdates.name = updates.name;
@@ -195,23 +195,24 @@ class UserService {
     }
   }
 
-  private mapDbToEmployee(dbData: any): Employee {
+  private mapDbToEmployee(dbData: unknown): Employee {
+    const data = dbData as Record<string, unknown>;
     return {
-      id: dbData.id,
-      uid: dbData.uid || dbData.id,
-      employeeId: dbData.employee_id,
-      name: dbData.name,
-      Name: dbData.name,
-      email: dbData.email,
-      role: dbData.role,
-      department: dbData.department,
-      position: dbData.position,
-      designation: dbData.designation,
-      Designation: dbData.designation,
-      isActive: dbData.is_active,
-      joinDate: dbData.join_date,
-      createdAt: new Date(dbData.created_at),
-      lastLogin: dbData.last_login ? new Date(dbData.last_login) : undefined
+      id: data.id as string,
+      uid: (data.uid as string | undefined) || (data.id as string),
+      employeeId: data.employee_id as string | undefined,
+      name: data.name as string,
+      Name: data.name as string,
+      email: data.email as string,
+      role: data.role as 'employee' | 'admin',
+      department: data.department as string,
+      position: data.position as string,
+      designation: data.designation as string | undefined,
+      Designation: data.designation as string | undefined,
+      isActive: data.is_active as boolean,
+      joinDate: data.join_date as string | undefined,
+      createdAt: new Date(data.created_at as string),
+      lastLogin: data.last_login ? new Date(data.last_login as string) : undefined
     };
   }
 
@@ -364,7 +365,7 @@ class UserService {
       let cleanedCount = 0;
 
       for (const user of data) {
-        const updates: any = {};
+        const updates = {};
         
         // Ensure proper field structure
         if (user.is_active === undefined || user.is_active === null) {
