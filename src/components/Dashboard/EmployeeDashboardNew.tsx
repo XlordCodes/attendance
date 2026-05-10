@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, memo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Clock, Calendar, TrendingUp } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
@@ -13,10 +13,21 @@ import ClockInOutNew from '../Employee/ClockInOutNew';
 import WorkingHoursInfo from '../common/WorkingHoursInfo';
 import { formatDuration } from '../../utils/formatDuration';
 
+const LiveClock = memo(() => {
+  const [currentTime, setCurrentTime] = useState(new Date());
+
+  useEffect(() => {
+    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  return <span>{format(currentTime, 'EEEE, MMMM d, yyyy')}</span>;
+});
+LiveClock.displayName = 'LiveClock';
+
 const EmployeeDashboardNew: React.FC = () => {
   const { employee } = useAuth();
   const queryClient = useQueryClient();
-  const [currentTime, setCurrentTime] = useState(new Date());
 
     // ✅ TanStack Query: Today's attendance record
     const { data: todayRecord, isLoading: todayLoading } = useQuery({
@@ -177,12 +188,6 @@ const EmployeeDashboardNew: React.FC = () => {
       return designation;
     }, [employee]);
 
-  // Clock tick — the only legitimate useEffect in this component
-  useEffect(() => {
-    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
-    return () => clearInterval(timer);
-  }, []);
-
   // ────────────────────────────────────────────────────────
   // GHOST CODE DELETED (Defect 9)
   //
@@ -235,7 +240,7 @@ const EmployeeDashboardNew: React.FC = () => {
               Welcome back, {getEmployeeName()}!
             </h1>
             <p className="text-blue-100">
-              {format(currentTime, 'EEEE, MMMM d, yyyy')} • {employee?.role || 'Employee'} • {getEmployeeDesignation()}
+              <LiveClock /> • {employee?.role || 'Employee'} • {getEmployeeDesignation()}
             </p>
             <p className="text-blue-100 text-sm mt-1">
               {employee?.department}

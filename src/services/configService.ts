@@ -19,9 +19,12 @@ export interface WorkingHoursDBConfig {
   updated_at: string;
 }
 
+let cachedConfig: WorkingHoursDBConfig | null = null;
+let lastFetchTime = 0;
+const CACHE_TTL = 300000; // 5 minutes
+
 class ConfigService {
   private readonly TABLE_NAME = 'working_hours_config';
-  private cache: WorkingHoursDBConfig | null = null;
 
    /**
     * Fetch the current working hours configuration from the database.
@@ -29,8 +32,9 @@ class ConfigService {
     * Returns null if config is not found (e.g., unauthenticated or missing row).
     */
    async getWorkingHoursConfig(): Promise<WorkingHoursDBConfig | null> {
-     if (this.cache) {
-       return this.cache;
+     const now = Date.now();
+     if (cachedConfig && (now - lastFetchTime < CACHE_TTL)) {
+       return cachedConfig;
      }
 
      const { data, error } = await supabase
@@ -49,8 +53,9 @@ class ConfigService {
        return null;
      }
 
-     this.cache = data as WorkingHoursDBConfig;
-     return this.cache;
+     cachedConfig = data as WorkingHoursDBConfig;
+     lastFetchTime = Date.now();
+     return cachedConfig;
    }
 
   /**
@@ -84,13 +89,15 @@ class ConfigService {
       throw error;
     }
 
-    this.cache = data as WorkingHoursDBConfig;
-    return this.cache;
+    cachedConfig = data as WorkingHoursDBConfig;
+    lastFetchTime = Date.now();
+    return cachedConfig;
   }
 
   /** Clear the cached configuration. Call after external updates if needed. */
   clearCache(): void {
-    this.cache = null;
+    cachedConfig = null;
+    lastFetchTime = 0;
   }
 }
 
