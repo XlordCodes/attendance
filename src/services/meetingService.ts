@@ -6,6 +6,7 @@ class MeetingService {
   private readonly MEETINGS_TABLE = 'meetings';
   private readonly ASSIGNMENTS_TABLE = 'meeting_employees';
 
+   // @ts-expect-error -- reserved utility mapper, kept for future use
    private mapDbToMeeting(dbData: unknown): Meeting {
     const data = dbData as Record<string, unknown>;
     return {
@@ -194,7 +195,7 @@ class MeetingService {
       // Security: Require admin role
       await requireAdmin();
 
-       const dbUpdates = {};
+       const dbUpdates: Record<string, unknown> = {};
 
       if (meetingData.title !== undefined) dbUpdates.title = meetingData.title;
       if (meetingData.description !== undefined) dbUpdates.description = meetingData.description;

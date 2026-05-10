@@ -2,6 +2,13 @@ import { supabase } from './supabaseClient';
 import { LeaveRequest } from '../types';
 import { requireAdmin } from './userService';
 
+interface UpdateLeaveRequestPayload {
+  status: 'approved' | 'rejected';
+  reviewed_by: string;
+  reviewed_at: string;
+  admin_comments?: string;
+}
+
 class LeaveService {
   private readonly TABLE_NAME = 'leave_requests';
 
@@ -97,7 +104,7 @@ class LeaveService {
   async updateLeaveRequestStatus(
     requestId: string,
     status: 'approved' | 'rejected',
-    reviewedBy: string, // Note: client-provided, ignored — server uses authenticated user
+    _reviewedBy: string, // Note: client-provided, ignored — server uses authenticated user
     adminComments?: string
    ): Promise<LeaveRequest> {
     try {
@@ -108,7 +115,7 @@ class LeaveService {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Not authenticated');
 
-       const updateData = {
+       const updateData: UpdateLeaveRequestPayload = {
         status,
         reviewed_by: user.id,
         reviewed_at: new Date().toISOString()

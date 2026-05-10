@@ -1,4 +1,4 @@
-import { useState, useEffect, createContext, useContext, useMemo, useRef } from 'react';
+import { useState, useEffect, useCallback, createContext, useContext, useMemo, useRef } from 'react';
 import { User } from '@supabase/supabase-js';
 import { supabase } from '../services/supabaseClient';
 import { Employee } from '../types';
@@ -23,6 +23,7 @@ const withTimeout = <T,>(promise: Promise<T>, timeoutMs: number = 8000): Promise
   ]);
 };
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const useAuth = () => {
   const context = useContext(AuthContext);
   if (!context) {
@@ -116,7 +117,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           }
         } 
         
-        else if (event === 'SIGNED_OUT' || event === 'TOKEN_REFRESH_FAILED') {
+        else if (event === 'SIGNED_OUT' || (event as string) === 'TOKEN_REFRESH_FAILED') {
           setEmployee(null);
           setUser(null);
           toast.error('Session expired. Please log in again.');
@@ -139,6 +140,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         subscription.unsubscribe();
       }
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // ──────────────────────────────────────────────────────────
@@ -224,7 +226,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
   };
 
-  const login = async (email: string, password: string) => {
+  const login = useCallback(async (email: string, password: string) => {
     try {
       // NOTE: Do NOT call setLoading(true) here.
       // onAuthStateChange will fire SIGNED_IN and handle
@@ -296,9 +298,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const errorMessage = error instanceof Error ? error.message : 'Login failed. Please try again.';
       throw new Error(errorMessage);
     }
-  };
+  }, []);
 
-  const logout = async () => {
+  const logout = useCallback(async () => {
     try {
       await supabase.auth.signOut();
       setUser(null);
@@ -311,7 +313,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       console.error('Logout error:', error);
       toast.error('Error during logout');
     }
-  };
+  }, []);
 
   // ✅ CONTEXT RE-RENDER LOOP PREVENTION
   // Memoize context value to prevent infinite re-renders across the entire app

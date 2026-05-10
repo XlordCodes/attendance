@@ -71,6 +71,7 @@ const AttendanceLogsNew: React.FC = () => {
     if (employee) {
       fetchEmployeeLeaves();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [employee]);
 
   const loadEmployees = async () => {

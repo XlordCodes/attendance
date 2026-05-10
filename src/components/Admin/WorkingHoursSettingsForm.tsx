@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Save, Clock, Coffee, Workflow } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { configService, type WorkingHoursDBConfig } from '../../services/configService';
+import { configService } from '../../services/configService';
 import { updateWorkingHours } from '../../constants/workingHours';
 
 interface FormData {
@@ -40,21 +40,23 @@ const WorkingHoursSettingsForm: React.FC = () => {
   useEffect(() => {
     const fetchConfig = async () => {
       try {
-        const dbConfig: WorkingHoursDBConfig = await configService.getWorkingHoursConfig();
-        setFormData({
-          START_HOUR: dbConfig.start_hour,
-          START_MINUTE: dbConfig.start_minute,
-          END_HOUR: dbConfig.end_hour,
-          END_MINUTE: dbConfig.end_minute,
-          STANDARD_WORK_HOURS: dbConfig.standard_work_hours,
-          LUNCH_START_HOUR: dbConfig.lunch_start_hour,
-          LUNCH_START_MINUTE: dbConfig.lunch_start_minute,
-          LUNCH_END_HOUR: dbConfig.lunch_end_hour,
-          LUNCH_END_MINUTE: dbConfig.lunch_end_minute,
-          OVERTIME_THRESHOLD: dbConfig.overtime_threshold,
-          REQUIRE_IP_MATCH: dbConfig.require_ip_match,
-          REQUIRE_GEO_MATCH: dbConfig.require_geo_match,
-        });
+        const dbConfig = await configService.getWorkingHoursConfig();
+        if (dbConfig) {
+          setFormData({
+            START_HOUR: dbConfig.start_hour,
+            START_MINUTE: dbConfig.start_minute,
+            END_HOUR: dbConfig.end_hour,
+            END_MINUTE: dbConfig.end_minute,
+            STANDARD_WORK_HOURS: dbConfig.standard_work_hours,
+            LUNCH_START_HOUR: dbConfig.lunch_start_hour,
+            LUNCH_START_MINUTE: dbConfig.lunch_start_minute,
+            LUNCH_END_HOUR: dbConfig.lunch_end_hour,
+            LUNCH_END_MINUTE: dbConfig.lunch_end_minute,
+            OVERTIME_THRESHOLD: dbConfig.overtime_threshold,
+            REQUIRE_IP_MATCH: dbConfig.require_ip_match,
+            REQUIRE_GEO_MATCH: dbConfig.require_geo_match,
+          });
+        }
       } catch (error) {
         console.error('Failed to load config:', error);
         toast.error('Failed to load working hours configuration');

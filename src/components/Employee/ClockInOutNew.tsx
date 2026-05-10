@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, memo } from 'react';
 import { useQueryClient, useMutation } from '@tanstack/react-query';
 import { Clock, AlertCircle, Coffee, Play, Pause } from 'lucide-react';
 import { globalAttendanceService } from '../../services/globalAttendanceService';
@@ -13,6 +13,82 @@ import { formatDuration } from '../../utils/formatDuration';
 import { getClientIP, verifyIPAddress, verifyGeofence } from '../../utils/security';
 import { envConfig } from '../../config/env';
 
+// ─── Isolated micro-components: tick every second without triggering parent re-renders ───
+
+const LiveClockDisplay = memo(() => {
+  const [now, setNow] = useState(getOfficeNow());
+
+  useEffect(() => {
+    const timer = setInterval(() => setNow(getOfficeNow()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  return (
+    <div className="text-right">
+      <div className="text-2xl font-mono font-bold text-gray-900">
+        {format(now, 'HH:mm:ss')}
+      </div>
+      <div className="text-sm text-gray-500">
+        {format(now, 'EEEE, MMMM d, yyyy')}
+      </div>
+    </div>
+  );
+});
+LiveClockDisplay.displayName = 'LiveClockDisplay';
+
+interface LiveWorkingHoursProps {
+  clockIn: Date;
+  clockOut?: Date | null;
+  breaks: { startTime?: Date | null; endTime?: Date | null }[];
+  isOnBreak: boolean;
+}
+
+const LiveWorkingHours = memo(({ clockIn, clockOut, breaks, isOnBreak }: LiveWorkingHoursProps) => {
+  const [, setTick] = useState(0);
+
+  useEffect(() => {
+    // If already clocked out, no need to tick
+    if (clockOut) return;
+    const timer = setInterval(() => setTick(t => t + 1), 1000);
+    return () => clearInterval(timer);
+  }, [clockOut]);
+
+  const endTime = clockOut || new Date();
+  const workingMs = endTime.getTime() - clockIn.getTime();
+
+  const breakMs = breaks.reduce((total, breakSession) => {
+    if (breakSession.endTime && breakSession.startTime) {
+      return total + (breakSession.endTime.getTime() - breakSession.startTime.getTime());
+    } else if (isOnBreak && breakSession.startTime) {
+      return total + (new Date().getTime() - breakSession.startTime.getTime());
+    }
+    return total;
+  }, 0);
+
+  const actualWorkingMs = Math.max(0, workingMs - breakMs);
+  const hours = actualWorkingMs / (1000 * 60 * 60);
+
+  return <>{formatDuration(hours)}</>;
+});
+LiveWorkingHours.displayName = 'LiveWorkingHours';
+
+interface LiveBreakDurationProps {
+  breakStartTime: Date;
+}
+
+const LiveBreakDuration = memo(({ breakStartTime }: LiveBreakDurationProps) => {
+  const [, setTick] = useState(0);
+
+  useEffect(() => {
+    const timer = setInterval(() => setTick(t => t + 1), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const duration = (new Date().getTime() - breakStartTime.getTime()) / (1000 * 60);
+  return <>{Math.floor(duration)}m</>;
+});
+LiveBreakDuration.displayName = 'LiveBreakDuration';
+
 interface ClockInOutNewProps {
   onAttendanceChange?: () => void;
 }
@@ -21,7 +97,7 @@ const ClockInOutNew: React.FC<ClockInOutNewProps> = ({ onAttendanceChange }) => 
   const { employee } = useAuth();
   const [todayRecord, setTodayRecord] = useState<AttendanceRecord | null>(null);
   const [loading, setLoading] = useState(false);
-  const [currentTime] = useState(getOfficeNow());
+  // currentTime removed — clock display is now handled by <LiveClockDisplay />
   const [isOnBreak, setIsOnBreak] = useState(false);
   const [showLateReasonModal, setShowLateReasonModal] = useState(false);
   const [lateReason, setLateReason] = useState('');
@@ -304,34 +380,8 @@ const ClockInOutNew: React.FC<ClockInOutNewProps> = ({ onAttendanceChange }) => 
     return formatOfficeTimeLong(date);
   };
 
-  const getWorkingHours = () => {
-    if (!todayRecord?.clockIn) return '0h 0m';
-
-    const endTime = todayRecord.clockOut || currentTime;
-    const workingMs = endTime.getTime() - todayRecord.clockIn.getTime();
-
-    // Subtract break time
-    const breakMs = todayRecord.breaks.reduce((total, breakSession) => {
-      if (breakSession.endTime && breakSession.startTime) {
-        return total + (breakSession.endTime.getTime() - breakSession.startTime.getTime());
-      } else if (isOnBreak && breakSession.startTime) {
-        return total + (currentTime.getTime() - breakSession.startTime.getTime());
-      }
-      return total;
-    }, 0);
-
-    const actualWorkingMs = Math.max(0, workingMs - breakMs);
-    const hours = actualWorkingMs / (1000 * 60 * 60);
-    return formatDuration(hours);
-  };
-
-  const getCurrentBreakDuration = () => {
-    const currentBreak = todayRecord?.breaks.find(b => !b.endTime);
-    if (!currentBreak || !currentBreak.startTime) return '0m';
-
-    const duration = (currentTime.getTime() - currentBreak.startTime.getTime()) / (1000 * 60);
-    return `${Math.floor(duration)}m`;
-  };
+  // getWorkingHours and getCurrentBreakDuration removed — now handled by
+  // <LiveWorkingHours /> and <LiveBreakDuration /> micro-components
 
    // Get user location (background refresh – actual clock-in uses fresh GPS)
    useEffect(() => {
@@ -503,14 +553,7 @@ const ClockInOutNew: React.FC<ClockInOutNewProps> = ({ onAttendanceChange }) => 
           <Clock className="mr-2 h-5 w-5" />
           Time Tracking
         </h2>
-        <div className="text-right">
-          <div className="text-2xl font-mono font-bold text-gray-900">
-            {format(currentTime, 'HH:mm:ss')}
-          </div>
-          <div className="text-sm text-gray-500">
-            {format(currentTime, 'EEEE, MMMM d, yyyy')}
-          </div>
-        </div>
+        <LiveClockDisplay />
       </div>
 
       {/* Status Cards */}
@@ -545,7 +588,14 @@ const ClockInOutNew: React.FC<ClockInOutNewProps> = ({ onAttendanceChange }) => 
             <div>
               <p className="text-sm font-medium text-purple-900">Working Hours</p>
               <p className="text-lg font-semibold text-purple-700">
-                {getWorkingHours()}
+                {todayRecord?.clockIn ? (
+                  <LiveWorkingHours
+                    clockIn={todayRecord.clockIn}
+                    clockOut={todayRecord.clockOut}
+                    breaks={todayRecord.breaks}
+                    isOnBreak={isOnBreak}
+                  />
+                ) : '0h 0m'}
               </p>
             </div>
           </div>
@@ -641,7 +691,7 @@ const ClockInOutNew: React.FC<ClockInOutNewProps> = ({ onAttendanceChange }) => 
                     className="flex-1 bg-orange-600 hover:bg-orange-700 disabled:bg-orange-400 text-white font-medium py-3 px-4 rounded-lg transition-colors flex items-center justify-center"
                   >
                     <Pause className="mr-2 h-4 w-4" />
-                    {loading ? 'Ending...' : `End Break (${getCurrentBreakDuration()})`}
+                    {loading ? 'Ending...' : <>End Break ({todayRecord?.breaks.find(b => !b.endTime)?.startTime ? <LiveBreakDuration breakStartTime={todayRecord!.breaks.find(b => !b.endTime)!.startTime!} /> : '0m'})</>}
                   </button>
                 )}
               </div>

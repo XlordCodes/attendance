@@ -15,6 +15,22 @@ import {
 } from '../constants/workingHours';
 import { supabase } from './supabaseClient';
 
+interface ClockInRPCResult {
+  id: string;
+  login_time: string;
+}
+
+interface ClockOutRPCResult {
+  id: string;
+}
+
+interface UpdateAttendanceRecordParams {
+  p_record_id: string;
+  p_lunch_end: string;
+  p_is_late_from_lunch?: boolean;
+  p_lunch_late_reason?: string;
+}
+
 class GlobalAttendanceService {
   private readonly ATTENDANCE_TABLE = 'attendance_records';
   private readonly BREAKS_TABLE = 'attendance_breaks';
@@ -149,7 +165,7 @@ class GlobalAttendanceService {
       }
 
       // Create attendance record with SERVER TIMESTAMP
-      const { data: attendanceRecord, error: insertError } = await supabase
+      const { data: attendanceRecordRaw, error: insertError } = await supabase
         .rpc('clock_in', {
           p_user_id: userId,
           p_date: todayIso
@@ -157,6 +173,8 @@ class GlobalAttendanceService {
         .single();
 
       if (insertError) throw insertError;
+      
+      const attendanceRecord = attendanceRecordRaw as ClockInRPCResult;
 
       const clockInTime = toOfficeDate(attendanceRecord.login_time);
       const isLate = this.isLateArrival(clockInTime);
@@ -237,14 +255,16 @@ class GlobalAttendanceService {
            p_early_logout_reason: reason || null
          });
 
-         const { data: rpcResult, error: rpcError } = await supabase.rpc('clock_out', {
+         const { data: rpcResultRaw, error: rpcError } = await supabase.rpc('clock_out', {
            p_user_id: userId,
            p_date: todayIso,
            p_early_logout_reason: reason || null
          }).single();
 
          if (rpcError) throw rpcError;
-         if (!rpcResult) throw new Error('Clock out RPC did not return a record');
+         if (!rpcResultRaw) throw new Error('Clock out RPC did not return a record');
+         
+         const rpcResult = rpcResultRaw as ClockOutRPCResult;
 
           // Fetch the full updated record with joins to get breaks and employee details
           const { data: fullRecord, error: fetchFullError } = await supabase
@@ -325,6 +345,198 @@ class GlobalAttendanceService {
       const { data, error } = await supabase
         .from(this.ATTENDANCE_TABLE)
         .select(`
+          *,
+          employees:user_id (name, email, employee_id, department),
+          attendance_breaks (*)
+        `)
+        .eq('user_id', userId)
+        .gte('date', startDate.toISOString().split('T')[0])
+        .lte('date', endDate.toISOString().split('T')[0])
+        .order('date', { ascending: false })
+        .limit(500);
+
+      if (error) throw error;
+
+      if (!data || data.length === 0) {
+        return [];
+      }
+
+      return data.map(this.convertDbToAttendance.bind(this));
+    } catch (error) {
+      console.error('Error getting attendance history:', error);
+      return [];
+    }
+  }
+
+   async getAttendanceRange(
+     userId: string,
+     startDate: Date | string,
+     endDate: Date | string
+   ): Promise<AttendanceRecord[]> {
+     try {
+       // Timezone-safe formatter: always uses Asia/Kolkata
+       const toOfficeIso = (d: Date | string) => {
+         const dateObj = typeof d === 'string' ? new Date(d) : d;
+         if (isNaN(dateObj.getTime())) return new Date().toISOString().split('T')[0];
+
+         const options = { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' } as const;
+         const parts = new Intl.DateTimeFormat('en-IN', options).formatToParts(dateObj);
+         const year = parts.find(p => p.type === 'year')?.value;
+         const month = parts.find(p => p.type === 'month')?.value;
+         const day = parts.find(p => p.type === 'day')?.value;
+         return `${year}-${month}-${day}`;
+       };
+
+       const startDateStr = toOfficeIso(startDate);
+       const endDateStr = toOfficeIso(endDate);
+
+      const { data, error } = await supabase
+        .from(this.ATTENDANCE_TABLE)
+        .select(`
+          *,
+          employees:user_id (name, email, employee_id, department),
+          attendance_breaks (*)
+        `)
+        .eq('user_id', userId)
+        .gte('date', startDateStr)
+        .lte('date', endDateStr)
+        .order('date', { ascending: false })
+        .limit(500);
+
+      if (error) throw error;
+
+      if (!data || data.length === 0) {
+        return [];
+      }
+
+      return data.map(this.convertDbToAttendance.bind(this));
+    } catch (error) {
+      console.error('Error getting attendance range:', error);
+      return [];
+    }
+  }
+
+  async getAllAttendanceRecords(startDate?: string, endDate?: string): Promise<AttendanceRecord[]> {
+    try {
+      let query = supabase
+        .from(this.ATTENDANCE_TABLE)
+        .select(`
+          *,
+          employees:user_id (name, email, employee_id, department),
+          attendance_breaks (*)
+        `)
+        .order('date', { ascending: false });
+
+      if (startDate && endDate) {
+        query = query
+          .gte('date', new Date(startDate).toISOString().split('T')[0])
+          .lte('date', new Date(endDate).toISOString().split('T')[0]);
+      } else {
+        const thirtyDaysAgo = getOfficeNow();
+        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+        query = query.gte('date', thirtyDaysAgo.toISOString().split('T')[0]);
+      }
+
+      const { data, error } = await query.limit(500);
+
+      if (error) throw error;
+
+      if (!data || data.length === 0) {
+        return [];
+      }
+
+      return data.map(this.convertDbToAttendance.bind(this));
+    } catch (error) {
+      console.error('Error getting all attendance records:', error);
+      return [];
+    }
+  }
+
+  async getAttendanceForDate(userId: string, date: Date): Promise<AttendanceRecord | null> {
+    try {
+      const dateIso = date.toISOString().split('T')[0];
+
+      const { data, error } = await supabase
+        .from(this.ATTENDANCE_TABLE)
+        .select(`
+          *,
+          employees:user_id (name, email, employee_id, department),
+          attendance_breaks (*)
+        `)
+        .eq('user_id', userId)
+        .eq('date', dateIso)
+        .maybeSingle();
+
+      if (error) {
+        if (error.code === 'PGRST116') return null;
+        throw error;
+      }
+
+      return data ? this.convertDbToAttendance(data) : null;
+    } catch (error) {
+      console.error('Error getting attendance for date:', error);
+      return null;
+    }
+  }
+
+  async getAllAttendanceForDate(date: string): Promise<{ [userId: string]: AttendanceRecord }> {
+    try {
+      console.log(`🔍 Fetching all attendance for date: ${date}`);
+
+      // Directly construct YYYY-MM-DD from DD-MM-YYYY without timezone conversion
+      const parts = date.split('-');
+      if (parts.length !== 3) return {};
+      const [day, month, year] = parts;
+      const dateIso = `${year}-${month}-${day}`;
+
+      const { data, error } = await supabase
+        .from(this.ATTENDANCE_TABLE)
+        .select(`
+          *,
+          employees:user_id (name, email, employee_id, department),
+          attendance_breaks (*)
+        `)
+        .eq('date', dateIso)
+        .limit(500);
+
+      if (error) throw error;
+
+      if (!data || data.length === 0) {
+        return {};
+      }
+
+      const attendanceByUser: { [userId: string]: AttendanceRecord } = {};
+      data.forEach(record => {
+        attendanceByUser[record.user_id] = this.convertDbToAttendance(record);
+      });
+
+      console.log(`📊 Found attendance for ${Object.keys(attendanceByUser).length} users on ${date}`);
+      return attendanceByUser;
+    } catch (error) {
+      console.error(`❌ Error fetching attendance for date ${date}:`, error);
+      return {};
+    }
+  }
+
+  async getAttendanceRecords(employeeId: string): Promise<AttendanceRecord[]> {
+    try {
+      console.log(`🔍 Fetching attendance records for employee: ${employeeId}`);
+
+      const { data, error } = await supabase
+        .from(this.ATTENDANCE_TABLE)
+        .select(`
+          *,
+          employees:user_id (name, email, employee_id, department),
+          attendance_breaks (*)
+        `)
+        .eq('user_id', employeeId)
+        .order('date', { ascending: false })
+        .limit(500);
+
+      if (error) throw error;
+
+      if (!data || data.length === 0) {
+        return [];
       }
 
       const records = data.map(this.convertDbToAttendance.bind(this));
@@ -523,7 +735,7 @@ class GlobalAttendanceService {
       if (attendanceRecord.lunch_end) throw new Error('Lunch break already ended');
 
       const now = new Date();
-       const updateParams = {
+       const updateParams: UpdateAttendanceRecordParams = {
         p_record_id: attendanceRecord.id,
         p_lunch_end: now.toISOString()
       };

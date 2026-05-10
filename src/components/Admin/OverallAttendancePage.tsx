@@ -273,6 +273,7 @@ const OverallAttendancePage: React.FC = () => {
     };
     
     loadAttendanceData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedDate, viewMode, allEmployees, selectedEmployeeId]);
 
   const filteredEmployeeAttendance = employeeAttendance.filter(attendance => {

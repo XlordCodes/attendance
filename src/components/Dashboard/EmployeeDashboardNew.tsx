@@ -55,31 +55,11 @@ const EmployeeDashboardNew: React.FC = () => {
         const mondayDay = officeDay - (officeDayOfWeek - 1);
         const sundayDay = officeDay + (7 - officeDayOfWeek);
 
-        const weekStart = zonedTimeToUtc(
-          {
-            year: officeYear,
-            month: officeMonth + 1,
-            day: mondayDay,
-            hour: 0,
-            minute: 0,
-            second: 0,
-            millisecond: 0
-          },
-          OFFICE_TIMEZONE
-        );
+        const weekStartString = `${officeYear}-${String(officeMonth + 1).padStart(2, '0')}-${String(mondayDay).padStart(2, '0')} 00:00:00`;
+        const weekStart = zonedTimeToUtc(weekStartString, OFFICE_TIMEZONE);
 
-        const weekEnd = zonedTimeToUtc(
-          {
-            year: officeYear,
-            month: officeMonth + 1,
-            day: sundayDay,
-            hour: 23,
-            minute: 59,
-            second: 59,
-            millisecond: 999
-          },
-          OFFICE_TIMEZONE
-        );
+        const weekEndString = `${officeYear}-${String(officeMonth + 1).padStart(2, '0')}-${String(sundayDay).padStart(2, '0')} 23:59:59.999`;
+        const weekEnd = zonedTimeToUtc(weekEndString, OFFICE_TIMEZONE);
         const weeklyRecords = await globalAttendanceService.getAttendanceRange(
           employee.id,
           weekStart,

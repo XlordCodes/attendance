@@ -67,6 +67,7 @@ interface UserSettings {
 class UserService {
   private readonly TABLE_NAME = 'employees';
 
+  // @ts-expect-error -- reserved utility method, kept for future use
   private generateSecurePassword(): string {
     const array = new Uint8Array(16);
     crypto.getRandomValues(array);
@@ -134,7 +135,7 @@ class UserService {
        const currentRole = await getCurrentUserRole();
        const isAdmin = currentRole === 'admin';
        
-        const dbUpdates = {};
+        const dbUpdates: Record<string, unknown> = {};
        
        // Non-admin mutable fields (self-service)
        if (updates.name !== undefined) dbUpdates.name = updates.name;
@@ -220,6 +221,117 @@ class UserService {
     try {
       // Security: BFLA Protection - Only admins can view all users
       const currentRole = await getCurrentUserRole();
+      if (currentRole !== 'admin') {
+        throw new Error('Not authorized: Only administrators can view all users');
+      }
+
+      console.log('📋 Fetching all users from database...');
+      const { data, error } = await supabase
+        .from(this.TABLE_NAME)
+        .select('id, employee_id, name, email, role, department, position, designation, is_active, join_date, created_at, last_login')
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      
+      const users = data.map(this.mapDbToEmployee);
+      
+      console.log(`👥 Found ${users.length} users in database:`, users.map(u => ({
+        id: u.id,
+        name: u.name || u.Name,
+        email: u.email,
+        role: u.role,
+        isActive: u.isActive
+      })));
+      
+      return users;
+    } catch (error) {
+      console.error('Error getting users:', error);
+      throw error;
+    }
+  }
+
+  async getUserById(id: string): Promise<Employee | null> {
+    try {
+      const { data, error } = await supabase
+        .from(this.TABLE_NAME)
+        .select('*')
+        .eq('id', id)
+        .single();
+
+      if (error) {
+        if (error.code === 'PGRST116') return null; // No rows returned
+        throw error;
+      }
+
+      return this.mapDbToEmployee(data);
+    } catch (error) {
+      console.error('Error getting user by ID:', error);
+      throw error;
+    }
+  }
+
+  async getUserByEmail(email: string): Promise<Employee | null> {
+    try {
+      const { data, error } = await supabase
+        .from(this.TABLE_NAME)
+        .select('*')
+        .eq('email', email)
+        .limit(1);
+
+      if (error) throw error;
+      if (data.length === 0) return null;
+
+      return this.mapDbToEmployee(data[0]);
+    } catch (error) {
+      console.error('Error getting user by email:', error);
+      throw error;
+    }
+  }
+
+  async getUsersByRole(role: 'admin' | 'employee'): Promise<Employee[]> {
+    try {
+      const { data, error } = await supabase
+        .from(this.TABLE_NAME)
+        .select('id, employee_id, name, email, role, department, position, designation, is_active, join_date, created_at, last_login')
+        .eq('role', role)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      return data.map(this.mapDbToEmployee);
+    } catch (error) {
+      console.error('Error getting users by role:', error);
+      throw error;
+    }
+  }
+
+  async getUsersByDepartment(department: string): Promise<Employee[]> {
+    try {
+      const { data, error } = await supabase
+        .from(this.TABLE_NAME)
+        .select('id, employee_id, name, email, role, department, position, designation, is_active, join_date, created_at, last_login')
+        .eq('department', department)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      return data.map(this.mapDbToEmployee);
+    } catch (error) {
+      console.error('Error getting users by department:', error);
+      throw error;
+    }
+  }
+
+  async getActiveUsers(): Promise<Employee[]> {
+    try {
+      const { data, error } = await supabase
+        .from(this.TABLE_NAME)
+        .select('id, employee_id, name, email, role, department, position, designation, is_active, join_date, created_at, last_login')
+        .eq('is_active', true)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      return data.map(this.mapDbToEmployee);
+    } catch (error) {
+      console.error('Error getting active users:', error);
       throw error;
     }
   }
@@ -254,7 +366,7 @@ class UserService {
       let cleanedCount = 0;
 
       for (const user of data) {
-        const updates = {};
+        const updates: Record<string, unknown> = {};
         
         // Ensure proper field structure
         if (user.is_active === undefined || user.is_active === null) {
