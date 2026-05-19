@@ -1,4 +1,5 @@
 import { getWorkStartTime, getWorkEndTime } from '../constants/workingHours';
+import type { RoleSchedule } from '../types';
 
 interface UserSettings {
   notifications: {
@@ -19,6 +20,7 @@ interface UserSettings {
 class BrowserNotificationService {
   private notificationIntervals: { [key: string]: NodeJS.Timeout } = {};
   private readonly BREAK_REMINDER_INTERVAL = 2 * 60 * 60 * 1000; // 2 hours
+  private currentSchedule: RoleSchedule | null = null;
 
   /**
    * Request permission for browser notifications
@@ -85,14 +87,19 @@ class BrowserNotificationService {
   /**
    * Setup clock-in reminder
    */
-  private setupClockInReminder(playSound: boolean): void {
-    const now = new Date();
-    const workStartToday = getWorkStartTime(now);
+   private setupClockInReminder(playSound: boolean): void {
+     if (!this.currentSchedule) {
+       console.warn('Cannot setup clock-in reminder: no schedule available');
+       return;
+     }
+     const schedule = this.currentSchedule;
+     const now = new Date();
+     const workStartToday = getWorkStartTime(schedule, now);
 
-    // Determine the next work start time (today or tomorrow)
-    const target = now >= workStartToday
-      ? getWorkStartTime(new Date(now.getTime() + 24 * 60 * 60 * 1000)) // tomorrow
-      : workStartToday;
+     // Determine the next work start time (today or tomorrow)
+     const target = now >= workStartToday
+       ? getWorkStartTime(schedule, new Date(now.getTime() + 24 * 60 * 60 * 1000)) // tomorrow
+       : workStartToday;
 
     const timeUntilReminder = target.getTime() - now.getTime();
 
@@ -112,14 +119,19 @@ class BrowserNotificationService {
   /**
    * Setup clock-out reminder
    */
-  private setupClockOutReminder(playSound: boolean): void {
-    const now = new Date();
-    const workEndToday = getWorkEndTime(now);
+   private setupClockOutReminder(playSound: boolean): void {
+     if (!this.currentSchedule) {
+       console.warn('Cannot setup clock-out reminder: no schedule available');
+       return;
+     }
+     const schedule = this.currentSchedule;
+     const now = new Date();
+     const workEndToday = getWorkEndTime(schedule, now);
 
-    // Determine the next work end time (today or tomorrow)
-    const target = now >= workEndToday
-      ? getWorkEndTime(new Date(now.getTime() + 24 * 60 * 60 * 1000))
-      : workEndToday;
+     // Determine the next work end time (today or tomorrow)
+     const target = now >= workEndToday
+       ? getWorkEndTime(schedule, new Date(now.getTime() + 24 * 60 * 60 * 1000))
+       : workEndToday;
 
     const timeUntilReminder = target.getTime() - now.getTime();
 
@@ -139,11 +151,16 @@ class BrowserNotificationService {
   /**
    * Setup break reminder
    */
-  private setupBreakReminder(playSound: boolean): void {
-    this.notificationIntervals.breakReminder = setInterval(() => {
-      const now = new Date();
-      const workStart = getWorkStartTime(now);
-      const workEnd = getWorkEndTime(now);
+   private setupBreakReminder(playSound: boolean): void {
+     if (!this.currentSchedule) {
+       console.warn('Cannot setup break reminder: no schedule available');
+       return;
+     }
+     const schedule = this.currentSchedule;
+     this.notificationIntervals.breakReminder = setInterval(() => {
+       const now = new Date();
+       const workStart = getWorkStartTime(schedule, now);
+       const workEnd = getWorkEndTime(schedule, now);
 
       // Only send break reminders during work hours
       if (now >= workStart && now < workEnd) {
@@ -206,12 +223,17 @@ class BrowserNotificationService {
     this.notificationIntervals = {};
   }
 
-  /**
-   * Setup all notifications based on user settings
-   */
-  async setupNotifications(settings: UserSettings): Promise<void> {
-    // Clear existing reminders
-    this.clearAllReminders();
+   /**
+    * Setup all notifications based on user settings
+    * @param settings User notification preferences
+    * @param schedule The employee's RoleSchedule (required for timing)
+    */
+   async setupNotifications(settings: UserSettings, schedule: RoleSchedule): Promise<void> {
+     // Store schedule for reminder calculations
+     this.currentSchedule = schedule;
+
+     // Clear existing reminders
+     this.clearAllReminders();
 
     // Check if any notifications are enabled
     const hasNotificationsEnabled = Object.values(settings.notifications).some(

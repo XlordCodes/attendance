@@ -1,48 +1,55 @@
 import React, { useState, useEffect } from 'react';
 import { Clock, Calendar, Coffee } from 'lucide-react';
-import { configService } from '../../services/configService';
+import { useAuth } from '../../hooks/useAuth';
+import { getScheduleForEmployee } from '../../constants/workingHours';
+import type { RoleSchedule } from '../../types';
 
 const WorkingHoursInfo: React.FC = () => {
-  const [hoursConfig, setHoursConfig] = useState<{
-    startHour: number;
-    startMinute: number;
-    endHour: number;
-    endMinute: number;
-    lunchStartHour: number;
-    lunchStartMinute: number;
-    lunchEndHour: number;
-    lunchEndMinute: number;
-    standardWorkHours: number;
-  } | null>(null);
+  const { employee } = useAuth();
+  const [schedule, setSchedule] = useState<RoleSchedule | null>(null);
 
   useEffect(() => {
-    const loadConfig = async () => {
-      const config = await configService.getWorkingHoursConfig();
-      if (config) {
-        setHoursConfig({
-          startHour: config.start_hour,
-          startMinute: config.start_minute,
-          endHour: config.end_hour,
-          endMinute: config.end_minute,
-          lunchStartHour: config.lunch_start_hour,
-          lunchStartMinute: config.lunch_start_minute,
-          lunchEndHour: config.lunch_end_hour,
-          lunchEndMinute: config.lunch_end_minute,
-          standardWorkHours: config.standard_work_hours,
+    if (!employee?.id) return;
+
+    let cancelled = false;
+
+    const loadSchedule = async () => {
+      const sched = await getScheduleForEmployee(employee.id);
+      if (cancelled) return;
+      if (sched) {
+        setSchedule(sched);
+      } else {
+        setSchedule({
+          role: 'employee',
+          start_hour: 10,
+          start_minute: 0,
+          end_hour: 20,
+          end_minute: 0,
+          standard_work_hours: 10,
+          lunch_start_hour: 14,
+          lunch_start_minute: 0,
+          lunch_end_hour: 15,
+          lunch_end_minute: 0,
+          overtime_threshold: 10
         });
       }
     };
-    loadConfig();
-  }, []);
 
-  if (!hoursConfig) {
+    loadSchedule();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [employee?.id]);
+
+  if (!schedule) {
     return (
-      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+      <div className="bg-[#EEF4F8] dark:bg-slate-800 border border-[#96C2DB]/40 dark:border-slate-700 rounded-lg p-4 mb-6">
         <div className="flex items-center mb-3">
-          <Clock className="h-5 w-5 text-blue-600 mr-2" />
-          <h3 className="text-lg font-semibold text-blue-900">Office Working Hours</h3>
+          <Clock className="h-5 w-5 text-[#96C2DB] mr-2" />
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-slate-200">Working Hours</h3>
         </div>
-        <p className="text-sm text-blue-700">Loading schedule...</p>
+        <p className="text-sm text-gray-500 dark:text-gray-400">Loading schedule...</p>
       </div>
     );
   }
@@ -54,48 +61,49 @@ const WorkingHoursInfo: React.FC = () => {
   };
 
   return (
-    <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+      <div className="bg-[#EEF4F8] dark:bg-slate-800 border border-[#96C2DB]/40 dark:border-slate-700 rounded-lg p-4 mb-6">
       <div className="flex items-center mb-3">
-        <Clock className="h-5 w-5 text-blue-600 mr-2" />
-        <h3 className="text-lg font-semibold text-blue-900">Office Working Hours</h3>
+        <Clock className="h-5 w-5 text-[#96C2DB] mr-2" />
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-slate-200">Your Working Hours</h3>
       </div>
-      
+
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
         <div className="flex items-center">
-          <Calendar className="h-4 w-4 text-blue-600 mr-2" />
+          <Calendar className="h-4 w-4 text-[#96C2DB] mr-2" />
           <div>
-            <div className="font-medium text-blue-900">Working Hours</div>
-            <div className="text-blue-700">
-              {formatTime12h(hoursConfig.startHour, hoursConfig.startMinute)} - {formatTime12h(hoursConfig.endHour, hoursConfig.endMinute)}
+            <div className="font-medium text-gray-900 dark:text-slate-200">Working Hours</div>
+            <div className="text-gray-500 dark:text-gray-400">
+              {formatTime12h(schedule.start_hour, schedule.start_minute)} - {formatTime12h(schedule.end_hour, schedule.end_minute)}
             </div>
           </div>
         </div>
-        
+
         <div className="flex items-center">
-          <Coffee className="h-4 w-4 text-blue-600 mr-2" />
+          <Coffee className="h-4 w-4 text-[#96C2DB] mr-2" />
           <div>
-            <div className="font-medium text-blue-900">Lunch Break</div>
-            <div className="text-blue-700">
-              {formatTime12h(hoursConfig.lunchStartHour, hoursConfig.lunchStartMinute)} - {formatTime12h(hoursConfig.lunchEndHour, hoursConfig.lunchEndMinute)}
+            <div className="font-medium text-gray-900 dark:text-slate-200">Lunch Break</div>
+            <div className="text-gray-500 dark:text-gray-400">
+              {formatTime12h(schedule.lunch_start_hour, schedule.lunch_start_minute)} - {formatTime12h(schedule.lunch_end_hour, schedule.lunch_end_minute)}
             </div>
           </div>
         </div>
-        
+
         <div className="flex items-center">
-          <Clock className="h-4 w-4 text-blue-600 mr-2" />
+          <Clock className="h-4 w-4 text-[#96C2DB] mr-2" />
           <div>
-            <div className="font-medium text-blue-900">Daily Target</div>
-            <div className="text-blue-700">{hoursConfig.standardWorkHours} hours</div>
+            <div className="font-medium text-gray-900 dark:text-slate-200">Daily Target</div>
+            <div className="text-gray-500 dark:text-gray-400">{schedule.standard_work_hours} hours</div>
           </div>
         </div>
       </div>
-      
-      <div className="mt-3 text-xs text-blue-600">
-        <strong>Note:</strong> Attendance after {formatTime12h(hoursConfig.startHour, hoursConfig.startMinute)} will be marked as late. 
-        Overtime is calculated for hours worked beyond {hoursConfig.standardWorkHours} hours.
+
+      <div className="mt-3 text-xs text-gray-400 dark:text-gray-500">
+        <strong>Note:</strong> Attendance after {formatTime12h(schedule.start_hour, schedule.start_minute)} will be marked as late.
+        Overtime is calculated for hours worked beyond {schedule.standard_work_hours} hours.
       </div>
     </div>
   );
 };
 
 export default WorkingHoursInfo;
+

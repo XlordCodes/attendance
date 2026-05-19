@@ -39,9 +39,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const isBooting = useRef(true);
   const fetchRequestId = useRef(0);
 
+  // Refs for onAuthStateChange stale-closure prevention
+  const employeeRef = useRef<Employee | null>(null);
+  const employeeCheckedRef = useRef(false); // true after first employee check on this session
+  // track if we are in the process of fetching employee data (prevents concurrent fetches)
+  const isFetchingEmployeeRef = useRef(false);
+
+  // Keep employeeRef.current in sync with the latest employee state
+  useEffect(() => {
+    employeeRef.current = employee;
+  }, [employee]);
+
   useEffect(() => {
     let cancelled = false;
     let subscription: { unsubscribe: () => void } | null = null;
+    // reset session-local flags on each mount/remount cycle
+    employeeCheckedRef.current = false;
 
     const initializeSession = async () => {
       try {
@@ -81,14 +94,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
         return;
       }
-      
+
       if (event === 'INITIAL_SESSION') return;
 
       try {
         if (event === 'TOKEN_REFRESHED' && session?.user) {
           setUser(session.user);
-          // Token refresh succeeded; no need to refetch employee profile if we already have it
-          if (!employee) {
+          // Token refresh succeeded; only re-fetch employee if we still have none and aren't already fetching
+          if (!employeeRef.current && !isFetchingEmployeeRef.current) {
             // Defer fetch to next tick to avoid Supabase queue contention
             setTimeout(async () => {
               await withTimeout(fetchEmployeeData(session.user), 30000);
@@ -103,22 +116,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setLoading(false); // Always unblock UI immediately
 
           if (session?.user) {
-            // Only fetch employee if we don't already have it cached
-            if (!employee) {
+            // Only fetch employee if we don't already have it cached AND we haven't already fetched
+            if (!employeeRef.current && !isFetchingEmployeeRef.current && !employeeCheckedRef.current) {
+              employeeCheckedRef.current = true;
               // Defer to next event loop tick to let Supabase finish internal refresh
               setTimeout(async () => {
                 await withTimeout(fetchEmployeeData(session.user), 30000);
               }, 500);
             } else {
-              // Employee already in memory — token refresh handled silently by Supabase
+              // Employee already in memory or already fetched this session — token refresh handled silently by Supabase
             }
           } else {
             setEmployee(null);
+            employeeRef.current = null;
           }
-        } 
-        
+        }
+
         else if (event === 'SIGNED_OUT' || (event as string) === 'TOKEN_REFRESH_FAILED') {
           setEmployee(null);
+          employeeRef.current = null;
           setUser(null);
           toast.error('Session expired. Please log in again.');
           window.location.href = '/';
@@ -147,8 +163,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // PARALLELISED EMPLOYEE LOOKUP with per-query timeout & request deduplication
   // Each query gets its own timeout to ensure Promise.allSettled always settles.
   // Stale responses are ignored via requestId monotonicity check.
+  // isFetchingEmployeeRef prevents concurrent fetches that would each call setEmployee.
   // ──────────────────────────────────────────────────────────
   const fetchEmployeeData = async (authUser: User) => {
+    if (isFetchingEmployeeRef.current) return; // guard against concurrent fetches
+    isFetchingEmployeeRef.current = true;
+
     const currentRequestId = ++fetchRequestId.current;
 
     try {
@@ -187,7 +207,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return;
       }
 
-      if (employee) {
+      if (employeeRef.current) {
         toast.error('Unable to refresh profile. Using cached data.');
         return;
       }
@@ -197,13 +217,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch {
       if (currentRequestId !== fetchRequestId.current) return;
 
-      if (employee) {
+      if (employeeRef.current) {
         toast.error('Unable to refresh profile. Using cached data.');
         return;
       }
 
       toast.error('Error loading user data');
       setEmployee(null);
+    } finally {
+      isFetchingEmployeeRef.current = false;
     }
   };
 
@@ -222,9 +244,45 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       isActive: data.is_active as boolean,
       joinDate: data.join_date as string | undefined,
       createdAt: new Date(data.created_at as string),
-      lastLogin: data.last_login ? new Date(data.last_login as string) : undefined
+      lastLogin: data.last_login ? new Date(data.last_login as string) : undefined,
+      settings: (data.settings as Record<string, unknown> | undefined) ?? undefined,
     };
   };
+
+  // ──────────────────────────────────────────────────────────
+  // THEME INITIALISATION — synchronises document dark class
+  // with the logged-in employee's stored preference (light /
+  // dark / system) and follows OS-level changes in system mode.
+  // ──────────────────────────────────────────────────────────
+  const applyStoredTheme = useCallback((theme: string | undefined) => {
+    const root = document.documentElement;
+    if (theme === 'dark') {
+      root.classList.add('dark');
+    } else if (theme === 'light' || !theme) {
+      root.classList.remove('dark');
+    }  // 'system' / undefined → let matchMedia decide below
+  }, []);
+
+  useEffect(() => {
+    if (!employee) return;
+    const preferredTheme = (employee.settings as Record<string, unknown> | undefined)?.theme as
+      | 'light'
+      | 'dark'
+      | 'system'
+      | undefined;
+    if (preferredTheme === 'light' || preferredTheme === 'dark') {
+      applyStoredTheme(preferredTheme);
+      return;
+    }
+    // system or undefined — follow OS preference with live listener
+    const mq = window.matchMedia('(prefers-color-scheme: dark)');
+    const sync = () => applyStoredTheme(mq.matches ? 'dark' : 'light');
+    sync();
+    mq.addEventListener('change', sync);
+    return () => {
+      mq.removeEventListener('change', sync);
+    };
+  }, [employee, applyStoredTheme]);
 
   const login = useCallback(async (email: string, password: string) => {
     try {

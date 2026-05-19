@@ -1,5 +1,6 @@
 /** @type {import('tailwindcss').Config} */
 export default {
+  darkMode: 'class',
   content: ['./index.html', './src/**/*.{js,ts,jsx,tsx}'],
   theme: {
     extend: {
@@ -10,6 +11,12 @@ export default {
         'mono': ['JetBrains Mono', 'monospace'],
       },
       colors: {
+        canvas: '#E5EDF1',
+        brand: {
+          DEFAULT: '#96C2DB',
+          muted: 'rgba(150, 194, 219, 0.10)',
+          soft:  'rgba(150, 194, 219, 0.20)',
+        },
         primary: {
           50: '#f8fafc',
           100: '#f1f5f9',

@@ -117,9 +117,9 @@ const AttendancePageNew: React.FC = () => {
     const status = getRecordStatus(record);
     switch (status) {
       case 'present':
-        return <CheckCircle className="w-4 h-4 text-green-600" />;
+        return <CheckCircle className="w-4 h-4 text-[#96C2DB]" />;
       case 'late':
-        return <AlertCircle className="w-4 h-4 text-yellow-600" />;
+        return <AlertCircle className="w-4 h-4 text-[#96C2DB]" />;
       case 'absent':
         return <XCircle className="w-4 h-4 text-red-600" />;
       default:
@@ -131,11 +131,11 @@ const AttendancePageNew: React.FC = () => {
     const status = getRecordStatus(record);
     switch (status) {
       case 'present':
-        return 'bg-green-100 text-green-800 border-green-200';
+        return 'bg-emerald-50 text-emerald-700 border border-emerald-100 rounded-full';
       case 'late':
-        return 'bg-yellow-100 text-yellow-800 border-yellow-200';
+        return 'bg-amber-50 text-amber-700 border border-amber-100 rounded-full';
       case 'absent':
-        return 'bg-red-100 text-red-800 border-red-200';
+        return 'bg-rose-50 text-rose-700 border border-rose-100 rounded-full';
       default:
         return 'bg-gray-100 text-gray-800 border-gray-200';
     }
@@ -166,12 +166,12 @@ const AttendancePageNew: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="min-h-screen bg-[#E5EDF1] dark:bg-slate-900 flex items-center justify-center">
         <div className="text-center">
           <div className="w-12 h-12 bg-gray-900 rounded-lg flex items-center justify-center animate-pulse mx-auto mb-4">
-            <div className="w-6 h-6 bg-white rounded opacity-80"></div>
+            <div className="w-6 h-6 bg-white dark:bg-slate-700 rounded opacity-80"></div>
           </div>
-          <h3 className="font-semibold text-gray-900 mb-1">Loading Attendance</h3>
+          <h3 className="font-semibold text-gray-900 dark:text-slate-200 mb-1">Loading Attendance</h3>
           <p className="text-sm text-gray-500">Please wait...</p>
         </div>
       </div>
@@ -179,11 +179,11 @@ const AttendancePageNew: React.FC = () => {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="min-h-screen bg-[#E5EDF1] dark:bg-slate-900 space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">My Attendance</h1>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-200">My Attendance</h1>
           <p className="text-gray-600 mt-1">View your attendance history and statistics</p>
         </div>
         {/* Month Navigation */}
@@ -194,7 +194,7 @@ const AttendancePageNew: React.FC = () => {
           >
             <ChevronLeft className="h-5 w-5 text-gray-600" />
           </button>
-          <h2 className="text-lg font-semibold text-gray-900 min-w-[150px] text-center">
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-slate-200 min-w-[150px] text-center">
             {format(selectedMonth, 'MMMM yyyy')}
           </h2>
           <button
@@ -208,11 +208,11 @@ const AttendancePageNew: React.FC = () => {
 
       {/* My Leave Requests */}
       {employee && (
-        <div className="bg-white rounded-lg shadow-sm border p-6">
-          <h4 className="font-medium text-gray-900 mb-3">My Leave Requests</h4>
+        <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-700 p-6">
+          <h4 className="font-medium text-gray-900 dark:text-slate-200 mb-3">My Leave Requests</h4>
           {loadingLeaves ? (
             <div className="text-center py-4">
-              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mx-auto"></div>
+              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-[#1E2A3A] mx-auto"></div>
             </div>
           ) : employeeLeaveRequests.length > 0 ? (
             <div className="overflow-x-auto">
@@ -228,16 +228,16 @@ const AttendancePageNew: React.FC = () => {
                 <tbody className="text-sm">
                   {employeeLeaveRequests.map((leave) => {
                     const statusColor =
-                      leave.status === 'approved' ? 'text-green-600 bg-green-100' :
-                        leave.status === 'rejected' ? 'text-red-600 bg-red-100' :
-                          'text-yellow-600 bg-yellow-100';
+                      leave.status === 'approved' ? 'text-green-600 bg-green-50' :
+                        leave.status === 'rejected' ? 'text-red-600 bg-red-50' :
+                          'text-yellow-600 bg-yellow-50';
 
                     const start = new Date(`${leave.startDate}T00:00:00`);
                     const end = new Date(`${leave.endDate}T00:00:00`);
                     const days = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
 
                     return (
-                      <tr key={leave.id} className="border-t">
+                      <tr key={leave.id} className="border-t dark:border-slate-600">
                         <td className="py-2 capitalize pr-4">{leave.leaveType}</td>
                         <td className="py-2 pr-4">
                           {format(start, 'MMM dd, yyyy')} – {format(end, 'MMM dd, yyyy')}
@@ -267,54 +267,54 @@ const AttendancePageNew: React.FC = () => {
 
       {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <div className="bg-white rounded-lg shadow-sm border p-6">
+        <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-700 p-6">
           <div className="flex items-center">
-            <Calendar className="h-8 w-8 text-blue-600" />
+            <Calendar className="h-8 w-8 text-[#96C2DB] mr-2" />
             <div className="ml-4">
               <p className="text-sm font-medium text-gray-600">Days Present</p>
-              <p className="text-2xl font-bold text-gray-900">{stats.presentDays}</p>
+              <p className="text-2xl font-bold text-gray-900 dark:text-slate-200">{stats.presentDays}</p>
               <p className="text-xs text-gray-500">Out of {stats.totalDays} days</p>
             </div>
           </div>
         </div>
 
-        <div className="bg-white rounded-lg shadow-sm border p-6">
+        <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-700 p-6">
           <div className="flex items-center">
-            <CheckCircle className="h-8 w-8 text-green-600" />
+            <CheckCircle className="h-8 w-8 text-[#96C2DB] mr-2" />
             <div className="ml-4">
               <p className="text-sm font-medium text-gray-600">Attendance Rate</p>
-              <p className="text-2xl font-bold text-gray-900">{stats.attendancePercentage.toFixed(1)}%</p>
+              <p className="text-2xl font-bold text-gray-900 dark:text-slate-200">{stats.attendancePercentage.toFixed(1)}%</p>
               <p className="text-xs text-gray-500">This month</p>
             </div>
           </div>
         </div>
 
-        <div className="bg-white rounded-lg shadow-sm border p-6">
+        <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-700 p-6">
           <div className="flex items-center">
-            <Clock className="h-8 w-8 text-purple-600" />
+            <Clock className="h-8 w-8 text-[#96C2DB]" />
             <div className="ml-4">
               <p className="text-sm font-medium text-gray-600">Total Hours</p>
-              <p className="text-2xl font-bold text-gray-900">{formatDuration(stats.totalHours)}</p>
+              <p className="text-2xl font-bold text-gray-900 dark:text-slate-200">{formatDuration(stats.totalHours)}</p>
               <p className="text-xs text-gray-500">Avg: {formatDuration(stats.averageHours)}</p>
             </div>
           </div>
         </div>
 
-        <div className="bg-white rounded-lg shadow-sm border p-6">
+        <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-700 p-6">
           <div className="flex items-center">
             <AlertCircle className="h-8 w-8 text-yellow-600" />
             <div className="ml-4">
               <p className="text-sm font-medium text-gray-600">Late Days</p>
-              <p className="text-2xl font-bold text-gray-900">{stats.lateDays}</p>
+              <p className="text-2xl font-bold text-gray-900 dark:text-slate-200">{stats.lateDays}</p>
             </div>
           </div>
         </div>
       </div>
 
       {/* Attendance Table */}
-      <div className="bg-white rounded-lg shadow-sm border overflow-hidden">
+      <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-700 overflow-hidden">
         <div className="px-6 py-4 border-b border-gray-200">
-          <h3 className="text-lg font-semibold text-gray-900">Attendance Records</h3>
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-slate-200">Attendance Records</h3>
         </div>
 
         <div className="overflow-x-auto">
@@ -341,7 +341,7 @@ const AttendancePageNew: React.FC = () => {
                 </th>
               </tr>
             </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
+            <tbody className="bg-white dark:bg-slate-800 divide-y divide-gray-200 dark:divide-slate-700">
               {records.length > 0 ? (
                 records
                   .map((record) => {
@@ -354,7 +354,7 @@ const AttendancePageNew: React.FC = () => {
                     return (
                       <tr key={record.date} className="hover:bg-gray-50">
                         <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm font-medium text-gray-900">
+                          <div className="text-sm font-medium text-gray-900 dark:text-slate-200">
                             {format(recordDate, 'MMM dd, yyyy')}
                           </div>
                           <div className="text-xs text-gray-500">
@@ -367,16 +367,16 @@ const AttendancePageNew: React.FC = () => {
                             <span className="ml-1 capitalize">{getRecordStatus(record)}</span>
                           </span>
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-slate-200">
                           {record.clockIn ? format(record.clockIn, 'HH:mm') : '--:--'}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-slate-200">
                           {record.clockOut ? format(record.clockOut, 'HH:mm') : '--:--'}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-slate-200">
                           {formatDuration(record.hoursWorked || 0)}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-slate-200">
                           {record.breaks.length} ({formatMinutes(record.breaks.reduce((sum, b) => {
                             const duration = b.endTime && b.startTime
                               ? Math.floor((b.endTime.getTime() - b.startTime.getTime()) / (1000 * 60))
@@ -393,7 +393,7 @@ const AttendancePageNew: React.FC = () => {
                   <td colSpan={6} className="px-6 py-12 text-center">
                     <div className="text-gray-500">
                       <Calendar className="h-12 w-12 mx-auto mb-4 text-gray-300" />
-                      <h3 className="text-lg font-medium text-gray-900 mb-2">No attendance records</h3>
+                      <h3 className="text-lg font-medium text-gray-900 dark:text-slate-200 mb-2">No attendance records</h3>
                       <p className="text-sm">No attendance data found for {format(selectedMonth, 'MMMM yyyy')}</p>
                     </div>
                   </td>

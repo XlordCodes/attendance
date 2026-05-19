@@ -156,7 +156,7 @@ const AttendanceLogsNew: React.FC = () => {
     const lateDays = records.filter(r => r.isLate).length;
     const absentDays = workingDays - presentDays;
 
-    const totalHours = records.reduce((sum, r) => sum + (r.hoursWorked || 0), 0);
+    const totalHours = records.reduce((sum, r) => sum + (Number(r.hoursWorked) || 0), 0);
     const totalBreaks = records.reduce((sum, r) => sum + r.breaks.length, 0);
 
     return {
@@ -195,9 +195,9 @@ const AttendanceLogsNew: React.FC = () => {
 
   const getStatusColor = (status: 'present' | 'late' | 'absent') => {
     switch (status) {
-      case 'present': return 'text-green-600 bg-green-100';
-      case 'late': return 'text-yellow-600 bg-yellow-100';
-      case 'absent': return 'text-red-600 bg-red-100';
+      case 'present': return 'text-green-600 bg-green-50';
+      case 'late': return 'text-yellow-600 bg-yellow-50';
+      case 'absent': return 'text-red-600 bg-red-50';
       default: return 'text-gray-600 bg-gray-100';
     }
   };
@@ -268,10 +268,10 @@ const AttendanceLogsNew: React.FC = () => {
       {/* Header */}
       <div className="flex justify-between items-center">
         <div className="flex items-center space-x-3">
-          <h1 className="text-2xl font-bold text-gray-900">Attendance Logs</h1>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-200 dark:text-slate-200">Attendance Logs</h1>
           <button
             onClick={() => setShowTermsModal(true)}
-            className="bg-blue-100 hover:bg-blue-200 text-blue-600 p-2 rounded-lg transition-colors"
+            className="bg-[#96C2DB]/10 hover:bg-[#96C2DB]/10 text-gray-700 p-2 transition-colors border border-[#96C2DB]/30 rounded-full"
             title="View Terms & Conditions"
           >
             <Info className="h-4 w-4" />
@@ -280,7 +280,7 @@ const AttendanceLogsNew: React.FC = () => {
         <div className="flex space-x-3">
           <button
             onClick={exportToExcel}
-            className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg flex items-center"
+            className="bg-white dark:bg-slate-800 text-gray-900 dark:text-slate-200 border border-gray-200 dark:border-slate-600 hover:bg-[#E5EDF1] px-4 py-2 rounded-lg flex items-center"
           >
             <Download className="mr-2 h-4 w-4" />
             Export Excel
@@ -290,49 +290,49 @@ const AttendanceLogsNew: React.FC = () => {
 
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <div className="bg-white rounded-lg shadow-sm border p-6">
+        <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-700 p-6">
           <div className="flex items-center">
-            <Users className="h-8 w-8 text-blue-600" />
+            <Users className="h-8 w-8 text-[#96C2DB]" />
             <div className="ml-4">
               <p className="text-sm font-medium text-gray-600">Total Employees</p>
-              <p className="text-2xl font-bold text-gray-900">{totalStats.totalEmployees}</p>
+              <p className="text-2xl font-bold text-gray-900 dark:text-slate-200">{totalStats.totalEmployees}</p>
             </div>
           </div>
         </div>
 
-        <div className="bg-white rounded-lg shadow-sm border p-6">
+        <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-700 p-6">
           <div className="flex items-center">
-            <Clock className="h-8 w-8 text-green-600" />
+            <Clock className="h-8 w-8 text-[#96C2DB]" />
             <div className="ml-4">
               <p className="text-sm font-medium text-gray-600">Total Hours</p>
-              <p className="text-2xl font-bold text-gray-900">{formatDuration(totalStats.totalHours)}</p>
+              <p className="text-2xl font-bold text-gray-900 dark:text-slate-200">{formatDuration(totalStats.totalHours)}</p>
             </div>
           </div>
         </div>
 
-        <div className="bg-white rounded-lg shadow-sm border p-6">
+        <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-700 p-6">
           <div className="flex items-center">
-            <CheckCircle className="h-8 w-8 text-green-600" />
+            <CheckCircle className="h-8 w-8 text-[#96C2DB]" />
             <div className="ml-4">
               <p className="text-sm font-medium text-gray-600">Present Days</p>
-              <p className="text-2xl font-bold text-gray-900">{totalStats.totalPresent}</p>
+              <p className="text-2xl font-bold text-gray-900 dark:text-slate-200">{totalStats.totalPresent}</p>
             </div>
           </div>
         </div>
 
-        <div className="bg-white rounded-lg shadow-sm border p-6">
+        <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-700 p-6">
           <div className="flex items-center">
-            <AlertCircle className="h-8 w-8 text-yellow-600" />
+            <AlertCircle className="h-8 w-8 text-[#96C2DB]" />
             <div className="ml-4">
               <p className="text-sm font-medium text-gray-600">Late Days</p>
-              <p className="text-2xl font-bold text-gray-900">{totalStats.totalLate}</p>
+              <p className="text-2xl font-bold text-gray-900 dark:text-slate-200">{totalStats.totalLate}</p>
             </div>
           </div>
         </div>
       </div>
 
       {/* Filters */}
-      <div className="bg-white rounded-lg shadow-sm border p-6">
+      <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-700 p-6">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           {/* Month Navigation */}
           <div className="flex items-center space-x-2">
@@ -362,7 +362,7 @@ const AttendanceLogsNew: React.FC = () => {
             <select
               value={selectedEmployee}
               onChange={(e) => setSelectedEmployee(e.target.value)}
-              className="flex-1 border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="flex-1 border border-gray-200 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-800 px-3 py-2 focus:ring-2 focus:ring-[#96C2DB] focus:border-[#96C2DB] focus:border-transparent"
             >
               <option value="all">All Employees</option>
               {employees.map((employee) => (
@@ -381,7 +381,7 @@ const AttendanceLogsNew: React.FC = () => {
               placeholder="Search employees..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="flex-1 border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="flex-1 border border-gray-200 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-800 px-3 py-2 focus:ring-2 focus:ring-[#96C2DB] focus:border-[#96C2DB] focus:border-transparent"
             />
           </div>
         </div>
@@ -389,11 +389,11 @@ const AttendanceLogsNew: React.FC = () => {
 
       {/* My Leave Requests */}
       {employee && (
-        <div className="bg-white rounded-lg shadow-sm border p-6">
+        <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-700 p-6">
           <h4 className="font-medium text-gray-900 mb-3">My Leave Requests</h4>
           {loadingLeaves ? (
             <div className="text-center py-4">
-              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mx-auto"></div>
+              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-[#1E2A3A] mx-auto"></div>
             </div>
           ) : employeeLeaveRequests.length > 0 ? (
             <div className="overflow-x-auto">
@@ -409,9 +409,9 @@ const AttendanceLogsNew: React.FC = () => {
                 <tbody className="text-sm">
                   {employeeLeaveRequests.map((leave) => {
                     const statusColor =
-                      leave.status === 'approved' ? 'text-green-600 bg-green-100' :
-                      leave.status === 'rejected' ? 'text-red-600 bg-red-100' :
-                      'text-yellow-600 bg-yellow-100';
+                      leave.status === 'approved' ? 'text-green-600 bg-green-50' :
+                        leave.status === 'rejected' ? 'text-red-600 bg-red-50' :
+                          'text-yellow-600 bg-yellow-50';
 
                     const start = new Date(`${leave.startDate}T00:00:00`);
                     const end = new Date(`${leave.endDate}T00:00:00`);
@@ -449,13 +449,13 @@ const AttendanceLogsNew: React.FC = () => {
       {/* Attendance Data */}
       {loading ? (
         <div className="text-center py-12">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#1E2A3A] mx-auto"></div>
           <p className="mt-4 text-gray-600">Loading attendance data...</p>
         </div>
       ) : (
         <div className="space-y-6">
           {filteredData.map((data) => (
-            <div key={data.employee.id} className="bg-white rounded-lg shadow-sm border">
+            <div key={data.employee.id} className="bg-white rounded-2xl shadow-sm border border-gray-100">
               {/* Employee Header */}
               <div className="p-6 border-b">
                 <div className="flex justify-between items-start">
@@ -469,7 +469,7 @@ const AttendanceLogsNew: React.FC = () => {
                       <div>
                         <span className="text-gray-600">Attendance:</span>
                         <span className="ml-1 font-medium">
-                          {data.stats.attendancePercentage.toFixed(1)}%
+                          {(Number(data.stats.attendancePercentage) || 0).toFixed(1)}%
                         </span>
                       </div>
                       <div>
@@ -486,11 +486,11 @@ const AttendanceLogsNew: React.FC = () => {
                 <div className="mt-4 grid grid-cols-5 gap-4 text-sm">
                   <div className="text-center">
                     <p className="text-gray-600">Present</p>
-                    <p className="font-semibold text-green-600">{data.stats.presentDays}</p>
+                    <p className="font-semibold text-gray-900">{data.stats.presentDays}</p>
                   </div>
                   <div className="text-center">
                     <p className="text-gray-600">Late</p>
-                    <p className="font-semibold text-yellow-600">{data.stats.lateDays}</p>
+                    <p className="font-semibold text-gray-900">{data.stats.lateDays}</p>
                   </div>
                   <div className="text-center">
                     <p className="text-gray-600">Absent</p>
@@ -498,7 +498,7 @@ const AttendanceLogsNew: React.FC = () => {
                   </div>
                   <div className="text-center">
                     <p className="text-gray-600">Total Hours</p>
-                    <p className="font-semibold text-blue-600">{formatDuration(data.stats.totalHours)}</p>
+                    <p className="font-semibold text-gray-900">{formatDuration(Number(data.stats.totalHours) || 0)}</p>
                   </div>
                 </div>
               </div>

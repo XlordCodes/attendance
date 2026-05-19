@@ -1,10 +1,10 @@
-import React, { Suspense, Component, useEffect } from 'react';
+import React, { Suspense, Component } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import { AuthProvider, useAuth } from './hooks/useAuth';
 import ProtectedRoute from './components/common/ProtectedRoute';
 import Sidebar from './components/Layout/Sidebar';
-import { loadWorkingHoursFromDB } from './constants/workingHours';
+import RealtimeNotificationListener from './components/common/RealtimeNotificationListener';
 
 // ────────────────────────────────────────────────────────────
 // LAZY IMPORTS — Code-split every page-level component.
@@ -31,13 +31,13 @@ const KioskMode = React.lazy(() => import('./components/Admin/KioskMode'));
 // Keeps the loading UX consistent with ProtectedRoute's spinner.
 // ────────────────────────────────────────────────────────────
 const GlobalLoader: React.FC = () => (
-  <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="min-h-screen bg-[#E5EDF1] dark:bg-slate-900 flex items-center justify-center">
     <div className="flex flex-col items-center space-y-4">
       <div className="w-12 h-12 bg-gray-900 rounded-lg flex items-center justify-center animate-pulse">
-        <div className="w-6 h-6 bg-white rounded opacity-80"></div>
+        <div className="w-6 h-6 bg-white dark:bg-slate-700 rounded opacity-80"></div>
       </div>
       <div className="text-center">
-        <h3 className="font-semibold text-gray-900 mb-1">Loading System Module</h3>
+        <h3 className="font-semibold text-gray-900 dark:text-slate-200 mb-1">Loading System Module</h3>
         <p className="text-sm text-gray-500">Fetching components...</p>
       </div>
     </div>
@@ -77,15 +77,15 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
   render() {
     if (this.state.hasError) {
       return (
-        <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+<div className="min-h-screen bg-[#E5EDF1] dark:bg-slate-900 flex items-center justify-center">
           <div className="flex flex-col items-center space-y-6 max-w-lg text-center px-6">
-            <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center">
+            <div className="w-16 h-16 bg-[#E5EDF1] dark:bg-slate-800 rounded-full flex items-center justify-center">
               <svg className="w-8 h-8 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
             </div>
             <div>
-              <h2 className="text-xl font-semibold text-gray-900 mb-2">Something went wrong</h2>
+              <h2 className="text-xl font-semibold text-gray-900 dark:text-slate-200 mb-2">Something went wrong</h2>
               <p className="text-gray-600 text-sm leading-relaxed mb-4">
                 An unexpected error occurred while rendering the application.
                 This has been logged for investigation.
@@ -110,7 +110,7 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
                 onClick={() => {
                   this.setState({ hasError: false, error: null });
                 }}
-                className="px-6 py-2.5 bg-white text-gray-700 text-sm font-medium rounded-lg border border-gray-300 hover:bg-gray-50 transition-colors"
+                className="px-6 py-2.5 bg-white dark:bg-slate-800 text-gray-700 dark:text-gray-300 text-sm font-medium rounded-lg border border-gray-300 dark:border-slate-600 hover:bg-gray-50 transition-colors"
               >
                 Try Again
               </button>
@@ -129,9 +129,9 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
 // ────────────────────────────────────────────────────────────
 const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   return (
-    <div className="flex h-screen bg-gray-50 overflow-hidden">
+    <div className="flex h-screen bg-[#E5EDF1] dark:bg-slate-900 overflow-hidden">
       <Sidebar />
-      <main className="flex-1 overflow-auto bg-gray-50 ml-0">
+      <main className="flex-1 overflow-auto bg-[#E5EDF1] dark:bg-slate-900 ml-0">
         <div className="p-8 min-h-full">
           {children}
         </div>
@@ -145,11 +145,6 @@ const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 // ────────────────────────────────────────────────────────────
 const AppContent: React.FC = () => {
   const { loading } = useAuth();
-
-  // Load working hours configuration from the database once on app mount
-  useEffect(() => {
-    loadWorkingHoursFromDB();
-  }, []);
 
   // Strict guard: hold the loading screen until auth state machine settles
   if (loading) {
@@ -249,31 +244,31 @@ function App() {
   return (
     <div className="h-full">
       <ErrorBoundary>
-        <AuthProvider>
-          <Router>
+      <AuthProvider>
+        <RealtimeNotificationListener />
+        <Router>
             <div className="App h-full">
               <AppContent />
               <Toaster
                 position="top-right"
                 toastOptions={{
                   duration: 4000,
+                  className: 'bg-white dark:bg-slate-800 text-gray-900 dark:text-slate-200 rounded-xl shadow-soft border border-gray-100 dark:border-slate-700',
                   style: {
-                    background: '#1f2937',
-                    color: '#ffffff',
+                    padding: '16px',
                     fontFamily: 'Inter, system-ui, sans-serif',
                     fontWeight: '500',
-                    borderRadius: '8px',
-                    boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
-                    border: '1px solid #374151',
                   },
                   success: {
-                    style: {
-                      background: '#059669',
+                    iconTheme: {
+                      primary: '#10b981',
+                      secondary: '#ecfdf5',
                     },
                   },
                   error: {
-                    style: {
-                      background: '#dc2626',
+                    iconTheme: {
+                      primary: '#f43f5e',
+                      secondary: '#fff1f2',
                     },
                   },
                 }}

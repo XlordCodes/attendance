@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react';
-import { 
-  Calendar, 
-  Check, 
-  X, 
-  Clock, 
-  User, 
+import {
+  Calendar,
+  Check,
+  X,
+  Clock,
+  User,
   FileText,
   AlertCircle,
   CheckCircle,
@@ -22,26 +22,26 @@ const LeaveManagement: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<'all' | 'pending' | 'approved' | 'rejected'>('all');
 
-   useEffect(() => {
-     loadLeaveRequests();
-   }, []);
+  useEffect(() => {
+    loadLeaveRequests();
+  }, []);
 
-   const loadLeaveRequests = async () => {
-     setLoading(true);
-     try {
-       const requests = await leaveService.getAllLeaveRequests();
-       setLeaveRequests(requests);
-     } catch (error) {
-       console.error('Error loading leave requests:', error);
-       toast.error('Failed to load leave requests');
-     } finally {
-       setLoading(false);
-     }
-   };
+  const loadLeaveRequests = async () => {
+    setLoading(true);
+    try {
+      const requests = await leaveService.getAllLeaveRequests();
+      setLeaveRequests(requests);
+    } catch (error) {
+      console.error('Error loading leave requests:', error);
+      toast.error('Failed to load leave requests');
+    } finally {
+      setLoading(false);
+    }
+  };
 
-   const formatDate = (dateString: string) => {
-     return format(new Date(`${dateString}T00:00:00`), 'MMM dd, yyyy');
-   };
+  const formatDate = (dateString: string) => {
+    return format(new Date(`${dateString}T00:00:00`), 'MMM dd, yyyy');
+  };
 
   const handleApproveRequest = async (id: string) => {
     try {
@@ -94,9 +94,9 @@ const LeaveManagement: React.FC = () => {
 
   const getStatusColor = (status: LeaveRequest['status']) => {
     switch (status) {
-      case 'pending': return 'text-yellow-600 bg-yellow-100';
-      case 'approved': return 'text-green-600 bg-green-100';
-      case 'rejected': return 'text-red-600 bg-red-100';
+      case 'pending': return 'text-yellow-600 bg-yellow-50';
+      case 'approved': return 'text-green-600 bg-green-50';
+      case 'rejected': return 'text-red-600 bg-red-50';
       default: return 'text-gray-600 bg-gray-100';
     }
   };
@@ -112,10 +112,10 @@ const LeaveManagement: React.FC = () => {
 
   const getLeaveTypeColor = (type: LeaveRequest['leaveType']) => {
     switch (type) {
-      case 'vacation': return 'text-blue-600 bg-blue-100';
-      case 'sick': return 'text-red-600 bg-red-100';
-      case 'personal': return 'text-purple-600 bg-purple-100';
-      case 'emergency': return 'text-orange-600 bg-orange-100';
+      case 'vacation': return 'text-[#0369a1] bg-[#d4f1fc]';
+      case 'sick': return 'text-red-600 bg-red-50';
+      case 'personal': return 'text-purple-600 bg-purple-50';
+      case 'emergency': return 'text-orange-600 bg-orange-50';
       default: return 'text-gray-600 bg-gray-100';
     }
   };
@@ -135,28 +135,27 @@ const LeaveManagement: React.FC = () => {
       {/* Header */}
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Leave Management</h1>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-200">Leave Management</h1>
           <p className="text-gray-600">Manage employee leave requests and approvals</p>
         </div>
         {pendingCount > 0 && (
-          <div className="bg-yellow-100 text-yellow-800 px-3 py-1 rounded-full text-sm font-medium">
+          <div className="bg-amber-50 text-amber-700 px-3 py-1 text-sm font-medium border border-amber-100 rounded-full">
             {pendingCount} pending requests
           </div>
         )}
       </div>
 
       {/* Filter Tabs */}
-      <div className="bg-white rounded-lg shadow-sm border p-4">
+      <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-700 p-4">
         <div className="flex space-x-4">
           {(['all', 'pending', 'approved', 'rejected'] as const).map((status) => (
             <button
               key={status}
               onClick={() => setFilter(status)}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                filter === status
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-              }`}
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${filter === status
+                ? 'bg-black text-white'
+                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                }`}
             >
               {status.charAt(0).toUpperCase() + status.slice(1)}
               {status !== 'all' && (
@@ -172,20 +171,20 @@ const LeaveManagement: React.FC = () => {
       {/* Leave Requests */}
       {loading ? (
         <div className="text-center py-12">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#1E2A3A] mx-auto"></div>
           <p className="mt-4 text-gray-600">Loading leave requests...</p>
         </div>
       ) : (
         <div className="space-y-4">
           {filteredRequests.length > 0 ? (
             filteredRequests.map((request) => (
-              <div key={request.id} className="bg-white rounded-lg shadow-sm border p-6">
+              <div key={request.id} className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-700 p-6">
                 <div className="flex justify-between items-start">
                   <div className="flex-1">
                     <div className="flex items-center space-x-3 mb-3">
                       <div className="flex items-center space-x-2">
                         <User className="h-5 w-5 text-gray-400" />
-                        <span className="font-semibold text-gray-900">{request.employeeName}</span>
+                        <span className="font-semibold text-gray-900 dark:text-slate-200">{request.employeeName}</span>
                       </div>
                       <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getLeaveTypeColor(request.leaveType)}`}>
                         {request.leaveType.charAt(0).toUpperCase() + request.leaveType.slice(1)}
@@ -211,7 +210,7 @@ const LeaveManagement: React.FC = () => {
                       </div>
                     </div>
 
-                    <div className="bg-gray-50 rounded-lg p-3">
+                    <div className="bg-white dark:bg-slate-800 rounded-2xl p-3 border border-gray-100 dark:border-slate-700">
                       <p className="text-sm text-gray-700">
                         <strong>Reason:</strong> {request.reason}
                       </p>
@@ -222,14 +221,14 @@ const LeaveManagement: React.FC = () => {
                     <div className="flex space-x-2 ml-4">
                       <button
                         onClick={() => handleApproveRequest(request.id!)}
-                        className="bg-green-600 hover:bg-green-700 text-white p-2 rounded-lg transition-colors"
+                        className="bg-black hover:bg-gray-800 text-white p-2 rounded-lg transition-colors"
                         title="Approve"
                       >
                         <Check className="h-4 w-4" />
                       </button>
                       <button
                         onClick={() => handleRejectRequest(request.id!)}
-                        className="bg-red-600 hover:bg-red-700 text-white p-2 rounded-lg transition-colors"
+                        className="bg-rose-50 text-rose-700 border border-rose-100 hover:bg-rose-100 transition-colors   p-2 rounded-xl transition-colors"
                         title="Reject"
                       >
                         <X className="h-4 w-4" />
@@ -243,7 +242,7 @@ const LeaveManagement: React.FC = () => {
             <div className="text-center py-12">
               <FileText className="h-12 w-12 mx-auto mb-4 text-gray-300" />
               <p className="text-gray-500">
-                {filter === 'all' 
+                {filter === 'all'
                   ? 'No leave requests found'
                   : `No ${filter} leave requests found`
                 }

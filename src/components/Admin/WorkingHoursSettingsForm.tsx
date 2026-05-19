@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Save, Clock, Coffee, Workflow } from 'lucide-react';
+import { Save, Clock, Coffee, Workflow, Users } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { configService } from '../../services/configService';
-import { updateWorkingHours } from '../../constants/workingHours';
 
 interface FormData {
   START_HOUR: number;
@@ -34,28 +33,39 @@ const WorkingHoursSettingsForm: React.FC = () => {
     REQUIRE_IP_MATCH: true,
     REQUIRE_GEO_MATCH: true,
   });
+  const [selectedRole, setSelectedRole] = useState<string>('employee');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    const fetchConfig = async () => {
+    const fetchData = async () => {
       try {
+        // Global config for security toggles (once)
         const dbConfig = await configService.getWorkingHoursConfig();
         if (dbConfig) {
-          setFormData({
-            START_HOUR: dbConfig.start_hour,
-            START_MINUTE: dbConfig.start_minute,
-            END_HOUR: dbConfig.end_hour,
-            END_MINUTE: dbConfig.end_minute,
-            STANDARD_WORK_HOURS: dbConfig.standard_work_hours,
-            LUNCH_START_HOUR: dbConfig.lunch_start_hour,
-            LUNCH_START_MINUTE: dbConfig.lunch_start_minute,
-            LUNCH_END_HOUR: dbConfig.lunch_end_hour,
-            LUNCH_END_MINUTE: dbConfig.lunch_end_minute,
-            OVERTIME_THRESHOLD: dbConfig.overtime_threshold,
+          setFormData(prev => ({
+            ...prev,
             REQUIRE_IP_MATCH: dbConfig.require_ip_match,
-            REQUIRE_GEO_MATCH: dbConfig.require_geo_match,
-          });
+            REQUIRE_GEO_MATCH: dbConfig.require_geo_match
+          }));
+        }
+
+        // Role-specific schedule for selected role
+        const schedule = await configService.getScheduleByRole(selectedRole);
+        if (schedule) {
+          setFormData(prev => ({
+            ...prev,
+            START_HOUR: schedule.start_hour,
+            START_MINUTE: schedule.start_minute,
+            END_HOUR: schedule.end_hour,
+            END_MINUTE: schedule.end_minute,
+            STANDARD_WORK_HOURS: schedule.standard_work_hours,
+            LUNCH_START_HOUR: schedule.lunch_start_hour,
+            LUNCH_START_MINUTE: schedule.lunch_start_minute,
+            LUNCH_END_HOUR: schedule.lunch_end_hour,
+            LUNCH_END_MINUTE: schedule.lunch_end_minute,
+            OVERTIME_THRESHOLD: schedule.overtime_threshold
+          }));
         }
       } catch (error) {
         console.error('Failed to load config:', error);
@@ -65,8 +75,9 @@ const WorkingHoursSettingsForm: React.FC = () => {
       }
     };
 
-    fetchConfig();
-  }, []);
+    fetchData();
+    // }, [selectedRole]);
+  }, [selectedRole]);
 
   const handleChange = (field: keyof FormData, value: number) => {
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -110,38 +121,84 @@ const WorkingHoursSettingsForm: React.FC = () => {
     return true;
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+   const handleSubmit = async (e: React.FormEvent) => {
+     e.preventDefault();
 
-    if (!validate()) return;
+     if (!validate()) return;
 
-    setSaving(true);
-    try {
-      await updateWorkingHours(formData);
-      toast.success('Working hours updated successfully');
-    } catch (error) {
-      console.error('Error updating working hours:', error);
-      toast.error('Failed to update working hours. Make sure you are an admin.');
-    } finally {
-      setSaving(false);
-    }
-  };
+     setSaving(true);
+     try {
+       // Update global security settings (working_hours_config)
+       await configService.updateWorkingHoursConfig({
+         require_ip_match: formData.REQUIRE_IP_MATCH,
+         require_geo_match: formData.REQUIRE_GEO_MATCH
+       });
+
+       // Update role-specific schedule (role_schedules)
+       await configService.updateRoleSchedule(selectedRole, {
+         start_hour: formData.START_HOUR,
+         start_minute: formData.START_MINUTE,
+         end_hour: formData.END_HOUR,
+         end_minute: formData.END_MINUTE,
+         standard_work_hours: formData.STANDARD_WORK_HOURS,
+         lunch_start_hour: formData.LUNCH_START_HOUR,
+         lunch_start_minute: formData.LUNCH_START_MINUTE,
+         lunch_end_hour: formData.LUNCH_END_HOUR,
+         lunch_end_minute: formData.LUNCH_END_MINUTE,
+         overtime_threshold: formData.OVERTIME_THRESHOLD
+       });
+
+       toast.success('Working hours updated successfully');
+     } catch (error) {
+       console.error('Error updating working hours:', error);
+       toast.error('Failed to update working hours. Make sure you are an admin.');
+     } finally {
+       setSaving(false);
+     }
+   };
 
   if (loading) {
     return (
       <div className="flex items-center justify-center p-8">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#1E2A3A]"></div>
       </div>
     );
   }
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
+      {/* Role Selector */}
+      <div className="bg-white dark:bg-slate-800 p-4 rounded-xl border border-gray-200 dark:border-slate-600">
+        <div className="flex items-center mb-3">
+          <Users className="h-5 w-5 text-[#96C2DB] mr-2" />
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-slate-200">Role Schedule</h3>
+        </div>
+        <div className="max-w-md">
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Select Role to Configure
+          </label>
+          <select
+            value={selectedRole}
+            onChange={(e) => setSelectedRole(e.target.value)}
+            className="w-full px-3 py-2 border border-gray-200 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-800 focus:ring-2 focus:ring-[#96C2DB] focus:border-[#96C2DB] focus:border-transparent"
+          >
+            <option value="admin">Admin</option>
+            <option value="core">Core</option>
+            <option value="employee">Employee</option>
+            <option value="trainee">Trainee</option>
+            <option value="intern">Intern</option>
+          </select>
+          <p className="text-xs text-gray-500 mt-1">
+            Adjust the schedule for the selected role. Security settings (IP/Geo) apply globally.
+          </p>
+        </div>
+      </div>
+
       {/* Work Hours Section */}
-      <div className="bg-gray-50 p-4 rounded-lg">
+      <div className="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-gray-100 dark:border-slate-700">
         <div className="flex items-center mb-4">
-          <Clock className="h-5 w-5 text-blue-600 mr-2" />
-          <h3 className="text-lg font-semibold text-gray-900">Daily Working Hours</h3>
+          <Clock className="h-5 w-5 text-[#96C2DB] mr-2" />
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-slate-200">Daily Working Hours</h3>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
@@ -155,7 +212,7 @@ const WorkingHoursSettingsForm: React.FC = () => {
                 max="23"
                 value={formData.START_HOUR}
                 onChange={(e) => handleChange('START_HOUR', parseInt(e.target.value) || 0)}
-                className="w-20 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-20 px-3 py-2 border border-gray-200 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-800 focus:ring-2 focus:ring-[#96C2DB] focus:border-[#96C2DB] focus:border-transparent"
                 required
               />
               <span className="text-gray-500">:</span>
@@ -165,7 +222,7 @@ const WorkingHoursSettingsForm: React.FC = () => {
                 max="59"
                 value={formData.START_MINUTE}
                 onChange={(e) => handleChange('START_MINUTE', parseInt(e.target.value) || 0)}
-                className="w-20 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-20 px-3 py-2 border border-gray-200 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-800 focus:ring-2 focus:ring-[#96C2DB] focus:border-[#96C2DB] focus:border-transparent"
                 required
               />
             </div>
@@ -181,7 +238,7 @@ const WorkingHoursSettingsForm: React.FC = () => {
                 max="23"
                 value={formData.END_HOUR}
                 onChange={(e) => handleChange('END_HOUR', parseInt(e.target.value) || 0)}
-                className="w-20 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-20 px-3 py-2 border border-gray-200 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-800 focus:ring-2 focus:ring-[#96C2DB] focus:border-[#96C2DB] focus:border-transparent"
                 required
               />
               <span className="text-gray-500">:</span>
@@ -191,7 +248,7 @@ const WorkingHoursSettingsForm: React.FC = () => {
                 max="59"
                 value={formData.END_MINUTE}
                 onChange={(e) => handleChange('END_MINUTE', parseInt(e.target.value) || 0)}
-                className="w-20 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-20 px-3 py-2 border border-gray-200 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-800 focus:ring-2 focus:ring-[#96C2DB] focus:border-[#96C2DB] focus:border-transparent"
                 required
               />
             </div>
@@ -200,10 +257,10 @@ const WorkingHoursSettingsForm: React.FC = () => {
       </div>
 
       {/* Lunch Break Section */}
-      <div className="bg-gray-50 p-4 rounded-lg">
+      <div className="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-gray-100 dark:border-slate-700">
         <div className="flex items-center mb-4">
-          <Coffee className="h-5 w-5 text-blue-600 mr-2" />
-          <h3 className="text-lg font-semibold text-gray-900">Lunch Break</h3>
+          <Coffee className="h-5 w-5 text-[#96C2DB] mr-2" />
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-slate-200">Lunch Break</h3>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
@@ -217,7 +274,7 @@ const WorkingHoursSettingsForm: React.FC = () => {
                 max="23"
                 value={formData.LUNCH_START_HOUR}
                 onChange={(e) => handleChange('LUNCH_START_HOUR', parseInt(e.target.value) || 0)}
-                className="w-20 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-20 px-3 py-2 border border-gray-200 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-800 focus:ring-2 focus:ring-[#96C2DB] focus:border-[#96C2DB] focus:border-transparent"
                 required
               />
               <span className="text-gray-500">:</span>
@@ -227,7 +284,7 @@ const WorkingHoursSettingsForm: React.FC = () => {
                 max="59"
                 value={formData.LUNCH_START_MINUTE}
                 onChange={(e) => handleChange('LUNCH_START_MINUTE', parseInt(e.target.value) || 0)}
-                className="w-20 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-20 px-3 py-2 border border-gray-200 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-800 focus:ring-2 focus:ring-[#96C2DB] focus:border-[#96C2DB] focus:border-transparent"
                 required
               />
             </div>
@@ -243,7 +300,7 @@ const WorkingHoursSettingsForm: React.FC = () => {
                 max="23"
                 value={formData.LUNCH_END_HOUR}
                 onChange={(e) => handleChange('LUNCH_END_HOUR', parseInt(e.target.value) || 0)}
-                className="w-20 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-20 px-3 py-2 border border-gray-200 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-800 focus:ring-2 focus:ring-[#96C2DB] focus:border-[#96C2DB] focus:border-transparent"
                 required
               />
               <span className="text-gray-500">:</span>
@@ -253,7 +310,7 @@ const WorkingHoursSettingsForm: React.FC = () => {
                 max="59"
                 value={formData.LUNCH_END_MINUTE}
                 onChange={(e) => handleChange('LUNCH_END_MINUTE', parseInt(e.target.value) || 0)}
-                className="w-20 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-20 px-3 py-2 border border-gray-200 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-800 focus:ring-2 focus:ring-[#96C2DB] focus:border-[#96C2DB] focus:border-transparent"
                 required
               />
             </div>
@@ -262,10 +319,10 @@ const WorkingHoursSettingsForm: React.FC = () => {
       </div>
 
       {/* Calculation Settings */}
-      <div className="bg-gray-50 p-4 rounded-lg">
+      <div className="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-gray-100 dark:border-slate-700">
         <div className="flex items-center mb-4">
-          <Workflow className="h-5 w-5 text-blue-600 mr-2" />
-          <h3 className="text-lg font-semibold text-gray-900">Calculation Settings</h3>
+          <Workflow className="h-5 w-5 text-[#96C2DB] mr-2" />
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-slate-200">Calculation Settings</h3>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
@@ -278,7 +335,7 @@ const WorkingHoursSettingsForm: React.FC = () => {
               min="0"
               value={formData.STANDARD_WORK_HOURS}
               onChange={(e) => handleChange('STANDARD_WORK_HOURS', parseFloat(e.target.value) || 0)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full px-3 py-2 border border-gray-200 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-800 focus:ring-2 focus:ring-[#96C2DB] focus:border-[#96C2DB] focus:border-transparent"
               required
             />
             <p className="text-xs text-gray-500 mt-1">
@@ -295,7 +352,7 @@ const WorkingHoursSettingsForm: React.FC = () => {
               min="0"
               value={formData.OVERTIME_THRESHOLD}
               onChange={(e) => handleChange('OVERTIME_THRESHOLD', parseFloat(e.target.value) || 0)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full px-3 py-2 border border-gray-200 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-800 focus:ring-2 focus:ring-[#96C2DB] focus:border-[#96C2DB] focus:border-transparent"
               required
             />
             <p className="text-xs text-gray-500 mt-1">
@@ -306,24 +363,24 @@ const WorkingHoursSettingsForm: React.FC = () => {
       </div>
 
       {/* Security & Validation Section */}
-      <div className="bg-gray-50 p-4 rounded-lg">
+      <div className="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-gray-100 dark:border-slate-700">
         <div className="flex items-center mb-4">
-          <svg className="h-5 w-5 text-blue-600 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <svg className="h-5 w-5 text-[#96C2DB] mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
           </svg>
-          <h3 className="text-lg font-semibold text-gray-900">Security & Validation</h3>
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-slate-200">Security &amp; Validation</h3>
         </div>
 
         <div className="space-y-4">
-          <div className="flex items-center justify-between py-3 border-b border-gray-200">
+          <div className="flex items-center justify-between py-3 border-b border-gray-200 dark:border-slate-600">
             <div>
-              <h4 className="font-medium text-gray-900">IP Address Verification</h4>
-              <p className="text-sm text-gray-600">Require employees to be on the office network to clock in</p>
+              <h4 className="font-medium text-gray-900 dark:text-slate-200">IP Address Verification</h4>
+              <p className="text-sm text-gray-600 dark:text-gray-400">Require employees to be on the office network to clock in</p>
             </div>
             <button
               onClick={() => setFormData(prev => ({ ...prev, REQUIRE_IP_MATCH: !prev.REQUIRE_IP_MATCH }))}
               className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                formData.REQUIRE_IP_MATCH ? 'bg-blue-600' : 'bg-gray-200'
+                formData.REQUIRE_IP_MATCH ? 'bg-[#96C2DB]' : 'bg-gray-200'
               }`}
             >
               <span
@@ -334,15 +391,15 @@ const WorkingHoursSettingsForm: React.FC = () => {
             </button>
           </div>
 
-          <div className="flex items-center justify-between py-3 border-b border-gray-200">
+          <div className="flex items-center justify-between py-3 border-b border-gray-200 dark:border-slate-600">
             <div>
-              <h4 className="font-medium text-gray-900">Geofence Verification</h4>
-              <p className="text-sm text-gray-600">Require employees to be within office premises to clock in</p>
+              <h4 className="font-medium text-gray-900 dark:text-slate-200">Geofence Verification</h4>
+              <p className="text-sm text-gray-600 dark:text-gray-400">Require employees to be within office premises to clock in</p>
             </div>
             <button
               onClick={() => setFormData(prev => ({ ...prev, REQUIRE_GEO_MATCH: !prev.REQUIRE_GEO_MATCH }))}
               className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                formData.REQUIRE_GEO_MATCH ? 'bg-blue-600' : 'bg-gray-200'
+                formData.REQUIRE_GEO_MATCH ? 'bg-[#96C2DB]' : 'bg-gray-200'
               }`}
             >
               <span
@@ -360,7 +417,7 @@ const WorkingHoursSettingsForm: React.FC = () => {
         <button
           type="submit"
           disabled={saving}
-          className="inline-flex items-center px-4 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
+          className="inline-flex items-center px-4 py-2 bg-black text-white font-medium rounded-lg hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-[#96C2DB] focus:border-[#96C2DB] focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {saving ? (
             <>

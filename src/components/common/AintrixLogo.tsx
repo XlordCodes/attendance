@@ -53,7 +53,7 @@ const AintrixLogo: FC<AintrixLogoProps> = ({ variant, size = 64, className = '' 
       
       <div className="ml-4">
         <div 
-          className={`text-2xl font-bold tracking-tight ${variant === 'white' ? 'text-white' : 'text-gray-900'}`}
+          className={`text-2xl font-bold tracking-tight ${variant === 'white' ? 'text-white' : 'text-gray-900 dark:text-slate-200'}`}
           style={{ fontFamily: 'Inter, system-ui, sans-serif' }}
         >
           AINTRIX

@@ -6,15 +6,26 @@ export interface Employee {
   Name?: string; // Alternative field name used in Firestore
   email: string;
   // NO password field - handled entirely by Firebase Auth with reset emails
-  role: 'employee' | 'admin';
+  role: 'admin' | 'core' | 'employee' | 'trainee' | 'intern';
   department: string;
   position: string;
   designation?: string; // Additional field for job title/designation
   Designation?: string; // Alternative field name used in Firestore (capital D)
   isActive: boolean;
   joinDate?: string;
+  phone_number?: string; // PHASE 1: New contact fields
+  personal_email?: string;
+  // PHASE 2: Typed user-settings columns persisted directly on employees
+  default_break_duration?: number;
+  break_reminder_enabled?: boolean;
+  sound_enabled?: boolean;
   createdAt: Date;
   lastLogin?: Date;
+  // PHASE 2 (transition): Optional settings JSONB blob – carries theme / language /
+  // dateFormat. Matrix values (break_reminder_enabled, sound_enabled,
+  // default_break_duration) have dedicated typed columns; they are written
+  // separately via update_own_settings RPC and updateUserSettings admin path.
+  settings?: Record<string, unknown>;
 }
 
 export interface AttendanceRecord {
@@ -115,4 +126,19 @@ export interface LeaveRequest {
   reviewedAt?: Date;
   reviewedBy?: string;
   adminComments?: string;
+}
+
+// PHASE 1: Role-specific schedule configuration
+export interface RoleSchedule {
+  role: string;
+  start_hour: number;
+  start_minute: number;
+  end_hour: number;
+  end_minute: number;
+  standard_work_hours: number;
+  lunch_start_hour: number;
+  lunch_start_minute: number;
+  lunch_end_hour: number;
+  lunch_end_minute: number;
+  overtime_threshold: number;
 }

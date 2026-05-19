@@ -148,15 +148,17 @@ class UserService {
        // (database trigger prevents non-admin changes; admins should use dedicated function if ever needed)
        // Note: updates.employeeId is intentionally ignored to prevent mass assignment
 
-       // Admin-only fields
-       if (isAdmin) {
-         if (updates.role !== undefined) dbUpdates.role = updates.role;
-         if (updates.isActive !== undefined) dbUpdates.is_active = updates.isActive;
-         if (updates.email !== undefined) dbUpdates.email = updates.email;
-         // Admins may change employee_id with caution (though typically immutable)
-         if (updates.employeeId !== undefined) dbUpdates.employee_id = updates.employeeId;
-         if (updates.lastLogin !== undefined) dbUpdates.last_login = updates.lastLogin;
-       }
+        // Admin-only fields
+        if (isAdmin) {
+          if (updates.role !== undefined) dbUpdates.role = updates.role;
+          if (updates.isActive !== undefined) dbUpdates.is_active = updates.isActive;
+          if (updates.email !== undefined) dbUpdates.email = updates.email;
+          // Admins may change employee_id with caution (though typically immutable)
+          if (updates.employeeId !== undefined) dbUpdates.employee_id = updates.employeeId;
+          if (updates.lastLogin !== undefined) dbUpdates.last_login = updates.lastLogin;
+          if (updates.phone_number !== undefined) dbUpdates.phone_number = updates.phone_number;
+          if (updates.personal_email !== undefined) dbUpdates.personal_email = updates.personal_email;
+        }
 
        const { error } = await supabase
          .from(this.TABLE_NAME)
@@ -212,6 +214,13 @@ class UserService {
       Designation: data.designation as string | undefined,
       isActive: data.is_active as boolean,
       joinDate: data.join_date as string | undefined,
+      default_break_duration: Number(data.default_break_duration) || 15,
+      break_reminder_enabled: Boolean(data.break_reminder_enabled),
+      sound_enabled: Boolean(data.sound_enabled),
+      // Optional settings blob — kept for transition flows that still
+      // read theme / language / dateFormat from JSON; null = column absent
+      settings:
+        (data.settings as Record<string, unknown> | null) ?? undefined,
       createdAt: new Date(data.created_at as string),
       lastLogin: data.last_login ? new Date(data.last_login as string) : undefined
     };
@@ -228,8 +237,8 @@ class UserService {
       console.log('📋 Fetching all users from database...');
       const { data, error } = await supabase
         .from(this.TABLE_NAME)
-        .select('id, employee_id, name, email, role, department, position, designation, is_active, join_date, created_at, last_login')
-        .order('created_at', { ascending: false });
+        .select('id, employee_id, name, email, role, department, position, designation, is_active, join_date, default_break_duration, break_reminder_enabled, sound_enabled, created_at, last_login')
+        .order('employee_id', { ascending: true });
 
       if (error) throw error;
       
@@ -288,37 +297,37 @@ class UserService {
     }
   }
 
-  async getUsersByRole(role: 'admin' | 'employee'): Promise<Employee[]> {
-    try {
-      const { data, error } = await supabase
-        .from(this.TABLE_NAME)
-        .select('id, employee_id, name, email, role, department, position, designation, is_active, join_date, created_at, last_login')
-        .eq('role', role)
-        .order('created_at', { ascending: false });
+    async getUsersByRole(role: 'admin' | 'employee'): Promise<Employee[]> {
+      try {
+        const { data, error } = await supabase
+          .from(this.TABLE_NAME)
+          .select('id, employee_id, name, email, role, department, position, designation, is_active, join_date, created_at, last_login')
+          .eq('role', role)
+          .order('employee_id', { ascending: true });
 
-      if (error) throw error;
-      return data.map(this.mapDbToEmployee);
-    } catch (error) {
-      console.error('Error getting users by role:', error);
-      throw error;
+        if (error) throw error;
+        return data.map(this.mapDbToEmployee);
+      } catch (error) {
+        console.error('Error getting users by role:', error);
+        throw error;
+      }
     }
-  }
 
-  async getUsersByDepartment(department: string): Promise<Employee[]> {
-    try {
-      const { data, error } = await supabase
-        .from(this.TABLE_NAME)
-        .select('id, employee_id, name, email, role, department, position, designation, is_active, join_date, created_at, last_login')
-        .eq('department', department)
-        .order('created_at', { ascending: false });
+    async getUsersByDepartment(department: string): Promise<Employee[]> {
+      try {
+        const { data, error } = await supabase
+          .from(this.TABLE_NAME)
+          .select('id, employee_id, name, email, role, department, position, designation, is_active, join_date, created_at, last_login')
+          .eq('department', department)
+          .order('employee_id', { ascending: true });
 
-      if (error) throw error;
-      return data.map(this.mapDbToEmployee);
-    } catch (error) {
-      console.error('Error getting users by department:', error);
-      throw error;
+        if (error) throw error;
+        return data.map(this.mapDbToEmployee);
+      } catch (error) {
+        console.error('Error getting users by department:', error);
+        throw error;
+      }
     }
-  }
 
   async getActiveUsers(): Promise<Employee[]> {
     try {
@@ -326,7 +335,7 @@ class UserService {
         .from(this.TABLE_NAME)
         .select('id, employee_id, name, email, role, department, position, designation, is_active, join_date, created_at, last_login')
         .eq('is_active', true)
-        .order('created_at', { ascending: false });
+        .order('employee_id', { ascending: true });
 
       if (error) throw error;
       return data.map(this.mapDbToEmployee);
@@ -480,11 +489,15 @@ class UserService {
         return;
       }
 
-      // Admins: direct update allowed via admin RLS policy
+      // Admins: direct update — write the JSON blob AND the three typed columns
+      // so typed-and-JSONB reads stay in sync regardless of caller.
       const { error } = await supabase
         .from(this.TABLE_NAME)
         .update({
           settings,
+          default_break_duration: Number(settings.workPreferences.defaultBreakDuration),
+          break_reminder_enabled: settings.notifications.breakReminder,
+          sound_enabled: settings.notifications.sound,
           updated_at: new Date().toISOString()
         })
         .eq('id', userId);

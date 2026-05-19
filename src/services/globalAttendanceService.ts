@@ -1,4 +1,5 @@
 import { AttendanceRecord, GeolocationData } from '../types';
+import type { RoleSchedule } from '../types';
 import {
   toOfficeDate,
   toOfficeDateSafe,
@@ -8,38 +9,45 @@ import {
 } from '../utils/timezoneUtils';
 import {
   isLateArrival,
-  WORKING_HOURS,
   getLunchStartTime,
   getLunchEndTime,
-  getWorkEndTime
+  getWorkEndTime,
+  DEFAULT_ROLE_SCHEDULE
 } from '../constants/workingHours';
 import { supabase } from './supabaseClient';
+import { configService } from './configService';
 
+// RPC result types
 interface ClockInRPCResult {
   id: string;
   login_time: string;
 }
-
 interface ClockOutRPCResult {
   id: string;
 }
-
 interface UpdateAttendanceRecordParams {
   p_record_id: string;
-  p_lunch_end: string;
+  p_is_late?: boolean;
+  p_late_reason?: string | null;
+  p_lunch_start?: string | null;
+  p_lunch_end?: string | null;
   p_is_late_from_lunch?: boolean;
-  p_lunch_late_reason?: string;
+  p_lunch_late_reason?: string | null;
+  p_location?: GeolocationData | null;
+  p_client_ip?: string | null;
+  p_early_logout_reason?: string | null;
 }
+
 
 class GlobalAttendanceService {
   private readonly ATTENDANCE_TABLE = 'attendance_records';
   private readonly BREAKS_TABLE = 'attendance_breaks';
   private readonly USERS_TABLE = 'employees';
 
-    private convertDbToAttendance(dbData: unknown): AttendanceRecord {
-     const data = dbData as Record<string, unknown>;
-     const rawBreaks = data.attendance_breaks as unknown[] | undefined;
-     const breaks: unknown[] = Array.isArray(rawBreaks) ? rawBreaks : [];
+    private convertDbToAttendance(dbData: unknown, schedule: RoleSchedule): AttendanceRecord {
+      const data = dbData as Record<string, unknown>;
+      const rawBreaks = data.attendance_breaks as unknown[] | undefined;
+      const breaks: unknown[] = Array.isArray(rawBreaks) ? rawBreaks : [];
 
     // Calculate total break minutes from completed breaks
     let totalBreakMins = 0;
@@ -64,260 +72,304 @@ class GlobalAttendanceService {
          console.warn(
             `⚠️ convertDbToAttendance: Both login_time and logout_time are missing for record ${(data.id as string) || '(no id)'}. ` +
            `Hours will default to 0 unless worked_hours is present.`
-         );
-       }
+          );
+        }
 
-       // Parse worked_hours (Postgres NUMERIC may return string)
-        let calcHours = data.worked_hours ? parseFloat(data.worked_hours as string) : 0;
+        // Parse worked_hours (Postgres NUMERIC may return string)
+        const wh = data.worked_hours;
+        let calcHours = (wh !== null && wh !== undefined) ? Number(wh) : 0;
 
       // Fallback: if worked_hours is missing/0 but we have clock times, recalculate
-       if (!calcHours && data.login_time && data.logout_time) {
-         const loginTime = new Date(data.login_time as string);
-         const logoutTime = new Date(data.logout_time as string);
-        if (!isNaN(loginTime.getTime()) && !isNaN(logoutTime.getTime())) {
-          const totalMs = logoutTime.getTime() - loginTime.getTime();
-          const breakMs = totalBreakMins * 60 * 1000;
-          const netMs = totalMs - breakMs;
-          calcHours = netMs > 0 ? netMs / (1000 * 60 * 60) : 0;
+        if (!calcHours && data.login_time && data.logout_time) {
+          const loginTime = new Date(data.login_time as string);
+          const logoutTime = new Date(data.logout_time as string);
+         if (!isNaN(loginTime.getTime()) && !isNaN(logoutTime.getTime())) {
+           const totalMs = logoutTime.getTime() - loginTime.getTime();
+           const breakMs = totalBreakMins * 60 * 1000;
+           const netMs = totalMs - breakMs;
+           calcHours = netMs > 0 ? netMs / (1000 * 60 * 60) : 0;
+         }
+       }
+
+       // Round hours to 2 decimal places
+       calcHours = Math.round(calcHours * 100) / 100;
+
+     // Compute overtime based on schedule's standard work hours
+     const overtime = Math.max(0, calcHours - schedule.standard_work_hours);
+
+      const employees = data.employees as Record<string, unknown> | undefined;
+      return {
+        id: data.id as string,
+        userId: (data.user_id as string) || '',
+        userName: (employees?.name as string | undefined) || '',
+        userEmail: (employees?.email as string | undefined) || '',
+        employeeId: employees?.employee_id as string | undefined,
+        employeeName: (employees?.name as string | undefined) || '',
+        department: (employees?.department as string | undefined) || '',
+        date: data.date as string,
+        clockIn: toOfficeDateSafe(data.login_time as string | undefined) || null,
+        clockOut: toOfficeDateSafe(data.logout_time as string | undefined) || null,
+        lunchStart: toOfficeDateSafe(data.lunch_start as string | undefined) || null,
+        lunchEnd: toOfficeDateSafe(data.lunch_end as string | undefined) || null,
+        createdAt: toOfficeDate(data.created_at as string),
+        updatedAt: toOfficeDate(data.updated_at as string),
+       // Use calculated hours with fallback
+       hoursWorked: calcHours,
+       totalHours: calcHours,
+       totalBreakMinutes: totalBreakMins,
+       totalBreakHours: totalBreakMins / 60,
+        breaks: breaks.map((bt) => {
+          const btData = bt as Record<string, unknown>;
+          return {
+            id: btData.id as string,
+            startTime: toOfficeDate(btData.start as string),
+            endTime: toOfficeDateSafe(btData.end as string) || null,
+            type: (btData.type as string) || 'break',
+            duration: (btData.duration != null && btData.duration !== '') ? Number(btData.duration) : 0
+          };
+        }),
+        breakTimes: breaks.map((bt) => {
+          const btData = bt as Record<string, unknown>;
+          return {
+            id: btData.id as string,
+            start: toOfficeDate(btData.start as string),
+            end: toOfficeDateSafe(btData.end as string) || null,
+            type: (btData.type as string) || 'break',
+            duration: (btData.duration != null && btData.duration !== '') ? Number(btData.duration) : 0
+          };
+        }),
+        isLate: (data.is_late as boolean) || false,
+        lateReason: (data.late_reason as string | undefined) || (data.audit_data as string | undefined) || null,
+        // Pass-is_late flag to determineStatus; DB is_late is the source of truth.
+        // Passes clockOut so `partial` can fire for early departures.
+        status: this.determineStatus(
+          toOfficeDateSafe(data.login_time as string | undefined) || null,
+          toOfficeDateSafe(data.logout_time as string | undefined) || null,
+          schedule,
+          (data.is_late as boolean) || false
+        ),
+        location: data.location as GeolocationData || null,
+       overtime: overtime
+      } as AttendanceRecord;
+    }
+
+    async clockIn(userId: string, lateReason?: string, location?: GeolocationData, clientIP?: string): Promise<AttendanceRecord> {
+     try {
+       console.log('🕐 Starting clock in for user:', userId);
+
+       // Get user details and role in a single query
+       const { data: userData, error: userError } = await supabase
+         .from(this.USERS_TABLE)
+         .select('name, email, employee_id, department, role')
+         .eq('id', userId)
+         .single();
+
+       if (userError) throw new Error('User not found');
+
+       // PHASE 1: Fetch schedule for user's role
+        const role = userData.role as string || 'employee';
+        const schedule = await configService.getScheduleByRole(role);
+        if (!schedule) {
+          throw new Error(`No schedule configured for role: ${role}`);
         }
-      }
 
-      // Round hours to 2 decimal places
-      calcHours = Math.round(calcHours * 100) / 100;
+       const todayIso = getOfficeTodayIso();
 
-    // Compute overtime based on standard work hours
-    const overtime = Math.max(0, calcHours - WORKING_HOURS.STANDARD_WORK_HOURS);
+       // Check if already clocked in today
+       const { data: existingRecord } = await supabase
+         .from(this.ATTENDANCE_TABLE)
+         .select('login_time')
+         .eq('user_id', userId)
+         .eq('date', todayIso)
+         .maybeSingle();
 
-     const employees = data.employees as Record<string, unknown> | undefined;
-     return {
-       id: data.id as string,
-       userId: (data.user_id as string) || '',
-       userName: (employees?.name as string | undefined) || '',
-       userEmail: (employees?.email as string | undefined) || '',
-       employeeId: employees?.employee_id as string | undefined,
-       employeeName: (employees?.name as string | undefined) || '',
-       department: (employees?.department as string | undefined) || '',
-       date: data.date as string,
-       clockIn: toOfficeDateSafe(data.login_time as string | undefined) || null,
-       clockOut: toOfficeDateSafe(data.logout_time as string | undefined) || null,
-       lunchStart: toOfficeDateSafe(data.lunch_start as string | undefined) || null,
-       lunchEnd: toOfficeDateSafe(data.lunch_end as string | undefined) || null,
-       createdAt: toOfficeDate(data.created_at as string),
-       updatedAt: toOfficeDate(data.updated_at as string),
-      // Use calculated hours with fallback
-      hoursWorked: calcHours,
-      totalHours: calcHours,
-      totalBreakMinutes: totalBreakMins,
-      totalBreakHours: totalBreakMins / 60,
-       breaks: breaks.map((bt) => {
-         const btData = bt as Record<string, unknown>;
-         return {
-           id: btData.id as string,
-           startTime: toOfficeDate(btData.start as string),
-           endTime: toOfficeDateSafe(btData.end as string) || null,
-           type: (btData.type as string) || 'break',
-           duration: btData.duration ? parseFloat(btData.duration as string) : 0
-         };
-       }),
-       breakTimes: breaks.map((bt) => {
-         const btData = bt as Record<string, unknown>;
-         return {
-           id: btData.id as string,
-           start: toOfficeDate(btData.start as string),
-           end: toOfficeDateSafe(btData.end as string) || null,
-           type: (btData.type as string) || 'break',
-           duration: btData.duration ? parseFloat(btData.duration as string) : 0
-         };
-       }),
-       isLate: (data.is_late as boolean) || false,
-       lateReason: (data.late_reason as string | undefined) || (data.audit_data as string | undefined) || null,
-       status: this.determineStatus(toOfficeDateSafe(data.login_time as string | undefined) || null),
-       location: data.location as GeolocationData || null,
-      overtime: overtime
-     } as AttendanceRecord;
+       if (existingRecord?.login_time) {
+         throw new Error('Already clocked in today');
+       }
+
+       // Create attendance record with SERVER TIMESTAMP
+       const { data: attendanceRecordRaw, error: insertError } = await supabase
+         .rpc('clock_in', {
+           p_user_id: userId,
+           p_date: todayIso
+         })
+         .single();
+
+       if (insertError) throw insertError;
+
+       const attendanceRecord = attendanceRecordRaw as ClockInRPCResult;
+
+       const clockInTime = toOfficeDate(attendanceRecord.login_time);
+       const isLate = this.isLateArrival(clockInTime, schedule);
+
+       // Apply additional fields via update_attendance_record RPC (server-side validation)
+       const { error: updateError } = await supabase.rpc('update_attendance_record', {
+         p_record_id: attendanceRecord.id,
+         p_is_late: isLate,
+         p_late_reason: isLate ? (lateReason || 'Late arrival') : null,
+         p_location: location,
+         p_client_ip: clientIP
+       }).single();
+       if (updateError) throw updateError;
+
+       const newAttendanceRecord: AttendanceRecord = {
+         id: attendanceRecord.id,
+         userId,
+         userName: userData.name || 'Unknown User',
+         userEmail: userData.email || '',
+         employeeId: userData.employee_id,
+         employeeName: userData.name || '',
+         department: userData.department || 'Unknown',
+         date: formatOffice(getOfficeNow(), 'dd-MM-yyyy'),
+         clockIn: clockInTime,
+         clockOut: undefined,
+         lunchStart: undefined,
+         lunchEnd: undefined,
+         breaks: [],
+         breakTimes: [],
+         hoursWorked: 0,
+         totalHours: 0,
+         isLate: isLate,
+         lateReason: isLate ? (lateReason || 'Late arrival') : undefined,
+         location: location,
+         overtime: 0,
+          status: this.determineStatus(clockInTime, null, schedule, isLate),
+         createdAt: clockInTime,
+         updatedAt: clockInTime
+       };
+
+       console.log('✅ Clock in successful:', newAttendanceRecord);
+       return newAttendanceRecord;
+     } catch (error) {
+       console.error('❌ Clock in failed:', error);
+       throw error;
+     }
    }
 
-   async clockIn(userId: string, lateReason?: string, location?: GeolocationData, clientIP?: string): Promise<AttendanceRecord> {
-    try {
-      console.log('🕐 Starting clock in for user:', userId);
+   async clockOut(userId: string, reason?: string): Promise<AttendanceRecord> {
+     try {
+       console.log('🕕 Starting clock out for user:', userId);
 
-      // Get user details
-      const { data: userData, error: userError } = await supabase
-        .from(this.USERS_TABLE)
-        .select('name, email, employee_id, department')
-        .eq('id', userId)
-        .single();
+       const todayIso = getOfficeTodayIso();
 
-      if (userError) throw new Error('User not found');
+       // Get attendance record ID for today
+       const { data: attendanceRecord, error: fetchError } = await supabase
+         .from(this.ATTENDANCE_TABLE)
+         .select('id, login_time, logout_time, worked_hours')
+         .eq('user_id', userId)
+         .eq('date', todayIso)
+         .maybeSingle();
 
-      const todayIso = getOfficeTodayIso();
+       if (fetchError || !attendanceRecord) {
+         throw new Error('No attendance record found for today');
+       }
 
-      // Check if already clocked in today
-      const { data: existingRecord } = await supabase
-        .from(this.ATTENDANCE_TABLE)
-        .select('login_time')
-        .eq('user_id', userId)
-        .eq('date', todayIso)
-        .maybeSingle();
+        console.log('📋 Pre-update record:', {
+          id: attendanceRecord.id,
+          login_time: attendanceRecord.login_time,
+          logout_time: attendanceRecord.logout_time,
+          worked_hours: attendanceRecord.worked_hours
+        });
 
-      if (existingRecord?.login_time) {
-        throw new Error('Already clocked in today');
-      }
+       // PHASE 1: Fetch employee's role to get schedule
+       const { data: employeeData } = await supabase
+         .from(this.USERS_TABLE)
+         .select('role')
+         .eq('id', userId)
+         .single();
 
-      // Create attendance record with SERVER TIMESTAMP
-      const { data: attendanceRecordRaw, error: insertError } = await supabase
-        .rpc('clock_in', {
-          p_user_id: userId,
-          p_date: todayIso
-        })
-        .single();
-
-      if (insertError) throw insertError;
-      
-      const attendanceRecord = attendanceRecordRaw as ClockInRPCResult;
-
-      const clockInTime = toOfficeDate(attendanceRecord.login_time);
-      const isLate = this.isLateArrival(clockInTime);
-
-      // Apply additional fields via update_attendance_record RPC (server-side validation)
-      const { error: updateError } = await supabase.rpc('update_attendance_record', {
-        p_record_id: attendanceRecord.id,
-        p_is_late: isLate,
-        p_late_reason: isLate ? (lateReason || 'Late arrival') : null,
-        p_location: location,
-        p_client_ip: clientIP
-      }).single();
-      if (updateError) throw updateError;
-
-      const newAttendanceRecord: AttendanceRecord = {
-        id: attendanceRecord.id,
-        userId,
-        userName: userData.name || 'Unknown User',
-        userEmail: userData.email || '',
-        employeeId: userData.employee_id,
-        employeeName: userData.name || '',
-        department: userData.department || 'Unknown',
-        date: formatOffice(getOfficeNow(), 'dd-MM-yyyy'),
-        clockIn: clockInTime,
-        clockOut: undefined,
-        lunchStart: undefined,
-        lunchEnd: undefined,
-        breaks: [],
-        breakTimes: [],
-        hoursWorked: 0,
-        totalHours: 0,
-        isLate: isLate,
-        lateReason: isLate ? (lateReason || 'Late arrival') : undefined,
-        location: location,
-        overtime: 0,
-        status: this.determineStatus(clockInTime),
-        createdAt: clockInTime,
-        updatedAt: clockInTime
-      };
-
-      console.log('✅ Clock in successful:', newAttendanceRecord);
-      return newAttendanceRecord;
-    } catch (error) {
-      console.error('❌ Clock in failed:', error);
-      throw error;
-    }
-  }
-
-    async clockOut(userId: string, reason?: string): Promise<AttendanceRecord> {
-      try {
-        console.log('🕕 Starting clock out for user:', userId);
-
-        const todayIso = getOfficeTodayIso();
-
-        // Get attendance record ID for today
-        const { data: attendanceRecord, error: fetchError } = await supabase
-          .from(this.ATTENDANCE_TABLE)
-          .select('id, login_time, logout_time, worked_hours')
-          .eq('user_id', userId)
-          .eq('date', todayIso)
-          .maybeSingle();
-
-        if (fetchError || !attendanceRecord) {
-          throw new Error('No attendance record found for today');
+        const role = employeeData?.role as string || 'employee';
+        const schedule = await configService.getScheduleByRole(role);
+        if (!schedule) {
+          throw new Error(`No schedule configured for role: ${role}`);
         }
 
-         console.log('📋 Pre-update record:', {
-           id: attendanceRecord.id,
-           login_time: attendanceRecord.login_time,
-           logout_time: attendanceRecord.logout_time,
-           worked_hours: attendanceRecord.worked_hours
-         });
+       // Update via SECURITY DEFINER RPC with server-side validation
+       console.log('🔄 Invoking clock_out RPC with params:', {
+         p_user_id: userId,
+         p_date: todayIso,
+         p_early_logout_reason: reason || null
+       });
 
-         // Update via SECURITY DEFINER RPC with server-side validation
-         console.log('🔄 Invoking clock_out RPC with params:', {
-           p_user_id: userId,
-           p_date: todayIso,
-           p_early_logout_reason: reason || null
-         });
+       const { data: rpcResultRaw, error: rpcError } = await supabase.rpc('clock_out', {
+         p_user_id: userId,
+         p_date: todayIso,
+         p_early_logout_reason: reason || null
+       }).single();
 
-         const { data: rpcResultRaw, error: rpcError } = await supabase.rpc('clock_out', {
-           p_user_id: userId,
-           p_date: todayIso,
-           p_early_logout_reason: reason || null
-         }).single();
+       if (rpcError) throw rpcError;
+       if (!rpcResultRaw) throw new Error('Clock out RPC did not return a record');
 
-         if (rpcError) throw rpcError;
-         if (!rpcResultRaw) throw new Error('Clock out RPC did not return a record');
-         
-         const rpcResult = rpcResultRaw as ClockOutRPCResult;
+       const rpcResult = rpcResultRaw as ClockOutRPCResult;
 
-          // Fetch the full updated record with joins to get breaks and employee details
-          const { data: fullRecord, error: fetchFullError } = await supabase
-            .from(this.ATTENDANCE_TABLE)
-            .select(`
-              *,
-              employees:user_id (name, email, employee_id, department),
-              attendance_breaks (*)
-            `)
-            .eq('id', rpcResult.id)
-            .single();
+       // Fetch the full updated record with joins to get breaks and employee details
+       const { data: fullRecord, error: fetchFullError } = await supabase
+         .from(this.ATTENDANCE_TABLE)
+         .select(`
+           *,
+           employees:user_id (name, email, employee_id, department, role),
+           attendance_breaks (*)
+         `)
+         .eq('id', rpcResult.id)
+         .single();
 
-          if (fetchFullError) throw fetchFullError;
-         if (!fullRecord) throw new Error('Failed to retrieve updated record');
+       if (fetchFullError) throw fetchFullError;
+       if (!fullRecord) throw new Error('Failed to retrieve updated record');
 
-        console.log('📥 Raw updated record (pre-convert):', {
-          id: fullRecord.id,
-          login_time: fullRecord.login_time,
-          logout_time: fullRecord.logout_time,
-          worked_hours: fullRecord.worked_hours,
-          breaksCount: fullRecord.attendance_breaks?.length || 0
-        });
+      console.log('📥 Raw updated record (pre-convert):', {
+        id: fullRecord.id,
+        login_time: fullRecord.login_time,
+        logout_time: fullRecord.logout_time,
+        worked_hours: fullRecord.worked_hours,
+        breaksCount: fullRecord.attendance_breaks?.length || 0
+      });
 
-        // Convert using mapper (which will calculate hours dynamically)
-        const updatedRecord = this.convertDbToAttendance(fullRecord);
+      // Convert using mapper, passing schedule
+      const updatedRecord = this.convertDbToAttendance(fullRecord, schedule);
 
-        console.log('✅ Clock out successful:', {
-          id: updatedRecord.id,
-          date: updatedRecord.date,
-          clockIn: updatedRecord.clockIn,
-          clockOut: updatedRecord.clockOut,
-          hoursWorked: updatedRecord.hoursWorked,
-          totalHours: updatedRecord.totalHours,
-          totalBreakMinutes: updatedRecord.totalBreakMinutes,
-          breaksCount: updatedRecord.breaks.length
-        });
+      console.log('✅ Clock out successful:', {
+        id: updatedRecord.id,
+        date: updatedRecord.date,
+        clockIn: updatedRecord.clockIn,
+        clockOut: updatedRecord.clockOut,
+        hoursWorked: updatedRecord.hoursWorked,
+        totalHours: updatedRecord.totalHours,
+        totalBreakMinutes: updatedRecord.totalBreakMinutes,
+        breaksCount: updatedRecord.breaks.length
+      });
 
-        return updatedRecord;
-      } catch (error) {
-        console.error('❌ Clock out failed:', error);
-        throw error;
-      }
+      return updatedRecord;
+    } catch (error) {
+      console.error('❌ Clock out failed:', error);
+      throw error;
     }
+   }
 
   async getTodayAttendance(userId: string): Promise<AttendanceRecord | null> {
     try {
       const todayIso = getOfficeTodayIso();
 
+      // Fetch employee role and schedule
+      const { data: employeeData, error: empError } = await supabase
+        .from(this.USERS_TABLE)
+        .select('role')
+        .eq('id', userId)
+        .single();
+
+      if (empError) throw empError;
+
+      const role = employeeData?.role as string || 'employee';
+      let schedule = await configService.getScheduleByRole(role);
+      if (!schedule) {
+        console.warn(`No schedule found for role "${role}", using defaults`);
+        schedule = { ...DEFAULT_ROLE_SCHEDULE, role };
+      }
+
       const { data, error } = await supabase
         .from(this.ATTENDANCE_TABLE)
         .select(`
           *,
-          employees:user_id (name, email, employee_id, department),
+          employees:user_id (name, email, employee_id, department, role),
           attendance_breaks (*)
         `)
         .eq('user_id', userId)
@@ -329,7 +381,7 @@ class GlobalAttendanceService {
         throw error;
       }
 
-      return data ? this.convertDbToAttendance(data) : null;
+      return data ? this.convertDbToAttendance(data, schedule) : null;
     } catch (error) {
       console.error('Error getting today attendance:', error);
       return null;
@@ -342,11 +394,27 @@ class GlobalAttendanceService {
       const startDate = getOfficeNow();
       startDate.setDate(startDate.getDate() - days);
 
+      // Fetch employee role and schedule once (role assumed stable over period)
+      const { data: employeeData, error: empError } = await supabase
+        .from(this.USERS_TABLE)
+        .select('role')
+        .eq('id', userId)
+        .single();
+
+      if (empError) throw empError;
+
+      const role = employeeData?.role as string || 'employee';
+      let schedule = await configService.getScheduleByRole(role);
+      if (!schedule) {
+        console.warn(`No schedule found for role "${role}", using defaults`);
+        schedule = { ...DEFAULT_ROLE_SCHEDULE, role };
+      }
+
       const { data, error } = await supabase
         .from(this.ATTENDANCE_TABLE)
         .select(`
           *,
-          employees:user_id (name, email, employee_id, department),
+          employees:user_id (name, email, employee_id, department, role),
           attendance_breaks (*)
         `)
         .eq('user_id', userId)
@@ -361,60 +429,103 @@ class GlobalAttendanceService {
         return [];
       }
 
-      return data.map(this.convertDbToAttendance.bind(this));
+      return data.map(record => this.convertDbToAttendance(record, schedule));
     } catch (error) {
       console.error('Error getting attendance history:', error);
       return [];
     }
   }
 
-   async getAttendanceRange(
-     userId: string,
-     startDate: Date | string,
-     endDate: Date | string
-   ): Promise<AttendanceRecord[]> {
-     try {
-       // Timezone-safe formatter: always uses Asia/Kolkata
-       const toOfficeIso = (d: Date | string) => {
-         const dateObj = typeof d === 'string' ? new Date(d) : d;
-         if (isNaN(dateObj.getTime())) return new Date().toISOString().split('T')[0];
+    async getAttendanceRange(
+      userId: string,
+      startDate: Date | string,
+      endDate: Date | string
+    ): Promise<AttendanceRecord[]> {
+      try {
+        // Timezone-safe formatter: always uses Asia/Kolkata
+        const toOfficeIso = (d: Date | string): string => {
+          const dateObj = typeof d === 'string' ? new Date(d) : d;
+          if (isNaN(dateObj.getTime())) return new Date().toISOString().split('T')[0];
 
-         const options = { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' } as const;
-         const parts = new Intl.DateTimeFormat('en-IN', options).formatToParts(dateObj);
-         const year = parts.find(p => p.type === 'year')?.value;
-         const month = parts.find(p => p.type === 'month')?.value;
-         const day = parts.find(p => p.type === 'day')?.value;
-         return `${year}-${month}-${day}`;
-       };
+          const options = { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' } as const;
+          const parts = new Intl.DateTimeFormat('en-IN', options).formatToParts(dateObj);
+          const year = parts.find(p => p.type === 'year')?.value;
+          const month = parts.find(p => p.type === 'month')?.value;
+          const day = parts.find(p => p.type === 'day')?.value;
+          return `${year}-${month}-${day}`;
+        };
 
-       const startDateStr = toOfficeIso(startDate);
-       const endDateStr = toOfficeIso(endDate);
+        // Day-shift helper: advance/rewind an ISO date string by N days.
+        // Returns a stable YYYY-MM-DD string under the office timezone.
+        const shiftByDays = (isoDate: string, days: number): string => {
+          const [y, m, d] = isoDate.split('-').map(Number);
+          return toOfficeIso(new Date(y, m - 1, d + days));
+        };
 
-      const { data, error } = await supabase
-        .from(this.ATTENDANCE_TABLE)
-        .select(`
-          *,
-          employees:user_id (name, email, employee_id, department),
-          attendance_breaks (*)
-        `)
-        .eq('user_id', userId)
-        .gte('date', startDateStr)
-        .lte('date', endDateStr)
-        .order('date', { ascending: false })
-        .limit(500);
+        // ── CRITICAL FIX ──────────────────────────────────────────────────────
+        // Postgres TIMESTAMPTZ stores wall-clock timestamps with their offset
+        // (e.g. '2026-05-11T00:30:00+05:30' = '2026-05-10T19:00:00Z' in UTC).
+        // Phrasing the range guards as TEXT makes Postgres apply UTC midnight
+        // anchors:
+        //   lte('date', '2026-05-17') → '2026-05-17T00:00:00+00:00' UTC
+        //   gte('date', '2026-05-11') → '2026-05-11T00:00:00+00:00' UTC
+        // Anything stored AFTER midnight UTC on Monday (00:00 IST = prior day
+        // 18:30 UTC) or BEFORE midnight UTC on Sunday (23:59 IST = same day
+        // 18:29 UTC) is silently dropped.
+        //
+        // Fix: push the upper bound by +1 day so ALL Sunday-IST records fall
+        // within the ~18:30 UTC to 00:00 UTC window.  Pull the lower bound
+        // by -1 day so ALL Monday-IST (00:00-05:29 IST) records also land
+        // inside the window.  Net inclusive window: all 7 calendar days in
+        // Asia/Kolkata, no records lost at either boundary.
+        // ──────────────────────────────────────────────────────────────────────
 
-      if (error) throw error;
+        const startDateStr  = toOfficeIso(startDate);                // Monday 00:00 IST label
+        const endDateStr    = toOfficeIso(endDate);                  // Sunday 23:59 IST label
+        const queryGteDate  = shiftByDays(startDateStr, - 1); // go back 1 day → captures Mon 00:00-05:29 IST
+        const queryLteDate  = shiftByDays(endDateStr,   + 1); // go forward 1 day → captures Sun 17:30-23:59 IST
 
-      if (!data || data.length === 0) {
+        // Fetch employee role and schedule once
+        const { data: employeeData, error: empError } = await supabase
+          .from(this.USERS_TABLE)
+          .select('role')
+          .eq('id', userId)
+          .single();
+
+        if (empError) throw empError;
+
+        const role = employeeData?.role as string || 'employee';
+        let schedule = await configService.getScheduleByRole(role);
+        if (!schedule) {
+          console.warn(`No schedule found for role "${role}", using defaults`);
+          schedule = { ...DEFAULT_ROLE_SCHEDULE, role };
+        }
+
+        const { data, error } = await supabase
+          .from(this.ATTENDANCE_TABLE)
+          .select(`
+            *,
+            employees:user_id (name, email, employee_id, department),
+            attendance_breaks (*)
+          `)
+          .eq('user_id', userId)
+          .gte('date', queryGteDate)
+          .lte('date', queryLteDate)
+          .order('date', { ascending: false })
+          .limit(500);
+
+        if (error) throw error;
+
+        if (!data || data.length === 0) {
+          return [];
+        }
+
+        return data.map(record => this.convertDbToAttendance(record, schedule));
+      } catch (error) {
+        console.error('Error getting attendance range:', error);
         return [];
       }
-
-      return data.map(this.convertDbToAttendance.bind(this));
-    } catch (error) {
-      console.error('Error getting attendance range:', error);
-      return [];
     }
-  }
 
   async getAllAttendanceRecords(startDate?: string, endDate?: string): Promise<AttendanceRecord[]> {
     try {
@@ -422,15 +533,31 @@ class GlobalAttendanceService {
         .from(this.ATTENDANCE_TABLE)
         .select(`
           *,
-          employees:user_id (name, email, employee_id, department),
+          employees:user_id (name, email, employee_id, department, role),
           attendance_breaks (*)
         `)
         .order('date', { ascending: false });
 
       if (startDate && endDate) {
+        const gteDate = new Date(startDate);
+        const lteDate = new Date(endDate);
+
+        // ── CRITICAL FIX ──────────────────────────────────────────────────────
+        // Same Postgres TIMESTAMPTZ boundary issue as in getAttendanceRange().
+        // Using raw ISO date strings for .gte/.lte means Postgres applies UTC-
+        // midnight anchors, silently dropping records in the first 5½ h of the
+        // start day (IST 00:00–05:29 → prior-day 18:30–22:59 UTC) and the last
+        // 5½ h of the end day (IST 17:30–23:59 → same-day 12:00–18:29 UTC).
+        // Shift the lower bound back 1 day (to include those early-IST hours) and
+        // the upper bound forward 1 day (to include the late-IST Sunday hours).
+        // ──────────────────────────────────────────────────────────────────────
+
+        gteDate.setDate(gteDate.getDate() - 1);
+        lteDate.setDate(lteDate.getDate() + 1);
+
         query = query
-          .gte('date', new Date(startDate).toISOString().split('T')[0])
-          .lte('date', new Date(endDate).toISOString().split('T')[0]);
+          .gte('date', gteDate.toISOString().split('T')[0])
+          .lte('date', lteDate.toISOString().split('T')[0]);
       } else {
         const thirtyDaysAgo = getOfficeNow();
         thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
@@ -445,7 +572,30 @@ class GlobalAttendanceService {
         return [];
       }
 
-      return data.map(this.convertDbToAttendance.bind(this));
+      // PHASE 1: Multi-role schedule resolution
+      const roleSet = new Set<string>();
+      data.forEach(record => {
+        const emp = record.employees as Record<string, unknown> | undefined;
+        if (emp?.role) roleSet.add(emp.role as string);
+      });
+
+      const schedulePromises = Array.from(roleSet).map(role =>
+        configService.getScheduleByRole(role).then(sched => ({
+          role,
+          schedule: sched || { ...DEFAULT_ROLE_SCHEDULE, role }
+        }))
+      );
+      const scheduleMapArray = await Promise.all(schedulePromises);
+      const scheduleMap = new Map<string, RoleSchedule>(
+        scheduleMapArray.map(({ role, schedule }) => [role, schedule])
+      );
+
+      return data.map(record => {
+        const emp = record.employees as Record<string, unknown> | undefined;
+        const userRole = (emp?.role as string) || 'employee';
+        const schedule = scheduleMap.get(userRole)!;
+        return this.convertDbToAttendance(record, schedule);
+      });
     } catch (error) {
       console.error('Error getting all attendance records:', error);
       return [];
@@ -456,11 +606,27 @@ class GlobalAttendanceService {
     try {
       const dateIso = date.toISOString().split('T')[0];
 
+      // Fetch employee role and schedule
+      const { data: employeeData, error: empError } = await supabase
+        .from(this.USERS_TABLE)
+        .select('role')
+        .eq('id', userId)
+        .single();
+
+      if (empError) throw empError;
+
+      const role = employeeData?.role as string || 'employee';
+      let schedule = await configService.getScheduleByRole(role);
+      if (!schedule) {
+        console.warn(`No schedule found for role "${role}", using defaults`);
+        schedule = { ...DEFAULT_ROLE_SCHEDULE, role };
+      }
+
       const { data, error } = await supabase
         .from(this.ATTENDANCE_TABLE)
         .select(`
           *,
-          employees:user_id (name, email, employee_id, department),
+          employees:user_id (name, email, employee_id, department, role),
           attendance_breaks (*)
         `)
         .eq('user_id', userId)
@@ -472,7 +638,7 @@ class GlobalAttendanceService {
         throw error;
       }
 
-      return data ? this.convertDbToAttendance(data) : null;
+      return data ? this.convertDbToAttendance(data, schedule) : null;
     } catch (error) {
       console.error('Error getting attendance for date:', error);
       return null;
@@ -493,7 +659,7 @@ class GlobalAttendanceService {
         .from(this.ATTENDANCE_TABLE)
         .select(`
           *,
-          employees:user_id (name, email, employee_id, department),
+          employees:user_id (name, email, employee_id, department, role),
           attendance_breaks (*)
         `)
         .eq('date', dateIso)
@@ -505,9 +671,34 @@ class GlobalAttendanceService {
         return {};
       }
 
+      // PHASE 1: Multi-role schedule resolution
+      // Collect all distinct roles present in this batch
+      const roleSet = new Set<string>();
+      data.forEach(record => {
+        const emp = record.employees as Record<string, unknown> | undefined;
+        if (emp?.role) roleSet.add(emp.role as string);
+      });
+
+      // Fetch schedules for all roles (in parallel)
+      const schedulePromises = Array.from(roleSet).map(role =>
+        configService.getScheduleByRole(role).then(sched => ({
+          role,
+          schedule: sched || { ...DEFAULT_ROLE_SCHEDULE, role }
+        }))
+      );
+      const scheduleMapArray = await Promise.all(schedulePromises);
+      const scheduleMap = new Map<string, RoleSchedule>(
+        scheduleMapArray.map(({ role, schedule }) => [role, schedule])
+      );
+
+      // Convert each record using its employee's schedule
       const attendanceByUser: { [userId: string]: AttendanceRecord } = {};
       data.forEach(record => {
-        attendanceByUser[record.user_id] = this.convertDbToAttendance(record);
+        const emp = record.employees as Record<string, unknown> | undefined;
+        const userRole = (emp?.role as string) || 'employee';
+        const schedule = scheduleMap.get(userRole)!; // guaranteed to exist
+
+        attendanceByUser[record.user_id] = this.convertDbToAttendance(record, schedule);
       });
 
       console.log(`📊 Found attendance for ${Object.keys(attendanceByUser).length} users on ${date}`);
@@ -518,15 +709,116 @@ class GlobalAttendanceService {
     }
   }
 
+  /**
+   * Batch-fetch all attendance records for every employee in a date range.
+   * Replaces the N+1 pattern of calling getAllAttendanceForDate() once per day.
+   *
+   * @param startDateStr - Start date in DD-MM-YYYY format
+   * @param endDateStr   - End date   in DD-MM-YYYY format
+   * @returns Map of userId -> (date-string -> AttendanceRecord)
+   */
+  async getAllAttendanceForMonth(
+    startDateStr: string,
+    endDateStr: string
+  ): Promise<{ [userId: string]: { [dateStr: string]: AttendanceRecord } }> {
+    // Convert DD-MM-YYYY → YYYY-MM-DD for Supabase query
+    const toIso = (d: string) => {
+      const parts = d.split('-');
+      if (parts.length !== 3) return d;
+      const [day, month, year] = parts;
+      return `${year}-${month}-${day}`;
+    };
+
+    const startIso = toIso(startDateStr);
+    const endIso   = toIso(endDateStr);
+
+    try {
+      const { data, error } = await supabase
+        .from(this.ATTENDANCE_TABLE)
+        .select(`
+          *,
+          employees:user_id (name, email, employee_id, department, role),
+          attendance_breaks (*)
+        `)
+        .gte('date', startIso)
+        .lte('date', endIso)
+        .order('date', { ascending: true })
+        .limit(5000);
+
+      if (error) throw error;
+
+      if (!data || data.length === 0) {
+        return {};
+      }
+
+      // ── Role → schedule (multi-role in one batch) ──────────────────────
+      const roleSet = new Set<string>();
+      data.forEach((record: Record<string, unknown>) => {
+        const emp = (record.employees as Record<string, unknown> | undefined);
+        if (emp?.role) roleSet.add(emp.role as string);
+      });
+
+      const schedulePromises = Array.from(roleSet).map(role =>
+        configService.getScheduleByRole(role).then(sched => ({ role, sched }))
+      );
+      const scheduleArray = await Promise.all(schedulePromises);
+      const scheduleMap = new Map<string, RoleSchedule>(
+        scheduleArray.map(({ role, sched }) => [role, sched || { ...DEFAULT_ROLE_SCHEDULE, role }])
+      );
+
+      // ── Build user → { date → record } index ───────────────────────────
+      const byUserDate: { [userId: string]: { [dateStr: string]: AttendanceRecord } } = {};
+
+      for (const supaRow of data as Record<string, unknown>[]) {
+        const emp    = supaRow.employees as Record<string, unknown> | undefined;
+        const userId = supaRow.user_id as string;
+        const role   = (emp?.role as string) || 'employee';
+        const schedule = scheduleMap.get(role)!;
+
+        const record = this.convertDbToAttendance(supaRow, schedule) as AttendanceRecord;
+        // Supabase returns YYYY-MM-DD — reorder to DD-MM-YYYY so the key matches
+        // the format that OverallAttendancePage generates from eachDayOfInterval
+        const iso = record.date;            // "2024-05-16"
+        const [yyyy, mm, dd] = iso.split('-');
+        const dateStr = `${dd}-${mm}-${yyyy}`;
+
+        if (!byUserDate[userId]) byUserDate[userId] = {};
+        byUserDate[userId][dateStr] = record;
+      }
+
+      console.log(`📊 getAllAttendanceForMonth: fetched ${Object.keys(byUserDate).length} users`);
+      return byUserDate;
+    } catch (error) {
+      console.error(`❌ getAllAttendanceForMonth error (${startDateStr} → ${endDateStr}):`, error);
+      return {};
+    }
+  }
+
   async getAttendanceRecords(employeeId: string): Promise<AttendanceRecord[]> {
     try {
       console.log(`🔍 Fetching attendance records for employee: ${employeeId}`);
+
+      // Fetch employee role and schedule
+      const { data: employeeData, error: empError } = await supabase
+        .from(this.USERS_TABLE)
+        .select('role')
+        .eq('id', employeeId)
+        .single();
+
+      if (empError) throw empError;
+
+      const role = employeeData?.role as string || 'employee';
+      let schedule = await configService.getScheduleByRole(role);
+      if (!schedule) {
+        console.warn(`No schedule found for role "${role}", using defaults`);
+        schedule = { ...DEFAULT_ROLE_SCHEDULE, role };
+      }
 
       const { data, error } = await supabase
         .from(this.ATTENDANCE_TABLE)
         .select(`
           *,
-          employees:user_id (name, email, employee_id, department),
+          employees:user_id (name, email, employee_id, department, role),
           attendance_breaks (*)
         `)
         .eq('user_id', employeeId)
@@ -539,7 +831,7 @@ class GlobalAttendanceService {
         return [];
       }
 
-      const records = data.map(this.convertDbToAttendance.bind(this));
+      const records = data.map(record => this.convertDbToAttendance(record, schedule));
 
       console.log(`📊 Found ${records.length} records for ${employeeId}`);
       return records;
@@ -549,20 +841,47 @@ class GlobalAttendanceService {
     }
   }
 
-  private isLateArrival(clockInTime: Date | null): boolean {
+  private isLateArrival(clockInTime: Date | null, schedule: RoleSchedule): boolean {
     if (!clockInTime) return false;
-    return isLateArrival(clockInTime);
+    return isLateArrival(schedule, clockInTime);
   }
 
-  private determineStatus(clockInTime: Date | null): 'present' | 'absent' | 'late' | 'partial' | 'half-day' {
-    if (!clockInTime) return 'absent';
-    return this.isLateArrival(clockInTime) ? 'late' : 'present';
-  }
+    private determineStatus(
+      clockInTime: Date | null,
+      clockOutTime: Date | null,
+      schedule: RoleSchedule,
+      dbIsLate: boolean = false
+    ): 'present' | 'absent' | 'late' | 'partial' | 'half-day' {
+      if (!clockInTime) return 'absent';
+
+      // Respect the DB's authoritative is_late flag first (the source of truth)
+      if (dbIsLate) return 'late';
+
+      // Early departure before scheduled work end → partial day
+      if (clockOutTime && this.isEarlyDeparture(clockOutTime, schedule)) {
+        return 'partial';
+      }
+
+      // Fall back to wall-clock evaluation only when the DB flag is absent/unknown
+      return this.isLateArrival(clockInTime, schedule) ? 'late' : 'present';
+    }
 
   async startBreak(userId: string): Promise<AttendanceRecord> {
     try {
       const todayIso = getOfficeTodayIso();
       const now = new Date();
+
+      // Get employee role and schedule
+      const { data: employeeData } = await supabase
+        .from(this.USERS_TABLE)
+        .select('role')
+        .eq('id', userId)
+        .single();
+      const role = employeeData?.role as string || 'employee';
+      let schedule = await configService.getScheduleByRole(role);
+      if (!schedule) {
+        schedule = { ...DEFAULT_ROLE_SCHEDULE, role };
+      }
 
       // Get attendance record
       const { data: attendanceRecord, error: recordError } = await supabase
@@ -599,18 +918,18 @@ class GlobalAttendanceService {
 
       if (insertError) throw insertError;
 
-      // Get updated record
+      // Get updated record (include role in join)
       const { data: updatedRecord } = await supabase
         .from(this.ATTENDANCE_TABLE)
         .select(`
           *,
-          employees:user_id (name, email, employee_id, department),
+          employees:user_id (name, email, employee_id, department, role),
           attendance_breaks (*)
         `)
         .eq('id', attendanceRecord.id)
         .single();
 
-      return this.convertDbToAttendance(updatedRecord);
+      return this.convertDbToAttendance(updatedRecord, schedule);
     } catch (error) {
       console.error('Error starting break:', error);
       throw error;
@@ -620,6 +939,18 @@ class GlobalAttendanceService {
   async endBreak(userId: string): Promise<AttendanceRecord> {
     try {
       const todayIso = getOfficeTodayIso();
+
+      // Get employee role and schedule
+      const { data: employeeData } = await supabase
+        .from(this.USERS_TABLE)
+        .select('role')
+        .eq('id', userId)
+        .single();
+      const role = employeeData?.role as string || 'employee';
+      let schedule = await configService.getScheduleByRole(role);
+      if (!schedule) {
+        schedule = { ...DEFAULT_ROLE_SCHEDULE, role };
+      }
 
       // Get attendance record
       const { data: attendanceRecord } = await supabase
@@ -631,35 +962,34 @@ class GlobalAttendanceService {
 
       if (!attendanceRecord) throw new Error('No attendance record found for today');
 
-      // Find active break (use maybeSingle to avoid 406 when no break exists)
+      // Find active break (include start time for lunch detection)
       const { data: activeBreak } = await supabase
         .from(this.BREAKS_TABLE)
-        .select('id')
-        .eq('attendance_record_id', attendanceRecord.id)
-        .is('end', null)
-        .maybeSingle();
+         .select('id, start')
+         .eq('attendance_record_id', attendanceRecord.id)
+         .is('end', null)
+         .maybeSingle();
 
-      if (!activeBreak) {
-        throw new Error('No active break found to end.');
-      }
+       if (!activeBreak) {
+         throw new Error('No active break found to end.');
+       }
 
-      // End break with direct update (no RPC)
-      const now = new Date();
-      const { error: updateError } = await supabase
-        .from(this.BREAKS_TABLE)
-        .update({ end: now.toISOString() })
-        .eq('id', activeBreak.id)
-        .select()
-        .single();
+        const now = new Date();
+        const { error: updateError } = await supabase
+          .from(this.BREAKS_TABLE)
+          .update({ end: now.toISOString() })
+          .eq('id', activeBreak.id)
+          .select()
+          .single();
 
       if (updateError) throw updateError;
 
-      // Get updated record
+      // Get updated record (include role in join)
       const { data: updatedRecord, error: fetchError } = await supabase
         .from(this.ATTENDANCE_TABLE)
         .select(`
           *,
-          employees:user_id (name, email, employee_id, department),
+          employees:user_id (name, email, employee_id, department, role),
           attendance_breaks (*)
         `)
         .eq('id', attendanceRecord.id)
@@ -668,7 +998,7 @@ class GlobalAttendanceService {
       if (fetchError) throw fetchError;
       if (!updatedRecord) throw new Error('Failed to fetch updated attendance record');
 
-      return this.convertDbToAttendance(updatedRecord);
+      return this.convertDbToAttendance(updatedRecord, schedule);
     } catch (error) {
       console.error('Error ending break:', error);
       throw error;
@@ -678,6 +1008,18 @@ class GlobalAttendanceService {
   async startLunchBreak(userId: string): Promise<AttendanceRecord> {
     try {
       const todayIso = getOfficeTodayIso();
+
+      // Get employee role and schedule
+      const { data: employeeData } = await supabase
+        .from(this.USERS_TABLE)
+        .select('role')
+        .eq('id', userId)
+        .single();
+      const role = employeeData?.role as string || 'employee';
+      let schedule = await configService.getScheduleByRole(role);
+      if (!schedule) {
+        schedule = { ...DEFAULT_ROLE_SCHEDULE, role };
+      }
 
       const { data: attendanceRecord, error: recordError } = await supabase
         .from(this.ATTENDANCE_TABLE)
@@ -701,18 +1043,18 @@ class GlobalAttendanceService {
       }).single();
       if (updateError) throw updateError;
 
-      // Get updated record
+      // Get updated record (include role in join)
       const { data: updatedRecord } = await supabase
         .from(this.ATTENDANCE_TABLE)
         .select(`
           *,
-          employees:user_id (name, email, employee_id, department),
+          employees:user_id (name, email, employee_id, department, role),
           attendance_breaks (*)
         `)
         .eq('id', attendanceRecord.id)
         .single();
 
-      return this.convertDbToAttendance(updatedRecord);
+      return this.convertDbToAttendance(updatedRecord, schedule);
     } catch (error) {
       console.error('Error starting lunch break:', error);
       throw error;
@@ -722,6 +1064,18 @@ class GlobalAttendanceService {
   async endLunchBreak(userId: string, isLate?: boolean): Promise<AttendanceRecord> {
     try {
       const todayIso = getOfficeTodayIso();
+
+      // Get employee role and schedule
+      const { data: employeeData } = await supabase
+        .from(this.USERS_TABLE)
+        .select('role')
+        .eq('id', userId)
+        .single();
+      const role = employeeData?.role as string || 'employee';
+      let schedule = await configService.getScheduleByRole(role);
+      if (!schedule) {
+        schedule = { ...DEFAULT_ROLE_SCHEDULE, role };
+      }
 
       const { data: attendanceRecord, error: recordError } = await supabase
         .from(this.ATTENDANCE_TABLE)
@@ -747,48 +1101,48 @@ class GlobalAttendanceService {
       const { error: updateError } = await supabase.rpc('update_attendance_record', updateParams).single();
       if (updateError) throw updateError;
 
-      // Get updated record
+      // Get updated record (include role in join)
       const { data: updatedRecord } = await supabase
         .from(this.ATTENDANCE_TABLE)
         .select(`
           *,
-          employees:user_id (name, email, employee_id, department),
+          employees:user_id (name, email, employee_id, department, role),
           attendance_breaks (*)
         `)
         .eq('id', attendanceRecord.id)
         .single();
 
-      return this.convertDbToAttendance(updatedRecord);
+      return this.convertDbToAttendance(updatedRecord, schedule);
     } catch (error) {
       console.error('Error ending lunch break:', error);
       throw error;
     }
   }
 
-  isLunchTime(): boolean {
-    const now = getOfficeNow();
-    const lunchStart = getLunchStartTime(now);
-    const lunchEnd = getLunchEndTime(now);
+   isLunchTime(schedule: RoleSchedule): boolean {
+     const now = getOfficeNow();
+     const lunchStart = getLunchStartTime(schedule, now);
+     const lunchEnd = getLunchEndTime(schedule, now);
 
-    return now.getTime() >= lunchStart.getTime() && now.getTime() <= lunchEnd.getTime();
-  }
+     return now.getTime() >= lunchStart.getTime() && now.getTime() <= lunchEnd.getTime();
+   }
 
-  isLateFromLunch(): boolean {
-    const now = getOfficeNow();
-    const lunchEnd = getLunchEndTime(now);
+   isLateFromLunch(schedule: RoleSchedule): boolean {
+     const now = getOfficeNow();
+     const lunchEnd = getLunchEndTime(schedule, now);
 
-    return now.getTime() > lunchEnd.getTime();
-  }
+     return now.getTime() > lunchEnd.getTime();
+   }
 
-  hasCompletedMinimumHours(clockInTime: Date, clockOutTime: Date): boolean {
-    const hoursWorked = (clockOutTime.getTime() - clockInTime.getTime()) / (1000 * 60 * 60);
-    return hoursWorked >= WORKING_HOURS.STANDARD_WORK_HOURS;
-  }
+   hasCompletedMinimumHours(clockInTime: Date, clockOutTime: Date, schedule: RoleSchedule): boolean {
+     const hoursWorked = (clockOutTime.getTime() - clockInTime.getTime()) / (1000 * 60 * 60);
+     return hoursWorked >= schedule.standard_work_hours;
+   }
 
-  isEarlyDeparture(clockOutTime: Date): boolean {
-    const workEnd = getWorkEndTime(clockOutTime);
-    return clockOutTime.getTime() < workEnd.getTime();
-  }
-}
+   isEarlyDeparture(clockOutTime: Date, schedule: RoleSchedule): boolean {
+     const workEnd = getWorkEndTime(schedule, clockOutTime);
+     return clockOutTime.getTime() < workEnd.getTime();
+   }
+ }
 
 export const globalAttendanceService = new GlobalAttendanceService();

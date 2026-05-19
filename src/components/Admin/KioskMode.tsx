@@ -92,20 +92,20 @@ const KioskMode: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 p-6">
+    <div className="min-h-screen bg-[#E5EDF1] dark:bg-slate-900 p-6">
       <div className="max-w-6xl mx-auto">
         {/* Header */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
+        <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-700 border-gray-200 p-6 mb-6">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-3xl font-bold text-gray-900">Office Kiosk</h1>
-              <p className="text-gray-600 mt-1">Quick attendance tracking</p>
+              <h1 className="text-3xl font-bold text-gray-900 dark:text-slate-200">Office Kiosk</h1>
+              <p className="text-gray-600 dark:text-gray-400 mt-1">Quick attendance tracking</p>
             </div>
             <div className="text-right">
-              <div className="text-3xl font-mono font-bold text-blue-600">
+              <div className="text-3xl font-mono font-bold text-gray-900 dark:text-slate-200">
                 {format(currentTime, 'HH:mm:ss')}
               </div>
-              <div className="text-gray-600">
+              <div className="text-gray-600 dark:text-gray-400">
                 {format(currentTime, 'EEEE, MMMM d, yyyy')}
               </div>
             </div>
@@ -114,14 +114,14 @@ const KioskMode: React.FC = () => {
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Attendance Actions */}
-          <div className="lg:col-span-1">
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-              <h2 className="text-xl font-semibold text-gray-900 mb-4">Mark Attendance</h2>
+            <div className="lg:col-span-1">
+            <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-700 border-gray-200 p-6">
+              <h2 className="text-xl font-semibold text-gray-900 dark:text-slate-200 mb-4">Mark Attendance</h2>
               
               <div className="space-y-4">
                 <button
                   onClick={() => setShowManualEntry(true)}
-                  className="w-full bg-green-600 text-white py-3 px-4 rounded-lg hover:bg-green-700 flex items-center justify-center space-x-2"
+                  className="w-full bg-black text-white py-3 px-4 rounded-lg hover:bg-gray-800 flex items-center justify-center space-x-2"
                 >
                   <KeySquare className="w-5 h-5" />
                   <span>Enter Employee ID</span>
@@ -129,12 +129,12 @@ const KioskMode: React.FC = () => {
               </div>
 
               {/* Quick Stats */}
-              <div className="mt-6 p-4 bg-gray-50 rounded-lg">
+              <div className="mt-6 p-4 bg-gray-50 dark:bg-slate-700 rounded-lg">
                 <div className="flex items-center space-x-2 mb-2">
-                  <Users className="w-5 h-5 text-gray-600" />
-                  <span className="font-medium text-gray-900">Currently Active</span>
+                  <Users className="w-5 h-5 text-gray-600 dark:text-gray-400" />
+                  <span className="font-medium text-gray-900 dark:text-slate-200">Currently Active</span>
                 </div>
-                <div className="text-2xl font-bold text-blue-600">
+                <div className="text-2xl font-bold text-[#96C2DB]">
                   {activeEmployees.length}
                 </div>
               </div>
@@ -142,9 +142,9 @@ const KioskMode: React.FC = () => {
           </div>
 
           {/* Active Employees */}
-          <div className="lg:col-span-2">
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-              <h2 className="text-xl font-semibold text-gray-900 mb-4">Currently Logged In</h2>
+            <div className="lg:col-span-2">
+            <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-700 border-gray-200 p-6">
+              <h2 className="text-xl font-semibold text-gray-900 dark:text-slate-200 mb-4">Currently Logged In</h2>
               
               {activeEmployees.length === 0 ? (
                 <div className="text-center py-8 text-gray-500">
@@ -156,18 +156,18 @@ const KioskMode: React.FC = () => {
                   {activeEmployees.map((employee) => (
                     <div
                       key={employee.id}
-                      className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50"
+                      className="border border-gray-200 dark:border-slate-600 rounded-lg p-4 hover:bg-gray-50 dark:hover:bg-slate-700"
                     >
                       <div className="flex items-center space-x-3">
-                        <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
+                        <div className="w-10 h-10 bg-[#E5EDF1] rounded-full flex items-center justify-center">
                           <span className="text-green-600 font-medium">
                             {employee.name.charAt(0)}
                           </span>
                         </div>
                         <div className="flex-1">
-                          <h3 className="font-medium text-gray-900">{employee.name}</h3>
-                          <p className="text-sm text-gray-500">{employee.employeeId}</p>
-                          <p className="text-xs text-gray-400">
+                          <h3 className="font-medium text-gray-900 dark:text-slate-200">{employee.name}</h3>
+                          <p className="text-sm text-gray-500 dark:text-gray-400">{employee.employeeId}</p>
+                          <p className="text-xs text-gray-400 dark:text-gray-500">
                             Since: {format(employee.clockInTime, 'HH:mm')}
                           </p>
                         </div>
@@ -185,8 +185,8 @@ const KioskMode: React.FC = () => {
       {/* Manual Entry Modal */}
       {showManualEntry && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-96">
-            <h3 className="text-lg font-medium text-gray-900 mb-4">
+          <div className="bg-white dark:bg-slate-800 rounded-xl p-6 w-96">
+            <h3 className="text-lg font-medium text-gray-900 dark:text-slate-200 mb-4">
               Enter Employee ID
             </h3>
             <input
@@ -194,21 +194,21 @@ const KioskMode: React.FC = () => {
               value={employeeId}
               onChange={(e) => setEmployeeId(e.target.value)}
               placeholder="Employee ID"
-              className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full p-3 border border-gray-200 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-800 focus:ring-2 focus:ring-[#96C2DB] focus:border-[#96C2DB] focus:border-transparent"
               onKeyPress={(e) => e.key === 'Enter' && handleManualEntry()}
               autoFocus
             />
             <div className="flex space-x-3 mt-4">
               <button
                 onClick={() => setShowManualEntry(false)}
-                className="flex-1 px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200"
+                className="flex-1 px-4 py-2 text-gray-700 dark:text-gray-300 bg-gray-100 hover:bg-gray-200 rounded-lg"
               >
                 Cancel
               </button>
               <button
                 onClick={handleManualEntry}
                 disabled={loading || !employeeId.trim()}
-                className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300"
+                className="flex-1 px-4 py-2 bg-black text-white rounded-lg hover:bg-gray-800 disabled:bg-gray-300"
               >
                 {loading ? 'Processing...' : 'Submit'}
               </button>

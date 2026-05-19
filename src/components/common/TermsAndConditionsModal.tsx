@@ -1,5 +1,8 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { X, Shield, FileText, Users, Database, Clock, MapPin, Bell } from 'lucide-react';
+import { useAuth } from '../../hooks/useAuth';
+import { getScheduleForEmployee, formatWorkingHours, DEFAULT_ROLE_SCHEDULE } from '../../constants/workingHours';
+import type { RoleSchedule } from '../../types';
 
 interface TermsAndConditionsModalProps {
   isOpen: boolean;
@@ -7,14 +10,32 @@ interface TermsAndConditionsModalProps {
 }
 
 const TermsAndConditionsModal: React.FC<TermsAndConditionsModalProps> = ({ isOpen, onClose }) => {
+  const { employee } = useAuth();
+  const [schedule, setSchedule] = useState<RoleSchedule>(DEFAULT_ROLE_SCHEDULE);
+
+  useEffect(() => {
+    if (!employee?.id) return;
+    let cancelled = false;
+    (async () => {
+      const s = await getScheduleForEmployee(employee.id);
+      if (!cancelled && s) setSchedule(s);
+    })();
+    return () => { cancelled = true; };
+  }, [employee?.id, isOpen]);
+
+  const workHours = formatWorkingHours(schedule);
+  const start12 = `${schedule.start_hour % 12 || 12}:${String(schedule.start_minute).padStart(2, '0')} ${schedule.start_hour >= 12 ? 'PM' : 'AM'}`;
+  const end12 = `${schedule.end_hour % 12 || 12}:${String(schedule.end_minute).padStart(2, '0')} ${schedule.end_hour >= 12 ? 'PM' : 'AM'}`;
+  const lunchStart12 = `${schedule.lunch_start_hour % 12 || 12}:${String(schedule.lunch_start_minute).padStart(2, '0')} ${schedule.lunch_start_hour >= 12 ? 'PM' : 'AM'}`;
+  const lunchEnd12 = `${schedule.lunch_end_hour % 12 || 12}:${String(schedule.lunch_end_minute).padStart(2, '0')} ${schedule.lunch_end_hour >= 12 ? 'PM' : 'AM'}`;
+
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg w-full max-w-4xl h-[80vh] mx-4 flex flex-col overflow-hidden">
+    <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50">
+      <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-lg border border-gray-100 dark:border-slate-700 w-full max-w-4xl h-[80vh] mx-4 flex flex-col overflow-hidden">
         {/* Header */}
-        <div className="bg-blue-600 text-white p-6 flex items-center justify-between">
-          <div className="flex items-center">
+        <div className="bg-[#1C2B3A] text-white p-6 flex items-center justify-between"><div className="flex items-center">
             <Shield className="h-8 w-8 mr-3" />
             <div>
               <h2 className="text-2xl font-bold">Attendance Management Terms & Conditions</h2>
@@ -35,8 +56,8 @@ const TermsAndConditionsModal: React.FC<TermsAndConditionsModalProps> = ({ isOpe
             {/* Introduction */}
             <section>
               <div className="flex items-center mb-4">
-                <FileText className="h-6 w-6 text-blue-600 mr-3" />
-                <h3 className="text-xl font-semibold text-gray-900">Introduction</h3>
+                <FileText className="h-6 w-6 text-[#96C2DB] mr-3" />
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-slate-200">Introduction</h3>
               </div>
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                 <p className="text-gray-700 leading-relaxed">
@@ -48,30 +69,30 @@ const TermsAndConditionsModal: React.FC<TermsAndConditionsModalProps> = ({ isOpe
             {/* Working Hours Policy */}
             <section>
               <div className="flex items-center mb-4">
-                <Clock className="h-6 w-6 text-green-600 mr-3" />
-                <h3 className="text-xl font-semibold text-gray-900">Working Hours Policy</h3>
+                <Clock className="h-6 w-6 text-[#96C2DB] mr-3" />
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-slate-200">Working Hours Policy</h3>
               </div>
               <div className="bg-green-50 border border-green-200 rounded-lg p-4 space-y-3">
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div className="text-center">
-                    <div className="font-semibold text-green-800">Standard Hours</div>
-                    <div className="text-green-700">10:00 AM - 8:00 PM</div>
-                    <div className="text-sm text-green-600">10 hours daily</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="font-semibold text-green-800">Lunch Break</div>
-                    <div className="text-green-700">2:00 PM - 3:00 PM</div>
-                    <div className="text-sm text-green-600">1 hour break</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="font-semibold text-green-800">Late Threshold</div>
-                    <div className="text-green-700">After 10:00 AM</div>
-                    <div className="text-sm text-green-600">Requires justification</div>
-                  </div>
+                    <div className="text-center">
+                      <div className="font-semibold text-green-800">Standard Hours</div>
+                      <div className="text-green-700">{workHours}</div>
+                      <div className="text-sm text-[#96C2DB]">{schedule.standard_work_hours} hours daily</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="font-semibold text-green-800">Lunch Break</div>
+                      <div className="text-green-700">{lunchStart12} - {lunchEnd12}</div>
+                      <div className="text-sm text-[#96C2DB]">1 hour break</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="font-semibold text-green-800">Late Threshold</div>
+                      <div className="text-green-700">After {start12}</div>
+                      <div className="text-sm text-[#96C2DB]">Requires justification</div>
+                    </div>
                 </div>
-                <div className="mt-4 p-3 bg-green-100 rounded">
+                <div className="mt-4 p-3 bg-[#E5EDF1] rounded">
                   <p className="text-sm text-green-800">
-                    <strong>Important:</strong> Consistent late arrivals may result in disciplinary action. 
+                    <strong>Important:</strong> Consistent late arrivals may result in disciplinary action.
                     Please ensure you clock in on time and provide valid reasons for any delays.
                   </p>
                 </div>
@@ -81,8 +102,8 @@ const TermsAndConditionsModal: React.FC<TermsAndConditionsModalProps> = ({ isOpe
             {/* Attendance Tracking */}
             <section>
               <div className="flex items-center mb-4">
-                <Users className="h-6 w-6 text-purple-600 mr-3" />
-                <h3 className="text-xl font-semibold text-gray-900">Attendance Tracking Requirements</h3>
+                <Users className="h-6 w-6 text-[#96C2DB] mr-3" />
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-slate-200">Attendance Tracking Requirements</h3>
               </div>
               <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
                 <ul className="space-y-3 text-gray-700">
@@ -101,7 +122,7 @@ const TermsAndConditionsModal: React.FC<TermsAndConditionsModalProps> = ({ isOpe
                   <li className="flex items-start">
                     <div className="w-2 h-2 bg-purple-500 rounded-full mt-2 mr-3 flex-shrink-0"></div>
                     <div>
-                      <strong>Late Justification:</strong> Any arrival after 10:00 AM requires a reason to be provided in the system.
+                      <strong>Late Justification:</strong> Any arrival after {start12} requires a reason to be provided in the system.
                     </div>
                   </li>
                   <li className="flex items-start">
@@ -117,8 +138,8 @@ const TermsAndConditionsModal: React.FC<TermsAndConditionsModalProps> = ({ isOpe
             {/* Location & Privacy */}
             <section>
               <div className="flex items-center mb-4">
-                <MapPin className="h-6 w-6 text-orange-600 mr-3" />
-                <h3 className="text-xl font-semibold text-gray-900">Location & Privacy Policy</h3>
+                <MapPin className="h-6 w-6 text-[#96C2DB] mr-3" />
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-slate-200">Location & Privacy Policy</h3>
               </div>
               <div className="bg-orange-50 border border-orange-200 rounded-lg p-4 space-y-3">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -148,7 +169,7 @@ const TermsAndConditionsModal: React.FC<TermsAndConditionsModalProps> = ({ isOpe
             <section>
               <div className="flex items-center mb-4">
                 <Database className="h-6 w-6 text-indigo-600 mr-3" />
-                <h3 className="text-xl font-semibold text-gray-900">Data Management & Retention</h3>
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-slate-200">Data Management & Retention</h3>
               </div>
               <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -201,8 +222,8 @@ const TermsAndConditionsModal: React.FC<TermsAndConditionsModalProps> = ({ isOpe
             {/* Notifications */}
             <section>
               <div className="flex items-center mb-4">
-                <Bell className="h-6 w-6 text-yellow-600 mr-3" />
-                <h3 className="text-xl font-semibold text-gray-900">Notification Policy</h3>
+                <Bell className="h-6 w-6 text-[#96C2DB] mr-3" />
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-slate-200">Notification Policy</h3>
               </div>
               <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
                 <p className="text-gray-700 mb-3">
@@ -212,8 +233,8 @@ const TermsAndConditionsModal: React.FC<TermsAndConditionsModalProps> = ({ isOpe
                   <div>
                     <h4 className="font-semibold text-yellow-800 mb-2">Automatic Notifications</h4>
                     <ul className="text-yellow-700 space-y-1">
-                      <li>• Clock-in reminders (10:00 AM)</li>
-                      <li>• Clock-out reminders (8:00 PM)</li>
+                        <li>• Clock-in reminders ({start12})</li>
+                        <li>• Clock-out reminders ({end12})</li>
                       <li>• Break time reminders</li>
                       <li>• Weekly attendance summaries</li>
                     </ul>
@@ -235,7 +256,7 @@ const TermsAndConditionsModal: React.FC<TermsAndConditionsModalProps> = ({ isOpe
             <section>
               <div className="flex items-center mb-4">
                 <Shield className="h-6 w-6 text-red-600 mr-3" />
-                <h3 className="text-xl font-semibold text-gray-900">Employee Rights & Responsibilities</h3>
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-slate-200">Employee Rights & Responsibilities</h3>
               </div>
               <div className="bg-red-50 border border-red-200 rounded-lg p-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -264,45 +285,45 @@ const TermsAndConditionsModal: React.FC<TermsAndConditionsModalProps> = ({ isOpe
             </section>
 
             {/* Contact Information */}
-            <section className="border-t border-gray-200 pt-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Questions or Concerns?</h3>
-              <div className="bg-gray-50 rounded-lg p-4">
+            <section className="border-t border-gray-200 dark:border-slate-600 pt-6">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-slate-200 mb-4">Questions or Concerns?</h3>
+              <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-lg border border-gray-100 dark:border-slate-700 p-4 border border-gray-100">
                 <p className="text-gray-700 mb-3">
                   If you have any questions about these terms and conditions or the attendance system, please contact:
                 </p>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
                   <div>
-                    <strong className="text-gray-900">HR Department</strong>
-                    <div className="text-gray-600">hr@aintrix.com</div>
-                    <div className="text-gray-600">+1 (555) 123-4567</div>
+                    <strong className="text-gray-900 dark:text-slate-200">HR Department</strong>
+                    <div className="text-gray-600 dark:text-gray-400">Shanmugapriya</div>
+                    <div className="text-gray-600 dark:text-gray-400">+918870605033</div>
                   </div>
                   <div>
-                    <strong className="text-gray-900">IT Support</strong>
-                    <div className="text-gray-600">support@aintrix.com</div>
-                    <div className="text-gray-600">+1 (555) 123-4568</div>
+                    <strong className="text-gray-900 dark:text-slate-200">IT Support</strong>
+                    <div className="text-gray-600 dark:text-gray-400">Syed Muksid</div>
+                    <div className="text-gray-600 dark:text-gray-400">+919444285541</div>
                   </div>
                 </div>
               </div>
             </section>
 
             {/* Footer */}
-            <section className="border-t border-gray-200 pt-4">
-              <div className="text-center text-sm text-gray-600">
-                <p>Last updated: July 11, 2025</p>
-                <p className="mt-1">AINTRIX Global • Attendance Management System v1.0.0</p>
+            <section className="border-t border-gray-200 dark:border-slate-600 pt-4">
+              <div className="text-center text-sm text-gray-600 dark:text-gray-400">
+                <p>Last updated: May 18, 2026</p>
+                <p className="mt-1">AINTRIX Global • Attendance Management System</p>
               </div>
             </section>
           </div>
         </div>
 
         {/* Footer Buttons */}
-        <div className="bg-gray-50 border-t border-gray-200 p-4 flex justify-between items-center">
-          <div className="text-sm text-gray-600">
+        <div className="bg-gray-50 dark:bg-slate-700 border-t border-gray-200 dark:border-slate-600 p-4 flex justify-between items-center">
+          <div className="text-sm text-gray-600 dark:text-gray-400">
             By using this system, you acknowledge that you have read and agree to these terms.
           </div>
           <button
             onClick={onClose}
-            className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg transition-colors"
+            className="bg-black text-white hover:bg-gray-800 transition-colors shadow-sm   px-6 py-2 rounded-xl transition-colors"
           >
             I Understand
           </button>

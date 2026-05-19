@@ -118,7 +118,7 @@ const AssignMeeting: React.FC = () => {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Meeting Assignment Form */}
-        <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-6">
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
           <h2 className="text-xl font-semibold text-gray-900 mb-6">Create New Meeting</h2>
           
           <div className="space-y-4">
@@ -131,7 +131,7 @@ const AssignMeeting: React.FC = () => {
                 type="text"
                 value={meetingTitle}
                 onChange={(e) => setMeetingTitle(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-3 py-2 border border-gray-200 rounded-xl bg-white focus:ring-2 focus:ring-[#96C2DB] focus:border-[#96C2DB] focus:border-transparent"
                 placeholder="Enter meeting title"
               />
             </div>
@@ -145,7 +145,7 @@ const AssignMeeting: React.FC = () => {
                 value={meetingDescription}
                 onChange={(e) => setMeetingDescription(e.target.value)}
                 rows={3}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-3 py-2 border border-gray-200 rounded-xl bg-white focus:ring-2 focus:ring-[#96C2DB] focus:border-[#96C2DB] focus:border-transparent"
                 placeholder="Enter meeting description (optional)"
               />
             </div>
@@ -161,7 +161,7 @@ const AssignMeeting: React.FC = () => {
                   value={meetingDate}
                   onChange={(e) => setMeetingDate(e.target.value)}
                   min={format(new Date(), 'yyyy-MM-dd')}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-3 py-2 border border-gray-200 rounded-xl bg-white focus:ring-2 focus:ring-[#96C2DB] focus:border-[#96C2DB] focus:border-transparent"
                 />
               </div>
               <div>
@@ -172,7 +172,7 @@ const AssignMeeting: React.FC = () => {
                   type="time"
                   value={meetingTime}
                   onChange={(e) => setMeetingTime(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-3 py-2 border border-gray-200 rounded-xl bg-white focus:ring-2 focus:ring-[#96C2DB] focus:border-[#96C2DB] focus:border-transparent"
                 />
               </div>
             </div>
@@ -190,7 +190,7 @@ const AssignMeeting: React.FC = () => {
             <button
               onClick={handleAssignMeeting}
               disabled={loading || !meetingTitle.trim() || !meetingDate || !meetingTime || selectedEmployees.length === 0}
-              className="w-full bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center justify-center space-x-2"
+              className="w-full bg-black text-white py-2 px-4 rounded-lg hover:bg-gray-800 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center justify-center space-x-2"
             >
               <Send className="w-4 h-4" />
               <span>{loading ? 'Assigning...' : 'Assign Meeting'}</span>
@@ -199,7 +199,7 @@ const AssignMeeting: React.FC = () => {
         </div>
 
         {/* Employee Selection */}
-        <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-6">
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
           <h2 className="text-xl font-semibold text-gray-900 mb-6">Select Employees</h2>
           
           {employees.length === 0 ? (
@@ -218,7 +218,7 @@ const AssignMeeting: React.FC = () => {
                     type="checkbox"
                     checked={selectedEmployees.includes(employee.id)}
                     onChange={() => handleEmployeeToggle(employee.id)}
-                    className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                    className="w-4 h-4 text-[#96C2DB] border-gray-300 rounded focus:ring-[#96C2DB] focus:border-[#96C2DB]"
                   />
                   <div className="ml-3 flex-1">
                     <div className="flex items-center justify-between">
@@ -239,7 +239,7 @@ const AssignMeeting: React.FC = () => {
       </div>
 
       {/* Recent Meetings */}
-      <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-6">
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
         <h2 className="text-xl font-semibold text-gray-900 mb-6">Recent Meetings</h2>
         
         {meetings.length === 0 ? (

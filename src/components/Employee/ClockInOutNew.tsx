@@ -3,11 +3,12 @@ import { useQueryClient, useMutation } from '@tanstack/react-query';
 import { Clock, AlertCircle, Coffee, Play, Pause } from 'lucide-react';
 import { globalAttendanceService } from '../../services/globalAttendanceService';
 import { AttendanceRecord } from '../../types';
+import type { RoleSchedule } from '../../types';
 import { useAuth } from '../../hooks/useAuth';
 import { formatOfficeTimeLong, getOfficeNow } from '../../utils/timezoneUtils';
 import { format } from 'date-fns';
 import toast from 'react-hot-toast';
-import { getWorkStartTime, getLunchStartTime, getLunchEndTime } from '../../constants/workingHours';
+import { getLunchEndTime, isLateArrival, DEFAULT_ROLE_SCHEDULE } from '../../constants/workingHours';
 import { configService } from '../../services/configService';
 import { formatDuration } from '../../utils/formatDuration';
 import { getClientIP, verifyIPAddress, verifyGeofence } from '../../utils/security';
@@ -25,7 +26,7 @@ const LiveClockDisplay = memo(() => {
 
   return (
     <div className="text-right">
-      <div className="text-2xl font-mono font-bold text-gray-900">
+      <div className="text-2xl font-mono font-bold text-gray-900 dark:text-slate-200">
         {format(now, 'HH:mm:ss')}
       </div>
       <div className="text-sm text-gray-500">
@@ -105,43 +106,53 @@ const ClockInOutNew: React.FC<ClockInOutNewProps> = ({ onAttendanceChange }) => 
   const [currentLocation, setCurrentLocation] = useState<{ latitude: number; longitude: number; accuracy?: number } | null>(null);
   const [locationError, setLocationError] = useState<string | null>(null);
   const [isValidating, setIsValidating] = useState(false);
+  const [showClockOutModal, setShowClockOutModal] = useState(false);
   const [isInitializing, setIsInitializing] = useState(true);
-  // Reactive work start time from DB config (falls back to default if not loaded)
-  const [workStartTime, setWorkStartTime] = useState<Date>(getWorkStartTime(new Date()));
-  const [lunchEndTime, setLunchEndTime] = useState<Date>(getLunchEndTime(new Date()));
+  // Active employee schedule (fetched from DB); falls back to DEFAULT_ROLE_SCHEDULE while loading or on error
+  const [activeSchedule, setActiveSchedule] = useState<RoleSchedule | null>(null);
+  const [lunchEndTime, setLunchEndTime] = useState<Date>(getLunchEndTime(DEFAULT_ROLE_SCHEDULE, new Date()));
 
   // Synchronous lock to prevent concurrent clock-in submissions
   const clockInLock = useRef(false);
   // Stores the location that passed geofence validation, protecting against stale state updates before modal submission
   const validatedLocationRef = useRef<{ latitude: number; longitude: number; accuracy: number } | null>(null);
 
-   const queryClient = useQueryClient();
+  const queryClient = useQueryClient();
 
-   const clockOutMutation = useMutation({
-     mutationFn: () => {
-       if (!employee?.id) throw new Error('Employee not authenticated');
-       return globalAttendanceService.clockOut(employee.id);
-     },
-     onMutate: () => {
-       setLoading(true);
-     },
-     onSuccess: (record: AttendanceRecord) => {
-       setTodayRecord(record);
-       toast.success(`Clocked out successfully! Worked ${(record.hoursWorked || 0).toFixed(2)} hours`);
-       onAttendanceChange?.();
-       queryClient.invalidateQueries({ queryKey: ['employeeAttendanceToday', employee?.id] });
-       queryClient.invalidateQueries({ queryKey: ['employeeWeeklyStats', employee?.id] });
-       queryClient.invalidateQueries({ queryKey: ['attendanceRecords'] });
-     },
-     onError: (error: Error) => {
-       toast.error(error.message);
-     },
-     onSettled: () => {
-       setLoading(false);
-     }
-   });
+  const clockOutMutation = useMutation({
+    mutationFn: () => {
+      if (!employee?.id) throw new Error('Employee not authenticated');
+      return globalAttendanceService.clockOut(employee.id);
+    },
+    onMutate: () => {
+      setLoading(true);
+    },
+    onSuccess: (record: AttendanceRecord) => {
+      setTodayRecord(record);
+      toast.success(`Clocked out successfully! Worked ${(record.hoursWorked || 0).toFixed(2)} hours`);
+      handleAttendanceChange();
+      queryClient.invalidateQueries({ queryKey: ['employeeAttendanceToday', employee?.id] });
+      queryClient.invalidateQueries({ queryKey: ['employeeWeeklyStats', employee?.id] });
+      queryClient.invalidateQueries({ queryKey: ['attendanceRecords'] });
+    },
+    onError: (error: Error) => {
+      toast.error(error.message);
+    },
+    onSettled: () => {
+      setLoading(false);
+    }
+  });
 
-   // Helper: fetch a fresh GPS reading with high accuracy
+  const handleAttendanceChange = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: ['employeeAttendanceToday', employee?.id] });
+    queryClient.invalidateQueries({ queryKey: ['employeeWeeklyStats', employee?.id] });
+    queryClient.invalidateQueries({ queryKey: ['attendanceRecords'] });
+    if (onAttendanceChange) {
+      onAttendanceChange();
+    }
+  }, [queryClient, employee?.id, onAttendanceChange]);
+
+  // Helper: Fetch a fresh GPS reading with high accuracy
   const getFreshLocation = (): Promise<{ latitude: number; longitude: number; accuracy: number } | null> => {
     return new Promise((resolve) => {
       if (!navigator.geolocation) {
@@ -235,11 +246,10 @@ const ClockInOutNew: React.FC<ClockInOutNewProps> = ({ onAttendanceChange }) => 
 
       // Check if it would be a late arrival based on configured work start time
       const now = new Date();
-      const workStartTime = getWorkStartTime(now);
+      const effectiveSchedule = activeSchedule || DEFAULT_ROLE_SCHEDULE;
+      const isActuallyLate = isLateArrival(effectiveSchedule, now);
 
-      const isLateArrival = now > workStartTime;
-
-      if (isLateArrival && !pendingClockIn) {
+      if (isActuallyLate && !pendingClockIn) {
         // Show modal to ask for late reason
         setPendingClockIn(true);
         setShowLateReasonModal(true);
@@ -268,19 +278,19 @@ const ClockInOutNew: React.FC<ClockInOutNewProps> = ({ onAttendanceChange }) => 
       const validatedLoc = validatedLocationRef.current;
       const locationPayload = validatedLoc
         ? {
-            latitude: validatedLoc.latitude,
-            longitude: validatedLoc.longitude,
-            accuracy: validatedLoc.accuracy,
-            timestamp: new Date()
-          }
+          latitude: validatedLoc.latitude,
+          longitude: validatedLoc.longitude,
+          accuracy: validatedLoc.accuracy,
+          timestamp: new Date()
+        }
         : currentLocation
-        ? {
+          ? {
             latitude: currentLocation.latitude,
             longitude: currentLocation.longitude,
             accuracy: currentLocation.accuracy || 0,
             timestamp: new Date()
           }
-        : undefined;
+          : undefined;
 
       const record = await globalAttendanceService.clockIn(
         employee.id,
@@ -303,7 +313,7 @@ const ClockInOutNew: React.FC<ClockInOutNewProps> = ({ onAttendanceChange }) => 
       validatedLocationRef.current = null;
 
       // Notify parent component of change
-      onAttendanceChange?.();
+      handleAttendanceChange();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Clock in failed');
       // Note: keep validatedLocationRef intact so a retry (e.g., after network error) can reuse same location
@@ -336,7 +346,11 @@ const ClockInOutNew: React.FC<ClockInOutNewProps> = ({ onAttendanceChange }) => 
   };
 
   const handleClockOut = () => {
-    if (!employee?.id) return;
+    setShowClockOutModal(true);
+  };
+
+  const confirmClockOut = () => {
+    setShowClockOutModal(false);
     clockOutMutation.mutate();
   };
 
@@ -351,7 +365,7 @@ const ClockInOutNew: React.FC<ClockInOutNewProps> = ({ onAttendanceChange }) => 
       toast.success('Break started');
 
       // Notify parent component of change
-      onAttendanceChange?.();
+      handleAttendanceChange();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Start break failed');
     } finally {
@@ -380,105 +394,111 @@ const ClockInOutNew: React.FC<ClockInOutNewProps> = ({ onAttendanceChange }) => 
     return formatOfficeTimeLong(date);
   };
 
+  // Format a schedule start time (start_hour/minute) into 12-hour AM/PM string
+  const formatScheduleStartTime = (schedule: RoleSchedule | null | undefined) => {
+    const sched = schedule || DEFAULT_ROLE_SCHEDULE;
+    const period = sched.start_hour >= 12 ? 'PM' : 'AM';
+    const displayHour = sched.start_hour % 12 === 0 ? 12 : sched.start_hour % 12;
+    return `${displayHour}:${sched.start_minute.toString().padStart(2, '0')} ${period}`;
+  };
+
   // getWorkingHours and getCurrentBreakDuration removed — now handled by
   // <LiveWorkingHours /> and <LiveBreakDuration /> micro-components
 
-   // Get user location (background refresh – actual clock-in uses fresh GPS)
-   useEffect(() => {
-     const requestLocation = () => {
-       if (navigator.geolocation) {
-         navigator.geolocation.getCurrentPosition(
-           (position) => {
-             const { latitude, longitude, accuracy } = position.coords;
-             setCurrentLocation({ latitude, longitude, accuracy });
-             setLocationError(null);
-             console.log('📍 Location obtained:', latitude, longitude, `accuracy: ${accuracy}m`);
-           },
-           (error) => {
-             console.error('📍 Location error:', error);
-             setLocationError(`Location access denied: ${error.message}`);
-           },
-           { enableHighAccuracy: true, timeout: 10000, maximumAge: 300000 }
-         );
-       } else {
-         setLocationError('Geolocation is not supported by this browser');
-       }
-     };
-
-     requestLocation();
-
-     // Update location every 5 minutes
-     const locationInterval = setInterval(requestLocation, 5 * 60 * 1000);
-
-     return () => clearInterval(locationInterval);
-   }, []);
-
-   // Fetch today's attendance record on mount (or when employee changes)
-   useEffect(() => {
-     let mounted = true;
-
-     if (!employee?.id) {
-       setIsInitializing(false);
-       return;
-     }
-
-     const fetchTodayRecord = async () => {
-       try {
-         const record = await globalAttendanceService.getTodayAttendance(employee.id);
-         if (mounted) {
-           setTodayRecord(record);
-           if (record) {
-             const onBreak = record.breaks.some(breakSession => !breakSession.endTime);
-             setIsOnBreak(onBreak);
-           }
-         }
-       } catch (error) {
-         console.error('Error loading today record on mount:', error);
-       } finally {
-         if (mounted) {
-           setIsInitializing(false);
-         }
-       }
-     };
-
-     fetchTodayRecord();
-
-     return () => {
-       mounted = false;
-     };
-   }, [employee?.id]);
-
-   const handleAutomaticLunchStart = useCallback(async () => {
-    if (!employee?.id) return;
-
-    try {
-      const record = await globalAttendanceService.startLunchBreak(employee.id);
-      setTodayRecord(record);
-      toast.success('🍽️ Lunch break started automatically at 2:00 PM');
-      onAttendanceChange?.();
-    } catch (error) {
-      console.error('Error starting automatic lunch break:', error);
-    }
-  }, [employee?.id, onAttendanceChange]);
-
-  // Check for automatic lunch break
+  // Get user location (background refresh – actual clock-in uses fresh GPS)
   useEffect(() => {
-    if (!todayRecord?.clockIn || todayRecord?.clockOut || todayRecord?.lunchStart) return;
-
-    const checkLunchTime = () => {
-      const now = new Date();
-      const lunchStartTime = getLunchStartTime(now);
-
-      // Automatically start lunch break at 2:00 PM
-      if (now >= lunchStartTime && !todayRecord.lunchStart) {
-        handleAutomaticLunchStart();
+    const requestLocation = () => {
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+          (position) => {
+            const { latitude, longitude, accuracy } = position.coords;
+            setCurrentLocation({ latitude, longitude, accuracy });
+            setLocationError(null);
+            console.log('📍 Location obtained:', latitude, longitude, `accuracy: ${accuracy}m`);
+          },
+          (error) => {
+            console.error('📍 Location error:', error);
+            setLocationError(`Location access denied: ${error.message}`);
+          },
+          { enableHighAccuracy: true, timeout: 10000, maximumAge: 300000 }
+        );
+      } else {
+        setLocationError('Geolocation is not supported by this browser');
       }
     };
 
-    const lunchTimer = setInterval(checkLunchTime, 60000); // Check every minute
+    requestLocation();
 
-    return () => clearInterval(lunchTimer);
-  }, [todayRecord, handleAutomaticLunchStart]);
+    // Update location every 5 minutes
+    const locationInterval = setInterval(requestLocation, 5 * 60 * 1000);
+
+    return () => clearInterval(locationInterval);
+  }, []);
+
+  // Fetch today's attendance record on mount (or when employee changes)
+  // fetchTodayRecord is defined OUTSIDE useEffect so it gets a stable reference
+  const fetchTodayRecord = useCallback(async () => {
+    if (!employee?.id) return;
+
+    const record = await globalAttendanceService.getTodayAttendance(employee.id);
+    if (record) {
+      setTodayRecord(record);
+      const onBreak = record.breaks.some(breakSession => !breakSession.endTime);
+      setIsOnBreak(onBreak);
+    }
+    setIsInitializing(false);
+  }, [employee?.id]);
+
+  useEffect(() => {
+    if (!employee?.id) {
+      setIsInitializing(false);
+      return;
+    }
+    fetchTodayRecord();
+    return () => {
+      // No cancellation needed; fetchTodayRecord is in-flight only once per employee.id change
+    };
+  }, [employee?.id, fetchTodayRecord]);
+
+  // Break Reminder engine — triggers a notification after 2 hours of continuous work
+  useEffect(() => {
+    // Determine "actively working": clocked in, not clocked out, not on break, not on lunch
+    const isActivelyWorking = !!(
+      todayRecord?.clockIn &&
+      !todayRecord?.clockOut &&
+      !isOnBreak &&
+      (!todayRecord?.lunchStart || todayRecord?.lunchEnd)
+    );
+
+    // Request notification permission if needed (only once)
+    if (typeof Notification !== 'undefined' && Notification.permission === 'default') {
+      Notification.requestPermission();
+    }
+
+    // Only set the interval when reminders are enabled and user is actively working
+    if (isActivelyWorking && employee?.break_reminder_enabled && typeof Notification !== 'undefined') {
+      const TWO_HOURS = 1000 * 60 * 60 * 2;
+      const breakMinutes = employee?.default_break_duration || 15;
+
+      const intervalId = setInterval(() => {
+        if (Notification.permission === 'granted') {
+          new Notification('Break Reminder', {
+            body: `You have been working for a while. Time to take your ${breakMinutes} minute break!`,
+          });
+        } else if (Notification.permission !== 'denied') {
+          Notification.requestPermission().then((permission) => {
+            if (permission === 'granted') {
+              new Notification('Break Reminder', {
+                body: `You have been working for a while. Time to take your ${breakMinutes} minute break!`,
+              });
+            }
+          });
+        }
+      }, TWO_HOURS);
+
+      return () => clearInterval(intervalId);
+    }
+  }, [todayRecord, isOnBreak, employee?.break_reminder_enabled, employee?.default_break_duration]);
 
   // Load working hours configuration to keep UI in sync with admin updates
   useEffect(() => {
@@ -487,29 +507,40 @@ const ClockInOutNew: React.FC<ClockInOutNewProps> = ({ onAttendanceChange }) => 
         const dbConfig = await configService.getWorkingHoursConfig();
         if (dbConfig) {
           const now = new Date();
-          const startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), dbConfig.start_hour, dbConfig.start_minute, 0);
           const lunchEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), dbConfig.lunch_end_hour, dbConfig.lunch_end_minute, 0);
-          setWorkStartTime(startDate);
           setLunchEndTime(lunchEnd);
         } else {
-          setWorkStartTime(getWorkStartTime(new Date()));
-          setLunchEndTime(getLunchEndTime(new Date()));
+          setLunchEndTime(getLunchEndTime(DEFAULT_ROLE_SCHEDULE, new Date()));
         }
       } catch (error) {
         console.error('Error loading work start time:', error);
-        setWorkStartTime(getWorkStartTime(new Date()));
-        setLunchEndTime(getLunchEndTime(new Date()));
+        setLunchEndTime(getLunchEndTime(DEFAULT_ROLE_SCHEDULE, new Date()));
       }
     };
 
     fetchConfig();
   }, []);
 
+  // Fetch the employee's actual role schedule from the DB
+  useEffect(() => {
+    if (!employee?.role) return;
+    (async () => {
+      try {
+        const fetched = await configService.getScheduleByRole(employee.role);
+        if (fetched) {
+          setActiveSchedule(fetched);
+        }
+      } catch (error) {
+        console.error('Failed to load employee schedule:', error);
+      }
+    })();
+  }, [employee?.role]);
+
   const handleLunchReturn = async () => {
     if (!employee?.id) return;
 
     const now = new Date();
-    const lunchEndTime = getLunchEndTime(now);
+    const lunchEndTime = getLunchEndTime(DEFAULT_ROLE_SCHEDULE, now);
 
     const isLate = now > lunchEndTime;
 
@@ -524,7 +555,7 @@ const ClockInOutNew: React.FC<ClockInOutNewProps> = ({ onAttendanceChange }) => 
         toast.success('🍽️ Lunch break ended');
       }
 
-      onAttendanceChange?.();
+      handleAttendanceChange();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Failed to end lunch break');
     } finally {
@@ -532,14 +563,30 @@ const ClockInOutNew: React.FC<ClockInOutNewProps> = ({ onAttendanceChange }) => 
     }
   };
 
+  // Start a manual lunch break — user-initiated, no auto-trigger
+  const handleStartLunch = async () => {
+    if (!employee?.id) return;
+
+    setLoading(true);
+    try {
+      const record = await globalAttendanceService.startLunchBreak(employee.id);
+      setTodayRecord(record);
+      handleAttendanceChange();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to start lunch break');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   if (isInitializing) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="min-h-screen bg-[#E5EDF1] dark:bg-slate-900 flex items-center justify-center">
         <div className="text-center">
           <div className="w-12 h-12 bg-gray-900 rounded-lg flex items-center justify-center animate-pulse mx-auto mb-4">
-            <div className="w-6 h-6 bg-white rounded opacity-80"></div>
+            <div className="w-6 h-6 bg-white dark:bg-slate-700 rounded opacity-80"></div>
           </div>
-          <h3 className="font-semibold text-gray-900 mb-1">Loading Attendance</h3>
+          <h3 className="font-semibold text-gray-900 dark:text-slate-200 mb-1">Loading Attendance</h3>
           <p className="text-sm text-gray-500">Please wait...</p>
         </div>
       </div>
@@ -547,59 +594,12 @@ const ClockInOutNew: React.FC<ClockInOutNewProps> = ({ onAttendanceChange }) => 
   }
 
   return (
-    <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+    <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-700 border-gray-200 p-6">
       <div className="flex items-center justify-between mb-6">
-        <h2 className="text-xl font-semibold text-gray-900 flex items-center">
+        <h2 className="text-xl font-semibold text-gray-900 dark:text-slate-200 flex items-center">
           <Clock className="mr-2 h-5 w-5" />
           Time Tracking
         </h2>
-        <LiveClockDisplay />
-      </div>
-
-      {/* Status Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-        <div className="bg-blue-50 rounded-lg p-4">
-          <div className="flex items-center">
-            <Clock className="h-5 w-5 text-blue-600 mr-2" />
-            <div>
-              <p className="text-sm font-medium text-blue-900">Clock In</p>
-              <p className="text-lg font-semibold text-blue-700">
-                {formatTime(todayRecord?.clockIn || null)}
-              </p>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-green-50 rounded-lg p-4">
-          <div className="flex items-center">
-            <Clock className="h-5 w-5 text-green-600 mr-2" />
-            <div>
-              <p className="text-sm font-medium text-green-900">Clock Out</p>
-              <p className="text-lg font-semibold text-green-700">
-                {formatTime(todayRecord?.clockOut || null)}
-              </p>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-purple-50 rounded-lg p-4">
-          <div className="flex items-center">
-            <Clock className="h-5 w-5 text-purple-600 mr-2" />
-            <div>
-              <p className="text-sm font-medium text-purple-900">Working Hours</p>
-              <p className="text-lg font-semibold text-purple-700">
-                {todayRecord?.clockIn ? (
-                  <LiveWorkingHours
-                    clockIn={todayRecord.clockIn}
-                    clockOut={todayRecord.clockOut}
-                    breaks={todayRecord.breaks}
-                    isOnBreak={isOnBreak}
-                  />
-                ) : '0h 0m'}
-              </p>
-            </div>
-          </div>
-        </div>
       </div>
 
       {/* Late Status */}
@@ -619,7 +619,7 @@ const ClockInOutNew: React.FC<ClockInOutNewProps> = ({ onAttendanceChange }) => 
       {todayRecord?.lunchStart && !todayRecord?.lunchEnd && (
         <div className="bg-orange-50 border border-orange-200 rounded-lg p-4 mb-4">
           <div className="flex items-center">
-            <Coffee className="h-5 w-5 text-orange-600 mr-2" />
+            <Coffee className="h-5 w-5 text-[#96C2DB] mr-2" />
             <div>
               <p className="text-sm font-medium text-orange-900">Lunch Break Active</p>
               <p className="text-sm text-orange-700">
@@ -631,11 +631,11 @@ const ClockInOutNew: React.FC<ClockInOutNewProps> = ({ onAttendanceChange }) => 
       )}
 
       {/* Location Status */}
-      <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 mb-4">
+      <div className="bg-white dark:bg-slate-800 border border-gray-100 dark:border-slate-700 rounded-2xl p-4 mb-4">
         <div className="flex items-center">
           <div className={`h-2 w-2 rounded-full mr-2 ${currentLocation ? 'bg-green-500' : 'bg-red-500'}`}></div>
           <div>
-            <p className="text-sm font-medium text-gray-900">Location Status</p>
+            <p className="text-sm font-medium text-gray-900 dark:text-slate-200">Location Status</p>
             <p className="text-sm text-gray-600">
               {currentLocation
                 ? `📍 Location detected (${currentLocation.latitude.toFixed(6)}, ${currentLocation.longitude.toFixed(6)})`
@@ -653,7 +653,7 @@ const ClockInOutNew: React.FC<ClockInOutNewProps> = ({ onAttendanceChange }) => 
           <button
             onClick={handleClockIn}
             disabled={loading || isValidating}
-            className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white font-medium py-3 px-4 rounded-lg transition-colors flex items-center justify-center"
+            className="w-full bg-[#1E2A3A] text-white hover:bg-[#162030] transition-colors shadow-sm disabled:bg-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed font-medium py-3 px-4 rounded-xl flex items-center justify-center"
           >
             <Play className="mr-2 h-5 w-5" />
             {isValidating ? 'Verifying Location & Network...' : loading ? 'Clocking In...' : 'Clock In'}
@@ -665,10 +665,22 @@ const ClockInOutNew: React.FC<ClockInOutNewProps> = ({ onAttendanceChange }) => 
               <button
                 onClick={handleLunchReturn}
                 disabled={loading}
-                className="w-full bg-orange-600 hover:bg-orange-700 disabled:bg-orange-400 text-white font-medium py-3 px-4 rounded-lg transition-colors flex items-center justify-center"
+                className="w-full bg-[#6A9AB0] hover:bg-[#5a8a9f] disabled:bg-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed text-white font-medium py-3 px-4 rounded-xl transition-colors flex items-center justify-center"
               >
                 <Coffee className="mr-2 h-5 w-5" />
                 {loading ? 'Returning...' : 'Return from Lunch'}
+              </button>
+            )}
+
+            {/* Start Lunch Break Button - Show if clocked in and NOT already on lunch */}
+            {!todayRecord?.lunchStart && (
+              <button
+                onClick={handleStartLunch}
+                disabled={loading}
+                className="w-full bg-[#96C2DB] hover:bg-[#7aafc9] disabled:bg-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed text-white font-medium py-3 px-4 rounded-xl transition-colors flex items-center justify-center"
+              >
+                <Coffee className="mr-2 h-5 w-5" />
+                {loading ? 'Starting...' : 'Start Lunch Break'}
               </button>
             )}
 
@@ -679,7 +691,8 @@ const ClockInOutNew: React.FC<ClockInOutNewProps> = ({ onAttendanceChange }) => 
                   <button
                     onClick={handleStartBreak}
                     disabled={loading}
-                    className="flex-1 bg-yellow-600 hover:bg-yellow-700 disabled:bg-yellow-400 text-white font-medium py-3 px-4 rounded-lg transition-colors flex items-center justify-center"
+                    className="flex-1 bg-[#96C2DB] hover:bg-[#7aafc9] disabled:bg-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed text-white font-medium py-3 px-4 rounded-xl transition-colors flex items-center justify-center"
+
                   >
                     <Coffee className="mr-2 h-4 w-4" />
                     {loading ? 'Starting...' : 'Start Break'}
@@ -688,7 +701,8 @@ const ClockInOutNew: React.FC<ClockInOutNewProps> = ({ onAttendanceChange }) => 
                   <button
                     onClick={handleEndBreak}
                     disabled={loading}
-                    className="flex-1 bg-orange-600 hover:bg-orange-700 disabled:bg-orange-400 text-white font-medium py-3 px-4 rounded-lg transition-colors flex items-center justify-center"
+                    className="flex-1 bg-[#6A9AB0] hover:bg-[#5a8a9f] disabled:bg-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed text-white font-medium py-3 px-4 rounded-xl transition-colors flex items-center justify-center"
+
                   >
                     <Pause className="mr-2 h-4 w-4" />
                     {loading ? 'Ending...' : <>End Break ({todayRecord?.breaks.find(b => !b.endTime)?.startTime ? <LiveBreakDuration breakStartTime={todayRecord!.breaks.find(b => !b.endTime)!.startTime!} /> : '0m'})</>}
@@ -701,7 +715,8 @@ const ClockInOutNew: React.FC<ClockInOutNewProps> = ({ onAttendanceChange }) => 
             <button
               onClick={handleClockOut}
               disabled={loading || isOnBreak || (todayRecord?.lunchStart && !todayRecord?.lunchEnd)}
-              className="w-full bg-red-600 hover:bg-red-700 disabled:bg-gray-400 text-white font-medium py-3 px-4 rounded-lg transition-colors flex items-center justify-center"
+              className="w-full bg-[#E5EDF1] text-[#1E2A3A] border border-[#96C2DB]/40 hover:bg-[#d6e4ec] disabled:bg-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed font-medium py-3 px-4 rounded-xl transition-colors flex items-center justify-center"
+
             >
               <Pause className="mr-2 h-5 w-5" />
               {loading ? 'Clocking Out...' :
@@ -710,11 +725,15 @@ const ClockInOutNew: React.FC<ClockInOutNewProps> = ({ onAttendanceChange }) => 
             </button>
           </div>
         ) : (
-          <div className="text-center py-4">
-            <p className="text-lg font-medium text-green-600">
+          <div className="flex flex-col items-center gap-3 py-4">
+            <span className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full 
+                   bg-[#E5EDF1] text-[#1E2A3A] 
+                   shadow-[inset_0_1px_2px_rgba(255,255,255,0.6),0_4px_6px_-1px_rgba(150,194,219,0.2)]
+                   border border-white/40 
+                   text-sm font-medium tracking-wide transition-all duration-300 hover:scale-105 hover:shadow-[0_8px_15px_-3px_rgba(150,194,219,0.3)]">
               ✅ Work completed for today!
-            </p>
-            <p className="text-sm text-gray-600 mt-1">
+            </span>
+            <p className="text-sm text-gray-500">
               Total worked: {formatDuration(todayRecord.hoursWorked || 0)}
             </p>
           </div>
@@ -781,16 +800,16 @@ const ClockInOutNew: React.FC<ClockInOutNewProps> = ({ onAttendanceChange }) => 
       {/* Late Reason Modal */}
       {showLateReasonModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Late Arrival</h3>
+          <div className="bg-white dark:bg-slate-800 rounded-xl p-6 w-full max-w-md mx-4">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-slate-200 mb-4">Late Arrival</h3>
             <p className="text-gray-600 mb-4">
-              You're arriving after {workStartTime ? format(workStartTime, 'h:mm a') : '...'}. Please provide a reason for your late arrival:
+              You're arriving after {formatScheduleStartTime(activeSchedule || DEFAULT_ROLE_SCHEDULE)}. Please provide a reason for your late arrival:
             </p>
             <textarea
               value={lateReason}
               onChange={(e) => setLateReason(e.target.value)}
               placeholder="Enter reason for late arrival..."
-              className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+              className="w-full p-3 border border-gray-200 rounded-xl bg-white dark:bg-slate-800 focus:ring-2 focus:ring-[#96C2DB] focus:border-[#96C2DB] focus:border-transparent resize-none"
               rows={3}
               autoFocus
             />
@@ -804,10 +823,51 @@ const ClockInOutNew: React.FC<ClockInOutNewProps> = ({ onAttendanceChange }) => 
               </button>
               <button
                 onClick={handleLateReasonSubmit}
-                className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
+                className="px-4 py-2 text-sm font-medium text-white bg-black hover:bg-gray-800 transition-colors shadow-sm   rounded-xl transition-colors"
                 disabled={loading || !lateReason.trim()}
               >
                 {loading ? 'Clocking In...' : 'Clock In'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Clock-Out Confirmation Modal */}
+      {showClockOutModal && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center">
+          <div className="bg-white dark:bg-slate-800 rounded-xl w-full max-w-sm mx-4 p-6 shadow-medium">
+            <div className="flex items-start">
+              <div className="flex-shrink-0">
+                <div className="h-10 w-10 rounded-full bg-[#E5EDF1] flex items-center justify-center">
+                  <AlertCircle className="h-5 w-5 text-[#1E2A3A]" />
+                </div>
+              </div>
+              <div className="ml-4 flex-1">
+                <h3 className="text-base font-semibold text-gray-900 dark:text-slate-200">
+                  Confirm Clock Out
+                </h3>
+                <p className="mt-2 text-sm text-gray-600">
+                  Are you sure you want to clock out for the day? This action will end your shift and cannot be undone.
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-6 flex justify-end space-x-3">
+              <button
+                type="button"
+                onClick={() => setShowClockOutModal(false)}
+                className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-200 rounded-xl hover:bg-[#E5EDF1] transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={confirmClockOut}
+                className="px-4 py-2 text-sm font-medium text-white bg-[#1E2A3A] rounded-xl hover:bg-[#162030] transition-colors"
+
+              >
+                Yes, Clock Out
               </button>
             </div>
           </div>
