@@ -21,7 +21,7 @@ const EmployeeManagement: React.FC = () => {
   useEffect(() => {
     const initializeAndLoadEmployees = async () => {
       console.log('🚀 Initializing Employee Management component...');
-      
+
       try {
         console.log('📋 Loading employees...');
         await loadEmployees();
@@ -31,7 +31,7 @@ const EmployeeManagement: React.FC = () => {
         setLoading(false);
       }
     };
-    
+
     initializeAndLoadEmployees();
   }, []);
 
@@ -73,10 +73,10 @@ const EmployeeManagement: React.FC = () => {
     try {
       setLoading(true);
       console.log('🔄 Manual refresh triggered...');
-      
+
       // Reload employees
       await loadEmployees();
-      
+
       toast.success('Employee data refreshed successfully!');
     } catch (error) {
       console.error('❌ Manual refresh failed:', error);
@@ -175,17 +175,17 @@ const EmployeeManagement: React.FC = () => {
           </thead>
           <tbody className="bg-white dark:bg-slate-800 divide-y divide-gray-200 dark:divide-slate-700">
             {loading ? (
-                  <tr>
-                    <td colSpan={6} className="px-6 py-4 text-center text-gray-500 dark:text-gray-400">
-                      Loading employees...
-                    </td>
-                  </tr>
-                ) : filteredEmployees.length === 0 ? (
-                  <tr>
-                    <td colSpan={6} className="px-6 py-4 text-center text-gray-500 dark:text-gray-400">
-                      No employees found
-                    </td>
-                  </tr>
+              <tr>
+                <td colSpan={6} className="px-6 py-4 text-center text-gray-500 dark:text-gray-400">
+                  Loading employees...
+                </td>
+              </tr>
+            ) : filteredEmployees.length === 0 ? (
+              <tr>
+                <td colSpan={6} className="px-6 py-4 text-center text-gray-500 dark:text-gray-400">
+                  No employees found
+                </td>
+              </tr>
             ) : (
               filteredEmployees.map((employee) => (
                 <React.Fragment key={employee.id}>
@@ -201,36 +201,34 @@ const EmployeeManagement: React.FC = () => {
                           </span>
                         </div>
                         <div className="ml-4">
-                            <div className="text-sm font-medium text-gray-900 dark:text-slate-200">
-                              {employee.name}
-                            </div>
-                            <div className="text-sm text-gray-500 dark:text-gray-400">
-                              {employee.email}
-                            </div>
+                          <div className="text-sm font-medium text-gray-900 dark:text-slate-200">
+                            {employee.name}
+                          </div>
+                          <div className="text-sm text-gray-500 dark:text-gray-400">
+                            {employee.email}
                           </div>
                         </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-slate-200">
-                        {employee.employeeId}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-slate-200">
-                        {employee.department}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-slate-200">
+                      {employee.employeeId}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-slate-200">
+                      {employee.department}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                        employee.role === 'admin' 
+                      <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${employee.role === 'admin'
                           ? 'bg-[#96C2DB]/10 text-gray-700 border border-[#96C2DB]/30 rounded-full'
                           : 'bg-emerald-50 text-emerald-700 border border-emerald-100 rounded-full'
-                      }`}>
+                        }`}>
                         {employee.role}
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                        employee.isActive 
+                      <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${employee.isActive
                           ? 'bg-emerald-50 text-emerald-700 border border-emerald-100 rounded-full'
                           : 'bg-rose-50 text-rose-700 border border-rose-100 rounded-full'
-                      }`}>
+                        }`}>
                         {employee.isActive ? 'Active' : 'Inactive'}
                       </span>
                     </td>
@@ -244,11 +242,10 @@ const EmployeeManagement: React.FC = () => {
                       </button>
                       <button
                         onClick={(e: React.MouseEvent) => { e.stopPropagation(); toggleEmployeeStatus(employee); }}
-                        className={`${
-                          employee.isActive 
+                        className={`${employee.isActive
                             ? 'text-red-600 hover:text-red-900'
                             : 'text-green-600 hover:text-green-900'
-                        }`}
+                          }`}
                         title={employee.isActive ? 'Deactivate' : 'Activate'}
                       >
                         {employee.isActive ? <UserX className="w-4 h-4" /> : <UserCheck className="w-4 h-4" />}
@@ -275,10 +272,10 @@ const EmployeeManagement: React.FC = () => {
                             <p className="text-sm text-gray-900 dark:text-slate-200">{employee.personal_email || 'N/A'}</p>
                           </div>
                           <div className="md:col-span-2 flex justify-end">
-                              <button
-                                onClick={(e: React.MouseEvent) => { e.stopPropagation(); handleOpenResetModal(employee); }}
-                                className="inline-flex items-center px-3 py-1.5 text-xs font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded-lg hover:bg-amber-100 transition-colors"
-                              >
+                            <button
+                              onClick={(e: React.MouseEvent) => { e.stopPropagation(); handleOpenResetModal(employee); }}
+                              className="inline-flex items-center px-3 py-1.5 text-xs font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded-lg hover:bg-amber-100 transition-colors"
+                            >
                               <Key className="w-3 h-3 mr-1" />
                               Reset Password
                             </button>
@@ -296,10 +293,10 @@ const EmployeeManagement: React.FC = () => {
 
       {/* Reset Password Modal */}
       {resettingEmployee && (
-      <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-        <div className="bg-white dark:bg-slate-800 rounded-xl p-6 w-full max-w-sm mx-4">
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-slate-200 mb-2">Reset Password</h3>
-          <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-slate-800 rounded-xl p-6 w-full max-w-sm mx-4">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-slate-200 mb-2">Reset Password</h3>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
               Set a new password for <strong>{resettingEmployee.name}</strong> ({resettingEmployee.email}).
             </p>
             <form onSubmit={handleSubmitReset} className="space-y-4">
@@ -320,10 +317,10 @@ const EmployeeManagement: React.FC = () => {
               <div className="flex justify-end space-x-3">
                 <button
                   type="button"
-                onClick={handleCloseResetModal}
-                className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-800"
-              >
-                Cancel
+                  onClick={handleCloseResetModal}
+                  className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-800"
+                >
+                  Cancel
                 </button>
                 <button
                   type="submit"
@@ -386,24 +383,24 @@ const EmployeeModal: React.FC<{
 
     try {
       console.log('🔄 Submitting form data:', formData);
-      
-        if (employee) {
-          // Update existing employee
-          await userService.updateUser(employee.id, formData);
-          toast.success('Employee updated successfully');
-        } else {
-          // Create new employee with manual password
-          console.log('🔄 Creating new employee with manual password...');
-          await userService.createUser(formData);
-          toast.success('Employee created successfully! Account credentials have been manually set.');
-        }
+
+      if (employee) {
+        // Update existing employee
+        await userService.updateUser(employee.id, formData);
+        toast.success('Employee updated successfully');
+      } else {
+        // Create new employee with manual password
+        console.log('🔄 Creating new employee with manual password...');
+        await userService.createUser(formData);
+        toast.success('Employee created successfully! Account credentials have been manually set.');
+      }
       onSave();
       onClose();
     } catch (error) {
       console.error('❌ Form submission error:', error);
       const errorMessage = (error as Error).message || 'Unknown error occurred';
-      toast.error(employee 
-        ? `Failed to update employee: ${errorMessage}` 
+      toast.error(employee
+        ? `Failed to update employee: ${errorMessage}`
         : `Failed to create employee: ${errorMessage}`
       );
     } finally {
@@ -417,11 +414,11 @@ const EmployeeModal: React.FC<{
         <h3 className="text-lg font-medium text-gray-900 dark:text-slate-200 mb-4">
           {employee ? 'Edit Employee' : 'Add New Employee'}
         </h3>
-        
+
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-            Employee ID
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              Employee ID
             </label>
             <input
               type="text"
@@ -501,33 +498,33 @@ const EmployeeModal: React.FC<{
               className="w-full p-2 border border-gray-200 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-800 focus:ring-2 focus:ring-[#96C2DB] focus:border-[#96C2DB]"
               required
             />
-           </div>
+          </div>
 
-           <div>
-             <label className="block text-sm font-medium text-gray-700 mb-1">
-               Phone Number
-             </label>
-             <input
-               type="tel"
-               value={formData.phone_number}
-               onChange={(e) => setFormData({ ...formData, phone_number: e.target.value })}
-               className="w-full p-2 border border-gray-200 rounded-xl bg-white focus:ring-2 focus:ring-[#96C2DB] focus:border-[#96C2DB]"
-             />
-           </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Phone Number
+            </label>
+            <input
+              type="tel"
+              value={formData.phone_number}
+              onChange={(e) => setFormData({ ...formData, phone_number: e.target.value })}
+              className="w-full p-2 border border-gray-200 rounded-xl bg-white focus:ring-2 focus:ring-[#96C2DB] focus:border-[#96C2DB]"
+            />
+          </div>
 
-           <div>
-             <label className="block text-sm font-medium text-gray-700 mb-1">
-               Personal Email
-             </label>
-             <input
-               type="email"
-               value={formData.personal_email}
-               onChange={(e) => setFormData({ ...formData, personal_email: e.target.value })}
-               className="w-full p-2 border border-gray-200 rounded-xl bg-white focus:ring-2 focus:ring-[#96C2DB] focus:border-[#96C2DB]"
-             />
-           </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Personal Email
+            </label>
+            <input
+              type="email"
+              value={formData.personal_email}
+              onChange={(e) => setFormData({ ...formData, personal_email: e.target.value })}
+              className="w-full p-2 border border-gray-200 rounded-xl bg-white focus:ring-2 focus:ring-[#96C2DB] focus:border-[#96C2DB]"
+            />
+          </div>
 
-           <div>
+          <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
               Role
             </label>
@@ -536,12 +533,12 @@ const EmployeeModal: React.FC<{
               onChange={(e) => setFormData({ ...formData, role: e.target.value as 'admin' | 'core' | 'employee' | 'trainee' | 'intern' })}
               className="w-full p-2 border border-gray-200 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-800 focus:ring-2 focus:ring-[#96C2DB] focus:border-[#96C2DB]"
             >
-               <option value="admin">Admin</option>
-               <option value="core">Core</option>
-               <option value="employee">Employee</option>
-               <option value="trainee">Trainee</option>
-               <option value="intern">Intern</option>
-             </select>
+              <option value="admin">Admin</option>
+              <option value="core">Core</option>
+              <option value="employee">Employee</option>
+              <option value="trainee">Trainee</option>
+              <option value="intern">Intern</option>
+            </select>
           </div>
 
           <div className="flex items-center space-x-2">
@@ -550,7 +547,7 @@ const EmployeeModal: React.FC<{
               id="isActive"
               checked={formData.isActive}
               onChange={(e) => setFormData({ ...formData, isActive: e.target.checked })}
-                              className="rounded border-gray-300 text-[#96C2DB] focus:ring-[#96C2DB] focus:border-[#96C2DB]"
+              className="rounded border-gray-300 text-[#96C2DB] focus:ring-[#96C2DB] focus:border-[#96C2DB]"
             />
             <label htmlFor="isActive" className="text-sm text-gray-700 dark:text-gray-300">
               Active Employee
@@ -623,70 +620,70 @@ const InviteEmployeeModal: React.FC<{
         <h3 className="text-lg font-medium text-gray-900 dark:text-slate-200 mb-4">
           Invite New Employee
         </h3>
-        
+
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-            Full Name
-          </label>
-          <input
-            type="text"
-            value={formData.name}
-            onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-            className="w-full p-2 border border-gray-200 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-800 focus:ring-2 focus:ring-[#96C2DB]"
-            required
-          />
-        </div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              Full Name
+            </label>
+            <input
+              type="text"
+              value={formData.name}
+              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+              className="w-full p-2 border border-gray-200 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-800 focus:ring-2 focus:ring-[#96C2DB]"
+              required
+            />
+          </div>
 
-        <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-            Email Address
-          </label>
-          <input
-            type="email"
-            value={formData.email}
-            onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-            className="w-full p-2 border border-gray-200 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-800 focus:ring-2 focus:ring-[#96C2DB]"
-            required
-          />
-        </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              Email Address
+            </label>
+            <input
+              type="email"
+              value={formData.email}
+              onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+              className="w-full p-2 border border-gray-200 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-800 focus:ring-2 focus:ring-[#96C2DB]"
+              required
+            />
+          </div>
 
-        <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-            Employee ID (Optional)
-          </label>
-          <input
-            type="text"
-            value={formData.employeeId}
-            onChange={(e) => setFormData({ ...formData, employeeId: e.target.value })}
-            className="w-full p-2 border border-gray-200 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-800 focus:ring-2 focus:ring-[#96C2DB]"
-          />
-        </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              Employee ID (Optional)
+            </label>
+            <input
+              type="text"
+              value={formData.employeeId}
+              onChange={(e) => setFormData({ ...formData, employeeId: e.target.value })}
+              className="w-full p-2 border border-gray-200 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-800 focus:ring-2 focus:ring-[#96C2DB]"
+            />
+          </div>
 
-        <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-            Department
-          </label>
-          <input
-            type="text"
-            value={formData.department}
-            onChange={(e) => setFormData({ ...formData, department: e.target.value })}
-            className="w-full p-2 border border-gray-200 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-800 focus:ring-2 focus:ring-[#96C2DB]"
-            required
-          />
-        </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              Department
+            </label>
+            <input
+              type="text"
+              value={formData.department}
+              onChange={(e) => setFormData({ ...formData, department: e.target.value })}
+              className="w-full p-2 border border-gray-200 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-800 focus:ring-2 focus:ring-[#96C2DB]"
+              required
+            />
+          </div>
 
-        <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-            Position
-          </label>
-          <input
-            type="text"
-            value={formData.position}
-            onChange={(e) => setFormData({ ...formData, position: e.target.value })}
-            className="w-full p-2 border border-gray-200 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-800 focus:ring-2 focus:ring-[#96C2DB]"
-            required
-          />
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              Position
+            </label>
+            <input
+              type="text"
+              value={formData.position}
+              onChange={(e) => setFormData({ ...formData, position: e.target.value })}
+              className="w-full p-2 border border-gray-200 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-800 focus:ring-2 focus:ring-[#96C2DB]"
+              required
+            />
           </div>
 
           <div>
@@ -748,7 +745,7 @@ const InviteEmployeeModal: React.FC<{
               </div>
               <div className="ml-3">
                 <p className="text-sm text-green-800">
-                  <strong>Secure Invitation:</strong> The employee will receive an email with a 
+                  <strong>Secure Invitation:</strong> The employee will receive an email with a
                   secure link to set up their own password. No temporary passwords are generated.
                 </p>
               </div>
@@ -773,9 +770,9 @@ const InviteEmployeeModal: React.FC<{
           </div>
         </form>
       </div>
-      </div>
-    );
-  } // InviteEmployeeModal return
-}; // InviteEmployeeModal
+    </div>
+  );
+};
 
 export default EmployeeManagement;
+
