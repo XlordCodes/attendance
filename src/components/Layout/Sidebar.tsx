@@ -66,10 +66,10 @@ const Sidebar: React.FC = () => {
 
   return (
     <div
-      className={`${isExpanded ? 'w-64' : 'w-16'} bg-white dark:bg-slate-800 border-r border-gray-100 dark:border-slate-700 h-screen flex flex-col overflow-hidden transition-all duration-300`}
+      className={`${isExpanded ? 'w-64' : 'w-16'} bg-white dark:bg-neutral-900 border-r border-gray-100 dark:border-neutral-800 h-screen flex flex-col overflow-hidden transition-all duration-300`}
     >
       {/* Header with Menu Toggle */}
-      <div className="px-3 py-3 border-b border-gray-100 dark:border-slate-700 flex-shrink-0">
+      <div className="px-3 py-3 border-b border-gray-100 dark:border-neutral-800 flex-shrink-0">
         <div className="flex items-center justify-between">
           {isExpanded && (
             <div className="flex items-center space-x-2">
@@ -77,8 +77,8 @@ const Sidebar: React.FC = () => {
                 <span className="text-white font-semibold text-xs">A</span>
               </div>
               <div className="transition-opacity duration-300">
-                <h1 className="font-semibold text-gray-900 dark:text-slate-200 whitespace-nowrap text-sm">AINTRIX</h1>
-                <p className="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">Attendance System</p>
+                <h1 className="font-semibold text-gray-900 dark:text-white whitespace-nowrap text-sm">AINTRIX</h1>
+                <p className="text-xs text-gray-500 dark:text-neutral-400 dark:text-gray-400 whitespace-nowrap">Attendance System</p>
               </div>
             </div>
           )}
@@ -86,7 +86,7 @@ const Sidebar: React.FC = () => {
           {/* Menu Toggle Button */}
           <button
             onClick={toggleSidebar}
-            className={`p-2 text-gray-700 dark:text-gray-300 hover:bg-[#E5EDF1] dark:hover:bg-slate-700 hover:text-black rounded-lg ${isExpanded ? 'ml-auto' : 'mx-auto'
+            className={`p-2 text-gray-700 dark:text-gray-300 hover:bg-canvas dark:hover:bg-neutral-800 hover:text-black rounded-lg ${isExpanded ? 'ml-auto' : 'mx-auto'
               }`}
             title={isExpanded ? "Collapse Sidebar" : "Expand Sidebar"}
           >
@@ -106,8 +106,8 @@ const Sidebar: React.FC = () => {
               key={item.key || item.to}
               to={item.to!}
               className={`flex items-center px-3 py-3 text-sm transition-all duration-200 ${isActive
-                  ? 'bg-[#96C2DB]/10 text-black font-semibold border-l-4 border-[#96C2DB] rounded-r-xl'
-                  : 'text-gray-600 dark:text-gray-400 font-medium hover:bg-[#E5EDF1] dark:hover:bg-slate-700 hover:text-black rounded-xl'
+                ? 'bg-brand/10 text-slate-900 dark:text-white font-semibold border-l-4 border-brand rounded-r-xl'
+                : 'text-gray-600 dark:text-neutral-400 dark:text-gray-400 font-medium hover:bg-canvas dark:hover:bg-neutral-800 hover:text-black dark:hover:text-white rounded-xl'
                 } ${!isExpanded ? 'justify-center h-10 w-10' : 'h-10'}`}
               title={!isExpanded ? item.label : undefined}
             >
@@ -121,7 +121,7 @@ const Sidebar: React.FC = () => {
       </nav>
 
       {/* Date & Time - Single line format */}
-      <div className="px-3 py-2 border-t border-gray-100 dark:border-slate-700 bg-white dark:bg-slate-800 flex-shrink-0">
+      <div className="px-3 py-2 border-t border-gray-100 dark:border-neutral-800 bg-white dark:bg-neutral-900 flex-shrink-0">
         {isExpanded ? (
           <div className="text-center">
             <p className="text-xs text-gray-700 dark:text-gray-300">
@@ -138,13 +138,13 @@ const Sidebar: React.FC = () => {
       </div>
 
       {/* User Menu & Logout */}
-      <div className="px-3 py-3 border-t border-gray-100 dark:border-slate-700 bg-white dark:bg-slate-800 flex-shrink-0">
+      <div className="px-3 py-3 border-t border-gray-100 dark:border-neutral-800 bg-white dark:bg-neutral-900 flex-shrink-0">
         <div className={`flex items-center ${isExpanded ? 'justify-between' : 'flex-col space-y-1.5'}`}>
           <button
             onClick={() => setShowSettings(true)}
-            className={`flex items-center text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors ${!isExpanded
-                ? 'justify-center h-10 w-10'
-                : 'space-x-1.5 px-3 py-2'
+            className={`flex items-center text-sm text-gray-600 dark:text-neutral-400hover:text-gray-900 dark:text-white dark:hover:text-white rounded-lg hover:bg-gray-100 dark:hover:bg-neutral-800 transition-colors ${!isExpanded
+              ? 'justify-center h-10 w-10'
+              : 'space-x-1.5 px-3 py-2'
               }`}
             title="Settings"
           >
@@ -156,9 +156,9 @@ const Sidebar: React.FC = () => {
 
           <button
             onClick={handleLogout}
-            className={`flex items-center text-sm text-gray-600 dark:text-gray-400 hover:bg-rose-50 text-rose-700 border border-rose-100 hover:bg-rose-100 transition-colors  rounded-xl transition-colors ${!isExpanded
-                ? 'justify-center h-10 w-10'
-                : 'space-x-1.5 px-3 py-2'
+            className={`flex items-center text-sm text-rose-600 dark:text-rose-400 border border-transparent hover:border-rose-100 dark:hover:border-rose-500/30 hover:bg-rose-50 dark:hover:bg-rose-500/10 rounded-xl transition-colors ${!isExpanded
+              ? 'justify-center h-10 w-10'
+              : 'space-x-1.5 px-3 py-2'
               }`}
             title="Logout"
           >
@@ -170,7 +170,7 @@ const Sidebar: React.FC = () => {
         </div>
 
         {isExpanded && (
-          <p className="text-xs text-gray-500 dark:text-gray-400 text-center mt-2">
+          <p className="text-xs text-gray-500 dark:text-neutral-400 dark:text-gray-400 text-center mt-2">
             AINTRIX Global
           </p>
         )}
@@ -178,12 +178,12 @@ const Sidebar: React.FC = () => {
 
       {/* Notification Overlay */}
       {showNotifications && (
-        <div className="fixed top-4 right-4 bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-200 dark:border-slate-600 w-80 z-40">
-          <div className="p-4 border-b border-gray-200 dark:border-slate-600 flex items-center justify-between">
-            <h3 className="font-medium text-gray-900 dark:text-slate-200">Notifications</h3>
+        <div className="fixed top-4 right-4 bg-white dark:bg-neutral-900 rounded-xl shadow-sm border border-gray-200 dark:border-neutral-700 w-80 z-40">
+          <div className="p-4 border-b border-gray-200 dark:border-neutral-800/50 dark:border-neutral-700 flex items-center justify-between">
+            <h3 className="font-medium text-gray-900 dark:text-white">Notifications</h3>
             <button
               onClick={() => setShowNotifications(false)}
-              className="text-gray-400 hover:text-gray-600"
+              className="text-gray-400 hover:text-gray-600 dark:text-neutral-400"
             >
               <X className="w-4 h-4" />
             </button>
@@ -192,22 +192,22 @@ const Sidebar: React.FC = () => {
             <div className="flex items-start space-x-3">
               <div className="w-2 h-2 bg-blue-500 rounded-full mt-2"></div>
               <div className="flex-1">
-                <p className="text-sm text-gray-900 dark:text-slate-200">System maintenance scheduled</p>
-                <p className="text-xs text-gray-500 dark:text-gray-400">2 hours ago</p>
+                <p className="text-sm text-gray-900 dark:text-white">System maintenance scheduled</p>
+                <p className="text-xs text-gray-500 dark:text-neutral-400 dark:text-gray-400">2 hours ago</p>
               </div>
             </div>
             <div className="flex items-start space-x-3">
               <div className="w-2 h-2 bg-green-500 rounded-full mt-2"></div>
               <div className="flex-1">
-                <p className="text-sm text-gray-900 dark:text-slate-200">Attendance record updated</p>
-                <p className="text-xs text-gray-500 dark:text-gray-400">1 day ago</p>
+                <p className="text-sm text-gray-900 dark:text-white">Attendance record updated</p>
+                <p className="text-xs text-gray-500 dark:text-neutral-400 dark:text-gray-400">1 day ago</p>
               </div>
             </div>
             <div className="flex items-start space-x-3">
               <div className="w-2 h-2 bg-yellow-500 rounded-full mt-2"></div>
               <div className="flex-1">
-                <p className="text-sm text-gray-900 dark:text-slate-200">Break time reminder</p>
-                <p className="text-xs text-gray-500 dark:text-gray-400">3 days ago</p>
+                <p className="text-sm text-gray-900 dark:text-white">Break time reminder</p>
+                <p className="text-xs text-gray-500 dark:text-neutral-400 dark:text-gray-400">3 days ago</p>
               </div>
             </div>
           </div>

@@ -24,7 +24,7 @@ const LeaveRequestModal: React.FC<LeaveRequestModalProps> = ({ isOpen, onClose }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!employee?.id) {
       toast.error('You must be logged in to request leave');
       return;
@@ -56,7 +56,7 @@ const LeaveRequestModal: React.FC<LeaveRequestModalProps> = ({ isOpen, onClose }
 
       await leaveService.submitLeaveRequest(leaveRequest);
       toast.success('Leave request submitted successfully!');
-      
+
       // Reset form
       setFormData({
         leaveType: 'vacation',
@@ -64,7 +64,7 @@ const LeaveRequestModal: React.FC<LeaveRequestModalProps> = ({ isOpen, onClose }
         endDate: '',
         reason: ''
       });
-      
+
       onClose();
     } catch (error) {
       console.error('Error submitting leave request:', error);
@@ -85,12 +85,12 @@ const LeaveRequestModal: React.FC<LeaveRequestModalProps> = ({ isOpen, onClose }
 
   return (
     <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50">
-      <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-lg border border-gray-100 dark:border-slate-700 w-full max-w-md mx-4 p-6">
+      <div className="bg-white dark:bg-neutral-900 rounded-2xl shadow-lg border border-gray-100 dark:border-neutral-800 w-full max-w-md mx-4 p-6">
         <div className="flex items-center justify-between mb-6">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-slate-200">Request Leave</h2>
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Request Leave</h2>
           <button
             onClick={onClose}
-            className="bg-transparent hover:bg-[#E5EDF1] dark:hover:bg-slate-700 rounded-xl p-1.5 text-gray-400 hover:text-gray-700 transition-colors"
+            className="bg-transparent hover:bg-canvas dark:hover:bg-neutral-800 rounded-xl p-1.5 text-gray-400 hover:text-gray-700 dark:hover:text-neutral-300 transition-colors"
           >
             <X className="h-6 w-6" />
           </button>
@@ -98,14 +98,14 @@ const LeaveRequestModal: React.FC<LeaveRequestModalProps> = ({ isOpen, onClose }
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="block text-sm font-medium text-gray-700 dark:text-neutral-300 mb-2">
               <Clock className="h-4 w-4 inline mr-1" />
               Leave Type
             </label>
             <select
               value={formData.leaveType}
               onChange={(e) => handleInputChange('leaveType', e.target.value)}
-              className="w-full border border-gray-200 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-800 px-3 py-2 focus:ring-2 focus:ring-[#96C2DB] focus:border-[#96C2DB] focus:border-transparent"
+              className="w-full border border-gray-200 dark:border-neutral-700 rounded-xl bg-white dark:bg-neutral-900 px-3 py-2 focus:ring-2 focus:ring-brand focus:border-brand focus:border-transparent"
               required
             >
               <option value="vacation">Vacation</option>
@@ -118,38 +118,38 @@ const LeaveRequestModal: React.FC<LeaveRequestModalProps> = ({ isOpen, onClose }
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-neutral-300 mb-2">
                 <Calendar className="h-4 w-4 inline mr-1" />
                 Start Date
               </label>
-               <input
-                 type="date"
-                 value={formData.startDate}
-                 onChange={(e) => handleInputChange('startDate', e.target.value)}
-                 min={todayLocal}
-                 className="w-full border border-gray-200 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-800 px-3 py-2 focus:ring-2 focus:ring-[#96C2DB] focus:border-[#96C2DB] focus:border-transparent"
-                 required
-               />
+              <input
+                type="date"
+                value={formData.startDate}
+                onChange={(e) => handleInputChange('startDate', e.target.value)}
+                min={todayLocal}
+                className="w-full border border-gray-200 dark:border-neutral-700 rounded-xl bg-white dark:bg-neutral-900 px-3 py-2 focus:ring-2 focus:ring-brand focus:border-brand focus:border-transparent"
+                required
+              />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-neutral-300 mb-2">
                 <Calendar className="h-4 w-4 inline mr-1" />
                 End Date
               </label>
-               <input
-                 type="date"
-                 value={formData.endDate}
-                 onChange={(e) => handleInputChange('endDate', e.target.value)}
-                 min={formData.startDate || todayLocal}
-                 className="w-full border border-gray-200 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-800 px-3 py-2 focus:ring-2 focus:ring-[#96C2DB] focus:border-[#96C2DB] focus:border-transparent"
-                 required
-               />
+              <input
+                type="date"
+                value={formData.endDate}
+                onChange={(e) => handleInputChange('endDate', e.target.value)}
+                min={formData.startDate || todayLocal}
+                className="w-full border border-gray-200 dark:border-neutral-700 rounded-xl bg-white dark:bg-neutral-900 px-3 py-2 focus:ring-2 focus:ring-brand focus:border-brand focus:border-transparent"
+                required
+              />
             </div>
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="block text-sm font-medium text-gray-700 dark:text-neutral-300 mb-2">
               <FileText className="h-4 w-4 inline mr-1" />
               Reason
             </label>
@@ -158,7 +158,7 @@ const LeaveRequestModal: React.FC<LeaveRequestModalProps> = ({ isOpen, onClose }
               onChange={(e) => handleInputChange('reason', e.target.value)}
               placeholder="Please provide a reason for your leave request..."
               rows={4}
-              className="w-full border border-gray-200 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-800 px-3 py-2 focus:ring-2 focus:ring-[#96C2DB] focus:border-[#96C2DB] focus:border-transparent resize-none"
+              className="w-full border border-gray-200 dark:border-neutral-700 rounded-xl bg-white dark:bg-neutral-900 px-3 py-2 focus:ring-2 focus:ring-brand focus:border-brand focus:border-transparent resize-none"
               required
             />
           </div>
@@ -167,18 +167,17 @@ const LeaveRequestModal: React.FC<LeaveRequestModalProps> = ({ isOpen, onClose }
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 px-4 py-2 bg-white dark:bg-slate-800 text-gray-900 dark:text-slate-200 border border-gray-200 dark:border-slate-600 rounded-xl font-medium hover:bg-[#E5EDF1] dark:hover:bg-slate-900 transition-colors flex items-center justify-center space-x-2"
+              className="flex-1 px-4 py-2 bg-white dark:bg-neutral-900 text-gray-900 dark:text-white border border-gray-200 dark:border-neutral-700 rounded-xl font-medium hover:bg-gray-50 dark:hover:bg-neutral-800 transition-colors flex items-center justify-center space-x-2"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={isSubmitting}
-              className={`flex-1 px-4 py-2 rounded-lg text-white ${
-                isSubmitting
-                  ? 'bg-gray-400 cursor-not-allowed'
-                  : 'bg-black text-white hover:bg-gray-800 transition-colors rounded-xl'
-              }`}
+              className={`flex-1 px-4 py-2 rounded-lg text-white ${isSubmitting
+                ? 'bg-gray-400 cursor-not-allowed'
+                : 'bg-black text-white hover:bg-gray-800 transition-colors rounded-xl'
+                }`}
             >
               {isSubmitting ? 'Submitting...' : 'Submit Request'}
             </button>

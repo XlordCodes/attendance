@@ -5,6 +5,8 @@ export default {
   theme: {
     extend: {
       fontFamily: {
+        sans: ['Geist', 'Inter', 'system-ui', 'sans-serif'],
+        clash: ['"Clash Display"', 'sans-serif'],
         'primary': ['Inter', 'system-ui', 'sans-serif'],
         'heading': ['Outfit', 'sans-serif'],
         'display': ['Space Grotesk', 'sans-serif'],
@@ -15,7 +17,7 @@ export default {
         brand: {
           DEFAULT: '#96C2DB',
           muted: 'rgba(150, 194, 219, 0.10)',
-          soft:  'rgba(150, 194, 219, 0.20)',
+          soft: 'rgba(150, 194, 219, 0.20)',
         },
         primary: {
           50: '#f8fafc',

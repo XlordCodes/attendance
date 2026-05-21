@@ -3,14 +3,14 @@ import { Settings, Shield, ExternalLink } from 'lucide-react';
 
 const AdminSetup: React.FC = () => {
   return (
-    <div className="min-h-screen bg-[#E5EDF1] dark:bg-slate-900 flex items-center justify-center p-4">
-      <div className="max-w-md w-full bg-white dark:bg-slate-800 rounded-xl shadow-sm p-6">
+    <div className="min-h-screen bg-canvas dark:bg-black flex items-center justify-center p-4">
+      <div className="max-w-md w-full bg-white dark:bg-neutral-900 rounded-xl shadow-sm p-6">
         <div className="text-center mb-6">
-          <div className="w-16 h-16 bg-[#E5EDF1] dark:bg-slate-800 rounded-lg flex items-center justify-center mx-auto mb-4">
-            <Settings className="w-8 h-8 text-[#96C2DB]" />
+          <div className="w-16 h-16 bg-canvas dark:bg-neutral-900 rounded-lg flex items-center justify-center mx-auto mb-4">
+            <Settings className="w-8 h-8 text-brand" />
           </div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-200 mb-2">Admin Setup</h1>
-          <p className="text-gray-600">
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Admin Setup</h1>
+          <p className="text-gray-600 dark:text-neutral-400">
             User management is now handled through Firebase Console
           </p>
         </div>

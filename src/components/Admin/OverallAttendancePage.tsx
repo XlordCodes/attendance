@@ -221,7 +221,7 @@ const OverallAttendancePage: React.FC = () => {
         const attendanceRate = employees.length > 0
           ? Math.round((totalPresent / employees.length) * 100) : 0;
 
-        return { date: dayStr, totalEmployees: employees.length, present: presentCount, absent, late: lateCount, attendanceRate };
+        return { date: dayStr, totalEmployees: employees.length, present: totalPresent, absent, late: lateCount, attendanceRate };
       });
 
       setDailyAttendance(dailyData);
@@ -230,12 +230,21 @@ const OverallAttendancePage: React.FC = () => {
       const avgAttendanceRate = dailyData.length > 0
         ? Math.round(dailyData.reduce((sum, day) => sum + day.attendanceRate, 0) / dailyData.length) : 0;
 
-      const latestDay = dailyData[dailyData.length - 1];
+      const avgPresent = dailyData.length > 0
+        ? Math.round(dailyData.reduce((sum, day) => sum + day.present, 0) / dailyData.length)
+        : 0;
+      const avgAbsent = dailyData.length > 0
+        ? Math.round(dailyData.reduce((sum, day) => sum + day.absent, 0) / dailyData.length)
+        : 0;
+      const avgLate = dailyData.length > 0
+        ? Math.round(dailyData.reduce((sum, day) => sum + day.late, 0) / dailyData.length)
+        : 0;
+
       setAttendanceStats({
         totalEmployees: employees.length,
-        presentToday: latestDay?.present ?? 0,
-        absentToday: latestDay?.absent ?? 0,
-        lateToday: latestDay?.late ?? 0,
+        presentToday: avgPresent,
+        absentToday: avgAbsent,
+        lateToday: avgLate,
         attendanceRate: avgAttendanceRate,
       });
 
@@ -336,15 +345,15 @@ const OverallAttendancePage: React.FC = () => {
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'present':
-        return 'bg-emerald-50 text-emerald-700 border border-emerald-100 rounded-full';
+        return 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-100 dark:border-emerald-500/20 rounded-full';
       case 'absent':
-        return 'bg-rose-50 text-rose-700 border border-rose-100 rounded-full';
+        return 'bg-rose-50 dark:bg-rose-500/10 text-rose-700 dark:text-rose-400 border border-rose-100 dark:border-rose-500/20 rounded-full';
       case 'late':
-        return 'bg-amber-50 text-amber-700 border border-amber-100 rounded-full';
+        return 'bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-100 dark:border-amber-500/20 rounded-full';
       case 'on-leave':
-        return 'bg-[#96C2DB]/10 text-gray-700 border border-[#96C2DB]/30 rounded-full';
+        return 'bg-brand/10 text-brand border border-brand/30 rounded-full';
       default:
-        return 'bg-gray-100 text-gray-800';
+        return 'bg-gray-100 dark:bg-neutral-800 text-gray-800 dark:text-neutral-300 rounded-full';
     }
   };
 
@@ -357,7 +366,7 @@ const OverallAttendancePage: React.FC = () => {
       case 'late':
         return <Clock className="w-4 h-4 text-yellow-600" />;
       default:
-        return <Clock className="w-4 h-4 text-gray-600" />;
+        return <Clock className="w-4 h-4 text-gray-600 dark:text-neutral-400" />;
     }
   };
 
@@ -374,16 +383,16 @@ const OverallAttendancePage: React.FC = () => {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Overall Attendance</h1>
-          <p className="text-gray-600">Monitor employee attendance patterns and export data</p>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Overall Attendance</h1>
+          <p className="text-gray-600 dark:text-neutral-400 dark:text-neutral-400">Monitor employee attendance patterns and export data</p>
         </div>
         <div className="mt-4 sm:mt-0 flex items-center space-x-3">
-          <div className="flex bg-gray-100 rounded-lg p-1">
+          <div className="flex bg-gray-100 dark:bg-neutral-900 rounded-lg p-1">
             <button
               onClick={() => setViewMode('today')}
               className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${viewMode === 'today'
-                ? 'bg-white text-gray-900 shadow-sm'
-                : 'text-gray-600 hover:text-gray-900'
+                ? 'bg-white dark:bg-neutral-800 text-gray-900 dark:text-white dark:text-white shadow-sm'
+                : 'text-gray-600 dark:text-neutral-400hover:text-gray-900 dark:text-white dark:hover:text-white'
                 }`}
             >
               Today
@@ -391,8 +400,8 @@ const OverallAttendancePage: React.FC = () => {
             <button
               onClick={() => setViewMode('monthly')}
               className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${viewMode === 'monthly'
-                ? 'bg-white text-gray-900 shadow-sm'
-                : 'text-gray-600 hover:text-gray-900'
+                ? 'bg-white dark:bg-neutral-800 text-gray-900 dark:text-white dark:text-white shadow-sm'
+                : 'text-gray-600 dark:text-neutral-400hover:text-gray-900 dark:text-white dark:hover:text-white'
                 }`}
             >
               Monthly
@@ -405,54 +414,54 @@ const OverallAttendancePage: React.FC = () => {
               const [year, month, day] = e.target.value.split('-');
               setSelectedDate(`${day}-${month}-${year}`);
             }}
-            className="px-3 py-2 border border-gray-200 rounded-xl bg-white focus:ring-2 focus:ring-[#96C2DB] focus:border-[#96C2DB] focus:border-transparent"
+            className="px-3 py-2 border border-gray-200 dark:border-neutral-800 rounded-xl bg-white dark:bg-black text-gray-900 dark:text-white dark:text-white focus:ring-2 focus:ring-brand focus:border-brand focus:border-transparent"
           />
         </div>
       </div>
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <div className="bg-white rounded-xl border border-gray-200 p-6">
+        <div className="bg-white dark:bg-neutral-900 rounded-xl border border-gray-200 dark:border-neutral-800 p-6">
           <div className="flex items-center">
-            <div className="p-2 bg-[#E5EDF1] rounded-lg">
-              <Users className="w-6 h-6 text-[#96C2DB]" />
+            <div className="p-2 bg-canvas dark:bg-neutral-800 rounded-lg">
+              <Users className="w-6 h-6 text-brand" />
             </div>
             <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Total Employees</p>
-              <p className="text-2xl font-bold text-gray-900">{attendanceStats.totalEmployees}</p>
+              <p className="text-sm font-medium text-gray-600 dark:text-neutral-400">Total Employees</p>
+              <p className="text-2xl font-bold text-gray-900 dark:text-white">{attendanceStats.totalEmployees}</p>
             </div>
           </div>
         </div>
-        <div className="bg-white rounded-xl border border-gray-200 p-6">
+        <div className="bg-white dark:bg-neutral-900 rounded-xl border border-gray-200 dark:border-neutral-800 p-6">
           <div className="flex items-center">
-            <div className="p-2 bg-[#E5EDF1] rounded-lg">
-              <CheckCircle className="w-6 h-6 text-[#96C2DB]" />
+            <div className="p-2 bg-canvas dark:bg-neutral-800 rounded-lg">
+              <CheckCircle className="w-6 h-6 text-brand" />
             </div>
             <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Present {viewMode === 'today' ? 'Today' : 'Average'}</p>
-              <p className="text-2xl font-bold text-gray-900">{attendanceStats.presentToday}</p>
+              <p className="text-sm font-medium text-gray-600 dark:text-neutral-400">Present {viewMode === 'today' ? 'Today' : 'Average'}</p>
+              <p className="text-2xl font-bold text-gray-900 dark:text-white">{attendanceStats.presentToday}</p>
             </div>
           </div>
         </div>
-        <div className="bg-white rounded-xl border border-gray-200 p-6">
+        <div className="bg-white dark:bg-neutral-900 rounded-xl border border-gray-200 dark:border-neutral-800 p-6">
           <div className="flex items-center">
-            <div className="p-2 bg-[#E5EDF1] rounded-lg">
-              <XCircle className="w-6 h-6 text-[#96C2DB]" />
+            <div className="p-2 bg-canvas dark:bg-neutral-800 rounded-lg">
+              <XCircle className="w-6 h-6 text-brand" />
             </div>
             <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Absent {viewMode === 'today' ? 'Today' : 'Average'}</p>
-              <p className="text-2xl font-bold text-gray-900">{attendanceStats.absentToday}</p>
+              <p className="text-sm font-medium text-gray-600 dark:text-neutral-400">Absent {viewMode === 'today' ? 'Today' : 'Average'}</p>
+              <p className="text-2xl font-bold text-gray-900 dark:text-white">{attendanceStats.absentToday}</p>
             </div>
           </div>
         </div>
-        <div className="bg-white rounded-xl border border-gray-200 p-6">
+        <div className="bg-white dark:bg-neutral-900 rounded-xl border border-gray-200 dark:border-neutral-800 p-6">
           <div className="flex items-center">
-            <div className="p-2 bg-[#E5EDF1] rounded-lg">
-              <BarChart3 className="w-6 h-6 text-[#96C2DB]" />
+            <div className="p-2 bg-canvas dark:bg-neutral-800 rounded-lg">
+              <BarChart3 className="w-6 h-6 text-brand" />
             </div>
             <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Attendance Rate</p>
-              <p className="text-2xl font-bold text-gray-900">{attendanceStats.attendanceRate}%</p>
+              <p className="text-sm font-medium text-gray-600 dark:text-neutral-400">Attendance Rate</p>
+              <p className="text-2xl font-bold text-gray-900 dark:text-white">{attendanceStats.attendanceRate}%</p>
             </div>
           </div>
         </div>
@@ -461,10 +470,10 @@ const OverallAttendancePage: React.FC = () => {
       {/* Content Based on View Mode */}
       {viewMode === 'today' ? (
         // Today's Attendance Details
-        <div className="bg-white rounded-xl border border-gray-200">
-          <div className="p-6 border-b border-gray-200">
+        <div className="bg-white dark:bg-neutral-900 rounded-xl border border-gray-200 dark:border-neutral-800">
+          <div className="p-6 border-b border-gray-200 dark:border-neutral-800/50">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
-              <h2 className="text-lg font-semibold text-gray-900">
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
                 Employee Attendance - {selectedDate}
               </h2>
               <div className="mt-4 sm:mt-0 flex items-center space-x-4">
@@ -475,13 +484,13 @@ const OverallAttendancePage: React.FC = () => {
                     placeholder="Search employees..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    className="pl-10 pr-4 py-2 border border-gray-200 rounded-xl bg-white focus:ring-2 focus:ring-[#96C2DB] focus:border-[#96C2DB] focus:border-transparent"
+                    className="pl-10 pr-4 py-2 border border-gray-200 dark:border-neutral-800 rounded-xl bg-white dark:bg-black text-gray-900 dark:text-white dark:text-white focus:ring-2 focus:ring-brand focus:border-brand focus:border-transparent"
                   />
                 </div>
                 <select
                   value={filterStatus}
                   onChange={(e) => setFilterStatus(e.target.value)}
-                  className="px-3 py-2 border border-gray-200 rounded-xl bg-white focus:ring-2 focus:ring-[#96C2DB] focus:border-[#96C2DB] focus:border-transparent"
+                  className="px-3 py-2 border border-gray-200 dark:border-neutral-800 rounded-xl bg-white dark:bg-black text-gray-900 dark:text-white dark:text-white focus:ring-2 focus:ring-brand focus:border-brand focus:border-transparent"
                 >
                   <option value="all">All Status</option>
                   <option value="present">Present</option>
@@ -494,42 +503,42 @@ const OverallAttendancePage: React.FC = () => {
 
           <div className="overflow-x-auto">
             <table className="w-full">
-              <thead className="bg-gray-50">
+              <thead className="bg-gray-50 dark:bg-neutral-900/50">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-neutral-400 dark:bg-neutral-900/50 uppercase tracking-wider border-b border-gray-100 dark:border-neutral-800">
                     Employee
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-neutral-400 dark:bg-neutral-900/50 uppercase tracking-wider border-b border-gray-100 dark:border-neutral-800">
                     Status
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-neutral-400 dark:bg-neutral-900/50 uppercase tracking-wider border-b border-gray-100 dark:border-neutral-800">
                     Clock In
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-neutral-400 dark:bg-neutral-900/50 uppercase tracking-wider border-b border-gray-100 dark:border-neutral-800">
                     Clock Out
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-neutral-400 dark:bg-neutral-900/50 uppercase tracking-wider border-b border-gray-100 dark:border-neutral-800">
                     Total Hours
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-neutral-400 dark:bg-neutral-900/50 uppercase tracking-wider border-b border-gray-100 dark:border-neutral-800">
                     Break Duration
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-neutral-400 dark:bg-neutral-900/50 uppercase tracking-wider border-b border-gray-100 dark:border-neutral-800">
                     Audit Data
                   </th>
                 </tr>
               </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
+              <tbody className="divide-y divide-gray-200 dark:divide-neutral-800/50 dark:divide-neutral-800/50">
                 {filteredEmployeeAttendance.map((attendance) => (
-                  <tr key={attendance.employee.uid || attendance.employee.id} className="hover:bg-gray-50">
+                  <tr key={attendance.employee.uid || attendance.employee.id} className="hover:bg-gray-50 dark:hover:bg-neutral-800/50">
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center">
                         <div className="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center">
-                          <User className="w-5 h-5 text-gray-600" />
+                          <User className="w-5 h-5 text-gray-600 dark:text-neutral-400" />
                         </div>
                         <div className="ml-4">
-                          <div className="text-sm font-medium text-gray-900">{attendance.employee.name}</div>
-                          <div className="text-sm text-gray-500">
+                          <div className="text-sm font-medium text-gray-900 dark:text-white">{attendance.employee.name}</div>
+                          <div className="text-sm text-gray-500 dark:text-neutral-400">
                             {attendance.employee.designation || attendance.employee.Designation || 'Employee'}
                           </div>
                         </div>
@@ -543,19 +552,19 @@ const OverallAttendancePage: React.FC = () => {
                         </span>
                       </div>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
                       {attendance.clockInTime || 'N/A'}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
                       {attendance.clockOutTime || 'N/A'}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
                       {typeof attendance.totalHours === 'number' ? `${attendance.totalHours.toFixed(1)}h` : 'N/A'}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
                       {attendance.breakDuration ? `${attendance.breakDuration}m` : 'N/A'}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
                       {attendance.lateReason ? (
                         <span className="text-xs text-amber-600 bg-amber-50 px-2 py-1 rounded border">
                           {attendance.lateReason}
@@ -573,16 +582,16 @@ const OverallAttendancePage: React.FC = () => {
           {filteredEmployeeAttendance.length === 0 && (
             <div className="text-center py-12">
               <Users className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-              <p className="text-gray-500">No attendance records found</p>
+              <p className="text-gray-500 dark:text-neutral-400">No attendance records found</p>
             </div>
           )}
         </div>
       ) : (
         // Monthly View
-        <div className="bg-white rounded-xl border border-gray-200">
-          <div className="p-6 border-b border-gray-200">
+        <div className="bg-white dark:bg-neutral-900 rounded-xl border border-gray-200 dark:border-neutral-800">
+          <div className="p-6 border-b border-gray-200 dark:border-neutral-800/50">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
-              <h2 className="text-lg font-semibold text-gray-900">
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
                 Monthly Attendance Overview - {parseDDMMYYYY(selectedDate) ? format(parseDDMMYYYY(selectedDate)!, 'MMMM yyyy') : selectedDate}
               </h2>
               <div className="mt-4 sm:mt-0">
@@ -595,7 +604,7 @@ const OverallAttendancePage: React.FC = () => {
                       placeholder="All Employees"
                       value={employeeSearchText}
                       onChange={(e) => setEmployeeSearchText(e.target.value)}
-                      className="w-full pl-10 pr-10 py-2 bg-transparent border border-gray-200 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-[#6633ee] focus:border-transparent appearance-none"
+                      className="w-full pl-10 pr-10 py-2 border border-gray-200 dark:border-neutral-800 rounded-xl bg-white dark:bg-black text-gray-900 dark:text-white dark:text-white focus:outline-none focus:ring-2 focus:ring-brand focus:border-brand appearance-none"
                     />
                     <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
                   </div>
@@ -609,7 +618,7 @@ const OverallAttendancePage: React.FC = () => {
                   </datalist>
                   <button
                     type="submit"
-                    className="px-3 py-2 bg-black text-white text-sm font-medium rounded-lg hover:bg-gray-800 focus:ring-2 focus:ring-[#96C2DB] focus:border-[#96C2DB] focus:ring-offset-2 transition-colors"
+                    className="px-3 py-2 bg-black text-white text-sm font-medium rounded-lg hover:bg-gray-800 focus:ring-2 focus:ring-brand focus:border-brand focus:ring-offset-2 transition-colors"
                   >
                     Search
                   </button>
@@ -621,87 +630,86 @@ const OverallAttendancePage: React.FC = () => {
           {/* Individual Monthly Report Summary (Penalty Engine) */}
           {viewMode === 'monthly' && selectedEmployeeId !== 'ALL' && monthlyReport && (
             <>
-              <div className="p-6 pb-0 bg-gray-50 flex justify-end">
+              <div className="p-6 pb-0 bg-gray-50 dark:bg-black/50 flex justify-end">
                 <button
                   onClick={handleDownloadMonthlyReport}
                   disabled={!exportReport}
-                  className="inline-flex items-center px-4 py-2 bg-white text-gray-900 border border-gray-200 text-sm font-medium rounded-lg hover:bg-[#E5EDF1] focus:ring-2 focus:ring-[#96C2DB] focus:border-[#96C2DB] focus:ring-offset-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="inline-flex items-center px-4 py-2 bg-white dark:bg-neutral-900 text-gray-900 dark:text-white border border-gray-200 dark:border-neutral-800 text-sm font-medium rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-800 focus:ring-2 focus:ring-brand focus:border-brand transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   📥 Export to CSV
                 </button>
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4 p-6 bg-gray-50 border-b border-gray-200">
-                <div className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 border-gray-200">
-                  <p className="text-sm font-medium text-gray-600">Total Logged Hours</p>
-                  <p className="text-2xl font-bold text-gray-900">{monthlyReport.rawTotalHours.toFixed(2)}</p>
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4 p-6 bg-gray-50 dark:bg-black/50 border-b border-gray-200 dark:border-neutral-800/50">
+                <div className="bg-white dark:bg-neutral-900 p-4 rounded-2xl shadow-sm border border-gray-200 dark:border-neutral-800">
+                  <p className="text-sm font-medium text-gray-600 dark:text-neutral-400 dark:text-neutral-400">Total Logged Hours</p>
+                  <p className="text-2xl font-bold text-gray-900 dark:text-white">{monthlyReport.rawTotalHours.toFixed(2)}</p>
                 </div>
-                <div className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 border-gray-200">
-                  <p className="text-sm font-medium text-gray-600">Late Days</p>
-                  <p className="text-2xl font-bold text-gray-900">{monthlyReport.lateCount}</p>
+                <div className="bg-white dark:bg-neutral-900 p-4 rounded-2xl shadow-sm border border-gray-200 dark:border-neutral-800">
+                  <p className="text-sm font-medium text-gray-600 dark:text-neutral-400 dark:text-neutral-400">Late Days</p>
+                  <p className="text-2xl font-bold text-gray-900 dark:text-white">{monthlyReport.lateCount}</p>
                 </div>
-                <div className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 border-gray-200">
-                  <p className="text-sm font-medium text-gray-600">Late Penalty Deduction (hrs)</p>
-                  <p className="text-2xl font-bold text-red-500">-{monthlyReport.penaltyDeduction.toFixed(2)}</p>
+                <div className="bg-white dark:bg-neutral-900 p-4 rounded-2xl shadow-sm border border-gray-200 dark:border-neutral-800">
+                  <p className="text-sm font-medium text-gray-600 dark:text-neutral-400 dark:text-neutral-400">Late Penalty Deduction (hrs)</p>
+                  <p className="text-2xl font-bold text-red-500 dark:text-red-400">-{monthlyReport.penaltyDeduction.toFixed(2)}</p>
                 </div>
-                <div className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 border-gray-200">
-                  <p className="text-sm font-medium text-gray-600">Final Payable Hours</p>
-                  <p className="text-2xl font-bold text-gray-900">{monthlyReport.finalPayableHours.toFixed(2)}</p>
+                <div className="bg-white dark:bg-neutral-900 p-4 rounded-2xl shadow-sm border border-gray-200 dark:border-neutral-800">
+                  <p className="text-sm font-medium text-gray-600 dark:text-neutral-400 dark:text-neutral-400">Final Payable Hours</p>
+                  <p className="text-2xl font-bold text-gray-900 dark:text-white">{monthlyReport.finalPayableHours.toFixed(2)}</p>
                 </div>
               </div>
             </>)}
 
           <div className="overflow-x-auto">
             <table className="w-full">
-              <thead className="bg-gray-50">
+              <thead className="bg-gray-50 dark:bg-neutral-900/50">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-neutral-400 dark:bg-neutral-900/50 uppercase tracking-wider border-b border-gray-100 dark:border-neutral-800">
                     Date
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-neutral-400 dark:bg-neutral-900/50 uppercase tracking-wider border-b border-gray-100 dark:border-neutral-800">
                     Total Employees
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-neutral-400 dark:bg-neutral-900/50 uppercase tracking-wider border-b border-gray-100 dark:border-neutral-800">
                     Present
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-neutral-400 dark:bg-neutral-900/50 uppercase tracking-wider border-b border-gray-100 dark:border-neutral-800">
                     Absent
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-neutral-400 dark:bg-neutral-900/50 uppercase tracking-wider border-b border-gray-100 dark:border-neutral-800">
                     Late
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-neutral-400 dark:bg-neutral-900/50 uppercase tracking-wider border-b border-gray-100 dark:border-neutral-800">
                     Attendance Rate
                   </th>
                 </tr>
               </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
+              <tbody className="divide-y divide-gray-200 dark:divide-neutral-800/50 dark:divide-neutral-800/50">
                 {dailyAttendance.map((day) => (
-                  <tr key={day.date} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                      {day.date}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                  <tr key={day.date} className="hover:bg-gray-50 dark:hover:bg-neutral-800/50 border-b border-transparent dark:border-neutral-800/50">                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
+                    {day.date}
+                  </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
                       {day.totalEmployees}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
                       <div className="flex items-center">
                         <CheckCircle className="w-4 h-4 text-green-600 mr-2" />
                         {day.present}
                       </div>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
                       <div className="flex items-center">
                         <XCircle className="w-4 h-4 text-red-600 mr-2" />
                         {day.absent}
                       </div>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
                       <div className="flex items-center">
                         <Clock className="w-4 h-4 text-yellow-600 mr-2" />
                         {day.late}
                       </div>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
                       <div className="flex items-center">
                         <div className={`w-2 h-2 rounded-full mr-2 ${day.attendanceRate >= 80 ? 'bg-green-500' :
                           day.attendanceRate >= 60 ? 'bg-yellow-500' : 'bg-red-500'

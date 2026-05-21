@@ -208,7 +208,7 @@ const EmployeeDashboardNew: React.FC = () => {
       <div className="flex items-center justify-center min-h-96">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Loading dashboard...</p>
+          <p className="mt-4 text-gray-600 dark:text-neutral-400">Loading dashboard...</p>
         </div>
       </div>
     );
@@ -220,8 +220,8 @@ const EmployeeDashboardNew: React.FC = () => {
       <div className="flex items-center justify-center min-h-96">
         <div className="text-center">
           <div className="text-gray-400 text-6xl mb-4">👤</div>
-          <h2 className="text-xl font-semibold text-gray-900 dark:text-slate-200 mb-2">No User Data</h2>
-          <p className="text-gray-600">Please log in to view your dashboard.</p>
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">No User Data</h2>
+          <p className="text-gray-600 dark:text-neutral-400">Please log in to view your dashboard.</p>
         </div>
       </div>
     );
@@ -235,7 +235,7 @@ const EmployeeDashboardNew: React.FC = () => {
       {/* Request Leave Button */}
       <button
         onClick={() => setIsLeaveModalOpen(true)}
-        className="w-full flex items-center px-4 py-3 text-sm text-blue-700 hover:bg-blue-50 rounded-lg border border-blue-200 font-medium transition-colors"
+        className="w-full flex items-center px-4 py-3 text-sm text-blue-700 dark:text-neutral-300 hover:bg-blue-50 dark:hover:bg-neutral-800 rounded-lg border border-blue-200 dark:border-neutral-700 font-medium transition-colors"
       >
         <CalendarPlus className="h-4 w-4 mr-3" />
         Request Leave
@@ -267,38 +267,38 @@ const EmployeeDashboardNew: React.FC = () => {
 
       {/* Quick Stats — nullish coalescing guards against undefined weeklyStats */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        <div className="bg-white dark:bg-slate-800 rounded-2xl border border-gray-100 dark:border-slate-700 shadow-sm p-5">
+        <div className="bg-white dark:bg-neutral-900 rounded-2xl border border-gray-100 dark:border-neutral-800 shadow-sm p-5">
           <div className="flex items-center">
-            <div className="bg-[#E5EDF1] dark:bg-slate-700 p-2 rounded-xl">
-              <Clock className="h-6 w-6 text-gray-700" />
+            <div className="bg-canvas dark:bg-neutral-800 p-2 rounded-xl">
+              <Clock className="h-6 w-6 text-gray-700 dark:text-brand" />
             </div>
             <div className="ml-4">
-              <p className="text-sm text-gray-500">This Week</p>
-              <p className="text-2xl font-bold text-gray-900 dark:text-slate-200">{formatDuration(weeklyStats?.totalHours ?? 0)}</p>
+              <p className="text-sm text-gray-500 dark:text-neutral-400 dark:text-neutral-300">This Week</p>
+              <p className="text-2xl font-bold text-gray-900 dark:text-white">{formatDuration(weeklyStats?.totalHours ?? 0)}</p>
             </div>
           </div>
         </div>
 
-        <div className="bg-white dark:bg-slate-800 rounded-2xl border border-gray-100 dark:border-slate-700 shadow-sm p-5">
+        <div className="bg-white dark:bg-neutral-900 rounded-2xl border border-gray-100 dark:border-neutral-800 shadow-sm p-5">
           <div className="flex items-center">
-            <div className="bg-[#E5EDF1] dark:bg-slate-700 p-2 rounded-xl">
-              <Calendar className="h-6 w-6 text-gray-700" />
+            <div className="bg-canvas dark:bg-neutral-800 p-2 rounded-xl">
+              <Calendar className="h-6 w-6 text-gray-700 dark:text-brand" />
             </div>
             <div className="ml-4">
-              <p className="text-sm text-gray-500">Days Present</p>
-              <p className="text-2xl font-bold text-gray-900 dark:text-slate-200">{weeklyStats?.daysPresent ?? 0}</p>
+              <p className="text-sm text-gray-500 dark:text-neutral-400 dark:text-neutral-300">Days Present</p>
+              <p className="text-2xl font-bold text-gray-900 dark:text-white">{weeklyStats?.daysPresent ?? 0}</p>
             </div>
           </div>
         </div>
 
-        <div className="bg-white dark:bg-slate-800 rounded-2xl border border-gray-100 dark:border-slate-700 shadow-sm p-5">
+        <div className="bg-white dark:bg-neutral-900 rounded-2xl border border-gray-100 dark:border-neutral-800 shadow-sm p-5">
           <div className="flex items-center">
-            <div className="bg-[#E5EDF1] dark:bg-slate-700 p-2 rounded-xl">
-              <TrendingUp className="h-6 w-6 text-gray-700" />
+            <div className="bg-canvas dark:bg-neutral-800 p-2 rounded-xl">
+              <TrendingUp className="h-6 w-6 text-gray-700 dark:text-brand" />
             </div>
             <div className="ml-4">
-              <p className="text-sm text-gray-500">Daily Average</p>
-              <p className="text-2xl font-bold text-gray-900 dark:text-slate-200">{formatDuration(weeklyStats?.averageHours ?? 0)}</p>
+              <p className="text-sm text-gray-500 dark:text-neutral-400 dark:text-neutral-300">Daily Average</p>
+              <p className="text-2xl font-bold text-gray-900 dark:text-white">{formatDuration(weeklyStats?.averageHours ?? 0)}</p>
             </div>
           </div>
         </div>
@@ -317,17 +317,17 @@ const EmployeeDashboardNew: React.FC = () => {
         {/* Today's Status & Upcoming Meetings */}
         <div className="space-y-6">
           {/* Today's Status */}
-          <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-700 p-6">
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-slate-200 mb-4">Today's Status</h3>
+          <div className="bg-white dark:bg-neutral-900 rounded-2xl shadow-sm border border-gray-100 dark:border-neutral-800 p-6">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Today's Status</h3>
 
             <div className="space-y-3">
               <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-600">Status</span>
+                <span className="text-sm text-gray-600 dark:text-neutral-400">Status</span>
                 <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${!todayRecord?.clockIn
-                    ? 'text-gray-600 bg-gray-100'
-                    : todayRecord?.isLate
-                      ? 'text-yellow-600 bg-yellow-50'
-                      : 'text-green-600 bg-green-50'
+                  ? 'text-gray-600 dark:text-neutral-400 bg-gray-100'
+                  : todayRecord?.isLate
+                    ? 'text-yellow-600 bg-yellow-50'
+                    : 'text-green-600 bg-green-50'
                   }`}>
                   {!todayRecord?.clockIn
                     ? 'Not clocked in'
@@ -341,7 +341,7 @@ const EmployeeDashboardNew: React.FC = () => {
               {todayRecord?.clockIn && (
                 <>
                   <div className="flex items-center justify-between">
-                    <span className="text-sm text-gray-600">Clock in time</span>
+                    <span className="text-sm text-gray-600 dark:text-neutral-400">Clock in time</span>
                     <span className="text-sm font-medium">
                       {format(todayRecord.clockIn, 'HH:mm')}
                     </span>
@@ -349,7 +349,7 @@ const EmployeeDashboardNew: React.FC = () => {
 
                   {todayRecord.clockOut && (
                     <div className="flex items-center justify-between">
-                      <span className="text-sm text-gray-600">Clock out time</span>
+                      <span className="text-sm text-gray-600 dark:text-neutral-400">Clock out time</span>
                       <span className="text-sm font-medium">
                         {format(todayRecord.clockOut, 'HH:mm')}
                       </span>
@@ -357,14 +357,14 @@ const EmployeeDashboardNew: React.FC = () => {
                   )}
 
                   <div className="flex items-center justify-between">
-                    <span className="text-sm text-gray-600">Hours worked</span>
+                    <span className="text-sm text-gray-600 dark:text-neutral-400">Hours worked</span>
                     <span className="text-sm font-medium">
                       {formatDuration(todayRecord.hoursWorked || 0)}
                     </span>
                   </div>
 
                   <div className="flex items-center justify-between">
-                    <span className="text-sm text-gray-600">Breaks taken</span>
+                    <span className="text-sm text-gray-600 dark:text-neutral-400">Breaks taken</span>
                     <span className="text-sm font-medium">
                       {todayRecord.breaks.length}
                     </span>
@@ -375,15 +375,15 @@ const EmployeeDashboardNew: React.FC = () => {
           </div>
 
           {/* Upcoming Meetings */}
-          <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-700 p-6">
+          <div className="bg-white dark:bg-neutral-900 rounded-2xl shadow-sm border border-gray-100 dark:border-neutral-800 p-6">
             <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-slate-200">Upcoming Meetings</h3>
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Upcoming Meetings</h3>
               <button
                 onClick={() => refetchMeetings()}
                 disabled={meetingsLoading}
                 className={`text-sm font-medium flex items-center space-x-2 px-3 py-1 rounded-lg transition-colors ${meetingsLoading
-                    ? 'text-gray-400 bg-gray-100 cursor-not-allowed'
-                    : 'text-[#96C2DB] hover:text-gray-900 hover:bg-gray-50'
+                  ? 'text-gray-400 bg-gray-100 cursor-not-allowed'
+                  : 'text-brand hover:text-gray-900 dark:text-white dark:hover:text-white hover:bg-gray-50 dark:hover:bg-neutral-800'
                   }`}
               >
                 {meetingsLoading ? (
@@ -405,7 +405,7 @@ const EmployeeDashboardNew: React.FC = () => {
             {meetingsLoading ? (
               <div className="text-center py-8">
                 <div className="animate-spin rounded-full h-8 w-8 border-2 border-gray-300 border-t-blue-600 mx-auto mb-3"></div>
-                <p className="text-gray-500 text-sm">Loading meetings...</p>
+                <p className="text-gray-500 dark:text-neutral-400 text-sm">Loading meetings...</p>
               </div>
             ) : meetings.length > 0 ? (
               <div className="space-y-3">
@@ -438,18 +438,18 @@ const EmployeeDashboardNew: React.FC = () => {
 
                   return (
                     <div key={meeting.id} className="border-l-4 border-blue-500 pl-4 py-3 bg-blue-50">
-                      <h4 className="font-semibold text-gray-900 mb-1">{meeting.title}</h4>
+                      <h4 className="font-semibold text-gray-900 dark:text-white mb-1">{meeting.title}</h4>
                       <div className="flex items-center justify-between text-sm">
                         <div className="flex items-center text-gray-700">
-                          <Calendar className="h-4 w-4 mr-2 text-[#96C2DB]" />
+                          <Calendar className="h-4 w-4 mr-2 text-brand" />
                           <span className="font-medium">{dateDisplay}</span>
                           <span className="mx-2">•</span>
-                          <Clock className="h-4 w-4 mr-1 text-[#96C2DB]" />
+                          <Clock className="h-4 w-4 mr-1 text-brand" />
                           <span>{timeDisplay}</span>
                         </div>
-                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${meeting.status === 'scheduled' ? 'bg-emerald-50 text-emerald-700 border border-emerald-100 rounded-full' :
-                            meeting.status === 'completed' ? 'bg-[#96C2DB]/10 text-gray-700 border border-[#96C2DB]/30 rounded-full' :
-                              'bg-gray-100 text-gray-800'
+                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${meeting.status === 'scheduled' ? 'bg-emerald-50 text-emerald-700 dark:text-emerald-400 border border-emerald-100 rounded-full' :
+                          meeting.status === 'completed' ? 'bg-brand/10 text-gray-700 dark:text-white border border-brand/30 rounded-full' :
+                            'bg-gray-100 text-gray-800'
                           }`}>
                           {meeting.status}
                         </span>
@@ -461,7 +461,7 @@ const EmployeeDashboardNew: React.FC = () => {
             ) : (
               <div className="text-center py-8">
                 <Calendar className="h-12 w-12 mx-auto mb-3 text-gray-300" />
-                <p className="text-gray-500 text-sm">No upcoming meetings scheduled</p>
+                <p className="text-gray-500 dark:text-neutral-400 text-sm">No upcoming meetings scheduled</p>
               </div>
             )}
           </div>

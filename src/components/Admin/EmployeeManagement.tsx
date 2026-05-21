@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Search, Edit, UserCheck, UserX, RefreshCw, Mail, ChevronDown, ChevronRight, Key } from 'lucide-react';
+import { Plus, Search, Edit, UserCheck, UserX, RefreshCw, Mail, Key, Trash2 } from 'lucide-react';
 import { userService } from '../../services/userService';
+import { deleteEmployee } from '../../services/userService';
 import { supabase } from '../../services/supabaseClient';
 import { Employee } from '../../types';
 import { forceResetPassword } from '../../services/adminService';
@@ -17,6 +18,7 @@ const EmployeeManagement: React.FC = () => {
   const [resettingEmployee, setResettingEmployee] = useState<Employee | null>(null);
   const [newPassword, setNewPassword] = useState('');
   const [resetting, setResetting] = useState(false);
+  const [deletingEmployeeId, setDeletingEmployeeId] = useState<string | null>(null);
 
   useEffect(() => {
     const initializeAndLoadEmployees = async () => {
@@ -114,10 +116,30 @@ const EmployeeManagement: React.FC = () => {
     }
   };
 
+  const handleDeleteEmployee = async (employee: Employee, e: React.MouseEvent) => {
+    e.stopPropagation();
+
+    const confirmed = window.confirm(
+      'Are you sure you want to permanently delete this employee? This will irreversibly remove the employee profile and all associated attendance, leave, and meeting records from the database.'
+    );
+    if (!confirmed) return;
+
+    setDeletingEmployeeId(employee.id);
+    try {
+      await deleteEmployee(employee.id);
+      setEmployees((prev) => prev.filter((emp) => emp.id !== employee.id));
+      toast.success('Employee and associated records permanently deleted.');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to delete employee');
+    } finally {
+      setDeletingEmployeeId(null);
+    }
+  };
+
   return (
     <div className="p-6">
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-semibold text-gray-900 dark:text-slate-200">Employee Management</h1>
+        <h1 className="text-2xl font-semibold text-gray-900 dark:text-white">Employee Management</h1>
         <div className="flex space-x-3">
           <button
             onClick={manualRefresh}
@@ -153,36 +175,36 @@ const EmployeeManagement: React.FC = () => {
             placeholder="Search employees..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 border border-gray-200 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-800 focus:ring-2 focus:ring-[#96C2DB] focus:border-[#96C2DB] focus:border-transparent"
+            className="w-full pl-10 pr-4 py-2 border border-gray-200 dark:border-neutral-700 rounded-xl bg-white dark:bg-neutral-900 focus:ring-2 focus:ring-brand focus:border-brand focus:border-transparent"
           />
         </div>
       </div>
 
       {/* Employee Table */}
-      <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-700 border-gray-200 overflow-hidden">
+      <div className="bg-white dark:bg-neutral-900 rounded-2xl shadow-sm border border-gray-100 dark:border-neutral-800 border-gray-200 overflow-hidden">
         <table className="w-full">
-          <thead className="bg-gray-50 dark:bg-slate-700">
+          <thead className="bg-gray-50 dark:bg-neutral-800">
             <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-neutral-400 dark:text-gray-400 uppercase tracking-wider">
                 Employee
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">ID</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Department</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Role</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Status</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Actions</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-neutral-400 dark:text-gray-400 uppercase tracking-wider">ID</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-neutral-400 dark:text-gray-400 uppercase tracking-wider">Department</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-neutral-400 dark:text-gray-400 uppercase tracking-wider">Role</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-neutral-400 dark:text-gray-400 uppercase tracking-wider">Status</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-neutral-400 dark:text-gray-400 uppercase tracking-wider">Actions</th>
             </tr>
           </thead>
-          <tbody className="bg-white dark:bg-slate-800 divide-y divide-gray-200 dark:divide-slate-700">
+          <tbody className="bg-white dark:bg-neutral-900 divide-y divide-gray-200 dark:divide-neutral-800/50 dark:divide-neutral-800">
             {loading ? (
               <tr>
-                <td colSpan={6} className="px-6 py-4 text-center text-gray-500 dark:text-gray-400">
+                <td colSpan={6} className="px-6 py-4 text-center text-gray-500 dark:text-neutral-400 dark:text-gray-400">
                   Loading employees...
                 </td>
               </tr>
             ) : filteredEmployees.length === 0 ? (
               <tr>
-                <td colSpan={6} className="px-6 py-4 text-center text-gray-500 dark:text-gray-400">
+                <td colSpan={6} className="px-6 py-4 text-center text-gray-500 dark:text-neutral-400 dark:text-gray-400">
                   No employees found
                 </td>
               </tr>
@@ -190,52 +212,52 @@ const EmployeeManagement: React.FC = () => {
               filteredEmployees.map((employee) => (
                 <React.Fragment key={employee.id}>
                   <tr
-                    className="hover:bg-gray-50 dark:hover:bg-slate-700 cursor-pointer"
+                    className="hover:bg-gray-50 dark:hover:bg-neutral-800/50 cursor-pointer"
                     onClick={() => setExpandedEmployeeId(expandedEmployeeId === employee.id ? null : employee.id)}
                   >
-                    <td className="px-6 py-4 whitespace-nowrap">
+                    <td className="px-6 py-4 whitespace-nowrap text-left text-sm font-medium">
                       <div className="flex items-center">
-                        <div className="w-10 h-10 bg-[#E5EDF1] rounded-full flex items-center justify-center">
-                          <span className="text-[#96C2DB] font-medium">
+                        <div className="w-10 h-10 bg-canvas dark:bg-neutral-900 border border-transparent dark:border-neutral-800 rounded-full flex items-center justify-center">
+                          <span className="text-brand font-medium">
                             {employee.name.charAt(0)}
                           </span>
                         </div>
                         <div className="ml-4">
-                          <div className="text-sm font-medium text-gray-900 dark:text-slate-200">
+                          <div className="text-sm font-medium text-gray-900 dark:text-white dark:text-white">
                             {employee.name}
                           </div>
-                          <div className="text-sm text-gray-500 dark:text-gray-400">
+                          <div className="text-sm text-gray-500 dark:text-neutral-400 dark:text-gray-400">
                             {employee.email}
                           </div>
                         </div>
                       </div>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-slate-200">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
                       {employee.employeeId}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-slate-200">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
                       {employee.department}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${employee.role === 'admin'
-                          ? 'bg-[#96C2DB]/10 text-gray-700 border border-[#96C2DB]/30 rounded-full'
-                          : 'bg-emerald-50 text-emerald-700 border border-emerald-100 rounded-full'
+                        ? 'bg-brand/10 text-gray-700 dark:text-white border border-brand/30'
+                        : 'bg-emerald-50 text-emerald-700 dark:text-emerald-400 border border-emerald-100'
                         }`}>
                         {employee.role}
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${employee.isActive
-                          ? 'bg-emerald-50 text-emerald-700 border border-emerald-100 rounded-full'
-                          : 'bg-rose-50 text-rose-700 border border-rose-100 rounded-full'
+                        ? 'bg-emerald-50 text-emerald-700 dark:text-emerald-400 border border-emerald-100'
+                        : 'bg-rose-50 text-rose-700 dark:text-rose-400 border border-rose-100'
                         }`}>
                         {employee.isActive ? 'Active' : 'Inactive'}
                       </span>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2" onClick={(e) => e.stopPropagation()}>
                       <button
                         onClick={(e: React.MouseEvent) => { e.stopPropagation(); setEditingEmployee(employee); }}
-                        className="text-[#96C2DB] hover:text-gray-900 dark:hover:text-slate-200"
+                        className="text-brand hover:text-gray-900 dark:text-white dark:hover:text-white"
                         title="Edit employee"
                       >
                         <Edit className="w-4 h-4" />
@@ -243,33 +265,34 @@ const EmployeeManagement: React.FC = () => {
                       <button
                         onClick={(e: React.MouseEvent) => { e.stopPropagation(); toggleEmployeeStatus(employee); }}
                         className={`${employee.isActive
-                            ? 'text-red-600 hover:text-red-900'
-                            : 'text-green-600 hover:text-green-900'
+                          ? 'text-red-600 hover:text-red-900'
+                          : 'text-green-600 hover:text-green-900'
                           }`}
                         title={employee.isActive ? 'Deactivate' : 'Activate'}
                       >
                         {employee.isActive ? <UserX className="w-4 h-4" /> : <UserCheck className="w-4 h-4" />}
                       </button>
                       <button
-                        onClick={(e: React.MouseEvent) => { e.stopPropagation(); setExpandedEmployeeId(expandedEmployeeId === employee.id ? null : employee.id); }}
-                        className="text-gray-600 dark:text-gray-400 hover:text-gray-900"
-                        title="View contact details"
+                        onClick={(e) => handleDeleteEmployee(employee, e)}
+                        disabled={deletingEmployeeId === employee.id}
+                        className="text-red-500 hover:text-red-700 disabled:opacity-50"
+                        title="Permanently delete employee"
                       >
-                        {expandedEmployeeId === employee.id ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+                        <Trash2 className="w-4 h-4" />
                       </button>
                     </td>
                   </tr>
                   {expandedEmployeeId === employee.id && (
                     <tr>
-                      <td colSpan={6} className="px-6 py-4 bg-gray-50 dark:bg-slate-700 border-t border-gray-100 dark:border-slate-700">
+                      <td colSpan={6} className="px-6 py-4 bg-gray-50 dark:bg-neutral-800 border-t border-gray-100 dark:border-neutral-800">
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                           <div>
-                            <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Phone Number</p>
-                            <p className="text-sm text-gray-900 dark:text-slate-200">{employee.phone_number || 'N/A'}</p>
+                            <p className="text-sm font-medium text-gray-500 dark:text-neutral-400 dark:text-gray-400">Phone Number</p>
+                            <p className="text-sm text-gray-900 dark:text-white">{employee.phone_number || 'N/A'}</p>
                           </div>
                           <div>
-                            <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Personal Email</p>
-                            <p className="text-sm text-gray-900 dark:text-slate-200">{employee.personal_email || 'N/A'}</p>
+                            <p className="text-sm font-medium text-gray-500 dark:text-neutral-400 dark:text-gray-400">Personal Email</p>
+                            <p className="text-sm text-gray-900 dark:text-white">{employee.personal_email || 'N/A'}</p>
                           </div>
                           <div className="md:col-span-2 flex justify-end">
                             <button
@@ -294,9 +317,9 @@ const EmployeeManagement: React.FC = () => {
       {/* Reset Password Modal */}
       {resettingEmployee && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white dark:bg-slate-800 rounded-xl p-6 w-full max-w-sm mx-4">
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-slate-200 mb-2">Reset Password</h3>
-            <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+          <div className="bg-white dark:bg-neutral-900 rounded-xl p-6 w-full max-w-sm mx-4">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">Reset Password</h3>
+            <p className="text-sm text-gray-600 dark:text-neutral-400 dark:text-gray-400 mb-4">
               Set a new password for <strong>{resettingEmployee.name}</strong> ({resettingEmployee.email}).
             </p>
             <form onSubmit={handleSubmitReset} className="space-y-4">
@@ -306,19 +329,19 @@ const EmployeeManagement: React.FC = () => {
                   type="password"
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
-                  className="w-full p-2 border border-gray-200 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-800 focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                  className="w-full p-2 border border-gray-200 dark:border-neutral-700 rounded-xl bg-white dark:bg-neutral-900 focus:ring-2 focus:ring-amber-500 focus:border-transparent"
                   minLength={8}
                   placeholder="Min. 8 characters"
                   required
                   autoFocus
                 />
-                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">The user will be able to log in immediately with this password.</p>
+                <p className="text-xs text-gray-500 dark:text-neutral-400 dark:text-gray-400 mt-1">The user will be able to log in immediately with this password.</p>
               </div>
               <div className="flex justify-end space-x-3">
                 <button
                   type="button"
                   onClick={handleCloseResetModal}
-                  className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-800"
+                  className="px-4 py-2 text-sm text-gray-600 dark:text-neutral-400 dark:text-gray-400 hover:text-gray-800"
                 >
                   Cancel
                 </button>
@@ -410,8 +433,8 @@ const EmployeeModal: React.FC<{
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-xl p-6 w-96 max-h-[90vh] overflow-y-auto">
-        <h3 className="text-lg font-medium text-gray-900 dark:text-slate-200 mb-4">
+      <div className="bg-white dark:bg-neutral-900 rounded-xl p-6 w-96 max-h-[90vh] overflow-y-auto">
+        <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">
           {employee ? 'Edit Employee' : 'Add New Employee'}
         </h3>
 
@@ -424,7 +447,7 @@ const EmployeeModal: React.FC<{
               type="text"
               value={formData.employeeId}
               onChange={(e) => setFormData({ ...formData, employeeId: e.target.value })}
-              className="w-full p-2 border border-gray-200 rounded-xl bg-white focus:ring-2 focus:ring-[#96C2DB] focus:border-[#96C2DB]"
+              className="w-full p-2 border border-gray-200 rounded-xl bg-white focus:ring-2 focus:ring-brand focus:border-brand"
               required
             />
           </div>
@@ -437,7 +460,7 @@ const EmployeeModal: React.FC<{
               type="text"
               value={formData.name}
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              className="w-full p-2 border border-gray-200 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-800 focus:ring-2 focus:ring-[#96C2DB] focus:border-[#96C2DB]"
+              className="w-full p-2 border border-gray-200 dark:border-neutral-700 rounded-xl bg-white dark:bg-black text-gray-900 dark:text-white dark:text-white focus:ring-2 focus:ring-brand focus:border-brand"
               required
             />
           </div>
@@ -450,7 +473,7 @@ const EmployeeModal: React.FC<{
               type="email"
               value={formData.email}
               onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-              className="w-full p-2 border border-gray-200 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-800 focus:ring-2 focus:ring-[#96C2DB] focus:border-[#96C2DB]"
+              className="w-full p-2 border border-gray-200 dark:border-neutral-700 rounded-xl bg-white dark:bg-black text-gray-900 dark:text-white dark:text-white focus:ring-2 focus:ring-brand focus:border-brand"
               required
             />
           </div>
@@ -464,12 +487,12 @@ const EmployeeModal: React.FC<{
                 type="password"
                 value={formData.password}
                 onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                className="w-full p-2 border border-gray-200 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-800 focus:ring-2 focus:ring-[#96C2DB] focus:border-[#96C2DB]"
+                className="w-full p-2 border border-gray-200 dark:border-neutral-700 rounded-xl bg-white dark:bg-black text-gray-900 dark:text-white dark:text-white focus:ring-2 focus:ring-brand focus:border-brand"
                 required
                 minLength={8}
                 placeholder="At least 8 characters"
               />
-              <p className="text-xs text-gray-500 mt-1">
+              <p className="text-xs text-gray-500 dark:text-neutral-400 mt-1">
                 Admin manually sets the account password. Employee can change it after first login.
               </p>
             </div>
@@ -482,7 +505,7 @@ const EmployeeModal: React.FC<{
               type="text"
               value={formData.department}
               onChange={(e) => setFormData({ ...formData, department: e.target.value })}
-              className="w-full p-2 border border-gray-200 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-800 focus:ring-2 focus:ring-[#96C2DB] focus:border-[#96C2DB]"
+              className="w-full p-2 border border-gray-200 dark:border-neutral-700 rounded-xl bg-white dark:bg-black text-gray-900 dark:text-white dark:text-white focus:ring-2 focus:ring-brand focus:border-brand"
               required
             />
           </div>
@@ -495,7 +518,7 @@ const EmployeeModal: React.FC<{
               type="text"
               value={formData.position}
               onChange={(e) => setFormData({ ...formData, position: e.target.value })}
-              className="w-full p-2 border border-gray-200 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-800 focus:ring-2 focus:ring-[#96C2DB] focus:border-[#96C2DB]"
+              className="w-full p-2 border border-gray-200 dark:border-neutral-700 rounded-xl bg-white dark:bg-black text-gray-900 dark:text-white dark:text-white focus:ring-2 focus:ring-brand focus:border-brand"
               required
             />
           </div>
@@ -508,7 +531,7 @@ const EmployeeModal: React.FC<{
               type="tel"
               value={formData.phone_number}
               onChange={(e) => setFormData({ ...formData, phone_number: e.target.value })}
-              className="w-full p-2 border border-gray-200 rounded-xl bg-white focus:ring-2 focus:ring-[#96C2DB] focus:border-[#96C2DB]"
+              className="w-full p-2 border border-gray-200 rounded-xl bg-white focus:ring-2 focus:ring-brand focus:border-brand"
             />
           </div>
 
@@ -520,7 +543,7 @@ const EmployeeModal: React.FC<{
               type="email"
               value={formData.personal_email}
               onChange={(e) => setFormData({ ...formData, personal_email: e.target.value })}
-              className="w-full p-2 border border-gray-200 rounded-xl bg-white focus:ring-2 focus:ring-[#96C2DB] focus:border-[#96C2DB]"
+              className="w-full p-2 border border-gray-200 rounded-xl bg-white focus:ring-2 focus:ring-brand focus:border-brand"
             />
           </div>
 
@@ -531,7 +554,7 @@ const EmployeeModal: React.FC<{
             <select
               value={formData.role}
               onChange={(e) => setFormData({ ...formData, role: e.target.value as 'admin' | 'core' | 'employee' | 'trainee' | 'intern' })}
-              className="w-full p-2 border border-gray-200 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-800 focus:ring-2 focus:ring-[#96C2DB] focus:border-[#96C2DB]"
+              className="w-full p-2 border border-gray-200 dark:border-neutral-700 rounded-xl bg-white dark:bg-black text-gray-900 dark:text-white dark:text-white focus:ring-2 focus:ring-brand focus:border-brand"
             >
               <option value="admin">Admin</option>
               <option value="core">Core</option>
@@ -547,7 +570,7 @@ const EmployeeModal: React.FC<{
               id="isActive"
               checked={formData.isActive}
               onChange={(e) => setFormData({ ...formData, isActive: e.target.checked })}
-              className="rounded border-gray-300 text-[#96C2DB] focus:ring-[#96C2DB] focus:border-[#96C2DB]"
+              className="rounded border-gray-300 text-brand focus:ring-brand focus:border-brand"
             />
             <label htmlFor="isActive" className="text-sm text-gray-700 dark:text-gray-300">
               Active Employee
@@ -558,7 +581,7 @@ const EmployeeModal: React.FC<{
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 px-4 py-2 text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-slate-600 rounded-lg hover:bg-gray-200"
+              className="flex-1 px-4 py-2 text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-neutral-700 rounded-lg hover:bg-gray-200"
             >
               Cancel
             </button>
@@ -616,8 +639,8 @@ const InviteEmployeeModal: React.FC<{
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-xl p-6 w-96 max-h-[90vh] overflow-y-auto">
-        <h3 className="text-lg font-medium text-gray-900 dark:text-slate-200 mb-4">
+      <div className="bg-white dark:bg-neutral-900 rounded-xl p-6 w-96 max-h-[90vh] overflow-y-auto">
+        <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">
           Invite New Employee
         </h3>
 
@@ -630,7 +653,7 @@ const InviteEmployeeModal: React.FC<{
               type="text"
               value={formData.name}
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              className="w-full p-2 border border-gray-200 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-800 focus:ring-2 focus:ring-[#96C2DB]"
+              className="w-full p-2 border border-gray-200 dark:border-neutral-700 rounded-xl bg-white dark:bg-black text-gray-900 dark:text-white dark:text-white focus:ring-2 focus:ring-brand"
               required
             />
           </div>
@@ -643,7 +666,7 @@ const InviteEmployeeModal: React.FC<{
               type="email"
               value={formData.email}
               onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-              className="w-full p-2 border border-gray-200 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-800 focus:ring-2 focus:ring-[#96C2DB]"
+              className="w-full p-2 border border-gray-200 dark:border-neutral-700 rounded-xl bg-white dark:bg-black text-gray-900 dark:text-white dark:text-white focus:ring-2 focus:ring-brand"
               required
             />
           </div>
@@ -656,7 +679,7 @@ const InviteEmployeeModal: React.FC<{
               type="text"
               value={formData.employeeId}
               onChange={(e) => setFormData({ ...formData, employeeId: e.target.value })}
-              className="w-full p-2 border border-gray-200 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-800 focus:ring-2 focus:ring-[#96C2DB]"
+              className="w-full p-2 border border-gray-200 dark:border-neutral-700 rounded-xl bg-white dark:bg-black text-gray-900 dark:text-white dark:text-white focus:ring-2 focus:ring-brand"
             />
           </div>
 
@@ -668,7 +691,7 @@ const InviteEmployeeModal: React.FC<{
               type="text"
               value={formData.department}
               onChange={(e) => setFormData({ ...formData, department: e.target.value })}
-              className="w-full p-2 border border-gray-200 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-800 focus:ring-2 focus:ring-[#96C2DB]"
+              className="w-full p-2 border border-gray-200 dark:border-neutral-700 rounded-xl bg-white dark:bg-black text-gray-900 dark:text-white dark:text-white focus:ring-2 focus:ring-brand"
               required
             />
           </div>
@@ -681,20 +704,59 @@ const InviteEmployeeModal: React.FC<{
               type="text"
               value={formData.position}
               onChange={(e) => setFormData({ ...formData, position: e.target.value })}
-              className="w-full p-2 border border-gray-200 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-800 focus:ring-2 focus:ring-[#96C2DB]"
+              className="w-full p-2 border border-gray-200 dark:border-neutral-700 rounded-xl bg-white dark:bg-black text-gray-900 dark:text-white dark:text-white focus:ring-2 focus:ring-brand"
               required
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-gray-700 dark:text-neutral-300 mb-1">
               Email Address
             </label>
             <input
               type="email"
               value={formData.email}
               onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-              className="w-full p-2 border border-gray-200 rounded-xl bg-white focus:ring-2 focus:ring-[#96C2DB]"
+              className="w-full p-2 border border-gray-200 dark:border-neutral-700 rounded-xl bg-white dark:bg-black text-gray-900 dark:text-white dark:text-white focus:ring-2 focus:ring-brand focus:border-brand focus:border-transparent"
+              required
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-neutral-300 mb-1">
+              Employee ID
+            </label>
+            <input
+              type="text"
+              value={formData.employeeId}
+              onChange={(e) => setFormData({ ...formData, employeeId: e.target.value })}
+              className="w-full p-2 border border-gray-200 dark:border-neutral-700 rounded-xl bg-white dark:bg-black text-gray-900 dark:text-white dark:text-white focus:ring-2 focus:ring-brand focus:border-brand focus:border-transparent"
+              required
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-neutral-300 mb-1">
+              Department
+            </label>
+            <input
+              type="text"
+              value={formData.department}
+              onChange={(e) => setFormData({ ...formData, department: e.target.value })}
+              className="w-full p-2 border border-gray-200 dark:border-neutral-700 rounded-xl bg-white dark:bg-black text-gray-900 dark:text-white dark:text-white focus:ring-2 focus:ring-brand focus:border-brand focus:border-transparent"
+              required
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-neutral-300 mb-1">
+              Position
+            </label>
+            <input
+              type="text"
+              value={formData.position}
+              onChange={(e) => setFormData({ ...formData, position: e.target.value })}
+              className="w-full p-2 border border-gray-200 dark:border-neutral-700 rounded-xl bg-white dark:bg-black text-gray-900 dark:text-white dark:text-white focus:ring-2 focus:ring-brand focus:border-brand focus:border-transparent"
               required
             />
           </div>
@@ -707,7 +769,7 @@ const InviteEmployeeModal: React.FC<{
               type="text"
               value={formData.employeeId}
               onChange={(e) => setFormData({ ...formData, employeeId: e.target.value })}
-              className="w-full p-2 border border-gray-200 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-800 focus:ring-2 focus:ring-[#96C2DB] focus:border-[#96C2DB]"
+              className="w-full p-2 border border-gray-200 dark:border-neutral-700 rounded-xl bg-white dark:bg-black text-gray-900 dark:text-white dark:text-white focus:ring-2 focus:ring-brand focus:border-brand"
               required
             />
           </div>
@@ -720,7 +782,7 @@ const InviteEmployeeModal: React.FC<{
               type="text"
               value={formData.department}
               onChange={(e) => setFormData({ ...formData, department: e.target.value })}
-              className="w-full p-2 border border-gray-200 rounded-xl bg-white focus:ring-2 focus:ring-[#96C2DB]"
+              className="w-full p-2 border border-gray-200 rounded-xl bg-white focus:ring-2 focus:ring-brand"
               required
             />
           </div>
@@ -733,7 +795,7 @@ const InviteEmployeeModal: React.FC<{
               type="text"
               value={formData.position}
               onChange={(e) => setFormData({ ...formData, position: e.target.value })}
-              className="w-full p-2 border border-gray-200 rounded-xl bg-white focus:ring-2 focus:ring-[#96C2DB]"
+              className="w-full p-2 border border-gray-200 rounded-xl bg-white focus:ring-2 focus:ring-brand"
               required
             />
           </div>
@@ -756,7 +818,7 @@ const InviteEmployeeModal: React.FC<{
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 px-4 py-2 text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-slate-600 rounded-lg hover:bg-gray-200"
+              className="flex-1 px-4 py-2 text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-neutral-700 rounded-lg hover:bg-gray-200"
             >
               Cancel
             </button>

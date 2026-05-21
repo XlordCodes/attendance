@@ -44,12 +44,12 @@ const WorkingHoursInfo: React.FC = () => {
 
   if (!schedule) {
     return (
-      <div className="bg-[#EEF4F8] dark:bg-slate-800 border border-[#96C2DB]/40 dark:border-slate-700 rounded-lg p-4 mb-6">
+      <div className="bg-[#EEF4F8] dark:bg-neutral-900 border border-brand/40 dark:border-neutral-800 rounded-lg p-4 mb-6">
         <div className="flex items-center mb-3">
-          <Clock className="h-5 w-5 text-[#96C2DB] mr-2" />
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-slate-200">Working Hours</h3>
+          <Clock className="h-5 w-5 text-brand mr-2" />
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Working Hours</h3>
         </div>
-        <p className="text-sm text-gray-500 dark:text-gray-400">Loading schedule...</p>
+        <p className="text-sm text-gray-500 dark:text-neutral-400 dark:text-gray-400">Loading schedule...</p>
       </div>
     );
   }
@@ -61,43 +61,43 @@ const WorkingHoursInfo: React.FC = () => {
   };
 
   return (
-      <div className="bg-[#EEF4F8] dark:bg-slate-800 border border-[#96C2DB]/40 dark:border-slate-700 rounded-lg p-4 mb-6">
+    <div className="bg-[#EEF4F8] dark:bg-neutral-900 border border-brand/40 dark:border-neutral-800 rounded-lg p-4 mb-6">
       <div className="flex items-center mb-3">
-        <Clock className="h-5 w-5 text-[#96C2DB] mr-2" />
-        <h3 className="text-lg font-semibold text-gray-900 dark:text-slate-200">Your Working Hours</h3>
+        <Clock className="h-5 w-5 text-brand mr-2" />
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Your Working Hours</h3>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
         <div className="flex items-center">
-          <Calendar className="h-4 w-4 text-[#96C2DB] mr-2" />
+          <Calendar className="h-4 w-4 text-brand mr-2" />
           <div>
-            <div className="font-medium text-gray-900 dark:text-slate-200">Working Hours</div>
-            <div className="text-gray-500 dark:text-gray-400">
+            <div className="font-medium text-gray-900 dark:text-white">Working Hours</div>
+            <div className="text-gray-500 dark:text-neutral-400 dark:text-gray-400">
               {formatTime12h(schedule.start_hour, schedule.start_minute)} - {formatTime12h(schedule.end_hour, schedule.end_minute)}
             </div>
           </div>
         </div>
 
         <div className="flex items-center">
-          <Coffee className="h-4 w-4 text-[#96C2DB] mr-2" />
+          <Coffee className="h-4 w-4 text-brand mr-2" />
           <div>
-            <div className="font-medium text-gray-900 dark:text-slate-200">Lunch Break</div>
-            <div className="text-gray-500 dark:text-gray-400">
+            <div className="font-medium text-gray-900 dark:text-white">Lunch Break</div>
+            <div className="text-gray-500 dark:text-neutral-400 dark:text-gray-400">
               {formatTime12h(schedule.lunch_start_hour, schedule.lunch_start_minute)} - {formatTime12h(schedule.lunch_end_hour, schedule.lunch_end_minute)}
             </div>
           </div>
         </div>
 
         <div className="flex items-center">
-          <Clock className="h-4 w-4 text-[#96C2DB] mr-2" />
+          <Clock className="h-4 w-4 text-brand mr-2" />
           <div>
-            <div className="font-medium text-gray-900 dark:text-slate-200">Daily Target</div>
-            <div className="text-gray-500 dark:text-gray-400">{schedule.standard_work_hours} hours</div>
+            <div className="font-medium text-gray-900 dark:text-white">Daily Target</div>
+            <div className="text-gray-500 dark:text-neutral-400 dark:text-gray-400">{schedule.standard_work_hours} hours</div>
           </div>
         </div>
       </div>
 
-      <div className="mt-3 text-xs text-gray-400 dark:text-gray-500">
+      <div className="mt-3 text-xs text-gray-400 dark:text-gray-500 dark:text-neutral-400">
         <strong>Note:</strong> Attendance after {formatTime12h(schedule.start_hour, schedule.start_minute)} will be marked as late.
         Overtime is calculated for hours worked beyond {schedule.standard_work_hours} hours.
       </div>

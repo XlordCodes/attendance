@@ -510,6 +510,28 @@ class UserService {
   }
 }
 
+/**
+ * Permanently delete an employee from the employees table.
+ * Note: Supabase Auth user is NOT removed here (DB-only deletion).
+ * @param employeeId The employee's record id
+ * @returns true on success
+ * @throws {Error} if the deletion fails
+ */
+export const deleteEmployee = async (employeeId: string): Promise<boolean> => {
+  try {
+    const { error } = await supabase
+      .from('employees')
+      .delete()
+      .eq('id', employeeId);
+
+    if (error) throw error;
+    return true;
+  } catch (error) {
+    console.error('Error deleting employee:', error);
+    throw error;
+  }
+};
+
 // Standalone helper functions (operate independently of UserService class)
 // They are exported above the class instantiation to avoid circular reference issues.
 export const userService = new UserService();

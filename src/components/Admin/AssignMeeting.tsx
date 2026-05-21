@@ -46,8 +46,8 @@ const AssignMeeting: React.FC = () => {
   };
 
   const handleEmployeeToggle = (employeeId: string) => {
-    setSelectedEmployees(prev => 
-      prev.includes(employeeId) 
+    setSelectedEmployees(prev =>
+      prev.includes(employeeId)
         ? prev.filter(id => id !== employeeId)
         : [...prev, employeeId]
     );
@@ -84,14 +84,14 @@ const AssignMeeting: React.FC = () => {
 
       // Add to local state
       setMeetings(prev => [newMeeting, ...prev]);
-      
+
       // Reset form
       setMeetingTitle('');
       setMeetingDescription('');
       setMeetingDate('');
       setMeetingTime('');
       setSelectedEmployees([]);
-      
+
       toast.success(`Meeting assigned to ${selectedEmployees.length} employees`);
     } catch (error) {
       console.error('Error assigning meeting:', error);
@@ -112,40 +112,40 @@ const AssignMeeting: React.FC = () => {
     <div className="max-w-6xl mx-auto space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">Assign Meeting</h1>
-        <p className="text-gray-600">Schedule meetings and notify selected employees</p>
+        <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">Assign Meeting</h1>
+        <p className="text-gray-600 dark:text-neutral-400">Schedule meetings and notify selected employees</p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Meeting Assignment Form */}
-        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
-          <h2 className="text-xl font-semibold text-gray-900 mb-6">Create New Meeting</h2>
-          
+        <div className="bg-white dark:bg-neutral-900 rounded-xl border border-gray-200 dark:border-neutral-800 shadow-sm p-6">
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-6">Create New Meeting</h2>
+
           <div className="space-y-4">
             {/* Meeting Title */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-neutral-300 mb-2">
                 Meeting Title *
               </label>
               <input
                 type="text"
                 value={meetingTitle}
                 onChange={(e) => setMeetingTitle(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-200 rounded-xl bg-white focus:ring-2 focus:ring-[#96C2DB] focus:border-[#96C2DB] focus:border-transparent"
+                className="w-full px-3 py-2 border border-gray-200 dark:border-neutral-800 rounded-xl bg-white dark:bg-black text-gray-900 dark:text-white focus:ring-2 focus:ring-brand focus:border-brand focus:border-transparent dark:[color-scheme:dark]"
                 placeholder="Enter meeting title"
               />
             </div>
 
             {/* Meeting Description */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-neutral-300 mb-2">
                 Description
               </label>
               <textarea
                 value={meetingDescription}
                 onChange={(e) => setMeetingDescription(e.target.value)}
                 rows={3}
-                className="w-full px-3 py-2 border border-gray-200 rounded-xl bg-white focus:ring-2 focus:ring-[#96C2DB] focus:border-[#96C2DB] focus:border-transparent"
+                className="w-full px-3 py-2 border border-gray-200 dark:border-neutral-800 rounded-xl bg-white dark:bg-black text-gray-900 dark:text-white focus:ring-2 focus:ring-brand focus:border-brand focus:border-transparent dark:[color-scheme:dark]"
                 placeholder="Enter meeting description (optional)"
               />
             </div>
@@ -153,7 +153,7 @@ const AssignMeeting: React.FC = () => {
             {/* Date and Time */}
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-gray-700 dark:text-neutral-300 mb-2">
                   Date *
                 </label>
                 <input
@@ -161,18 +161,18 @@ const AssignMeeting: React.FC = () => {
                   value={meetingDate}
                   onChange={(e) => setMeetingDate(e.target.value)}
                   min={format(new Date(), 'yyyy-MM-dd')}
-                  className="w-full px-3 py-2 border border-gray-200 rounded-xl bg-white focus:ring-2 focus:ring-[#96C2DB] focus:border-[#96C2DB] focus:border-transparent"
+                  className="w-full px-3 py-2 border border-gray-200 dark:border-neutral-800 rounded-xl bg-white dark:bg-black text-gray-900 dark:text-white focus:ring-2 focus:ring-brand focus:border-brand focus:border-transparent dark:[color-scheme:dark]"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-gray-700 dark:text-neutral-300 mb-2">
                   Time *
                 </label>
                 <input
                   type="time"
                   value={meetingTime}
                   onChange={(e) => setMeetingTime(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-200 rounded-xl bg-white focus:ring-2 focus:ring-[#96C2DB] focus:border-[#96C2DB] focus:border-transparent"
+                  className="w-full px-3 py-2 border border-gray-200 dark:border-neutral-800 rounded-xl bg-white dark:bg-black text-gray-900 dark:text-white focus:ring-2 focus:ring-brand focus:border-brand focus:border-transparent dark:[color-scheme:dark]"
                 />
               </div>
             </div>
@@ -199,13 +199,13 @@ const AssignMeeting: React.FC = () => {
         </div>
 
         {/* Employee Selection */}
-        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
-          <h2 className="text-xl font-semibold text-gray-900 mb-6">Select Employees</h2>
-          
+        <div className="bg-white dark:bg-neutral-900 rounded-xl border border-gray-200 dark:border-neutral-800 shadow-sm p-6">
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-6">Select Employees</h2>
+
           {employees.length === 0 ? (
             <div className="text-center py-8">
               <Users className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-              <p className="text-gray-500">No employees found</p>
+              <p className="text-gray-500 dark:text-neutral-400">No employees found</p>
             </div>
           ) : (
             <div className="space-y-2 max-h-96 overflow-y-auto">
@@ -218,13 +218,13 @@ const AssignMeeting: React.FC = () => {
                     type="checkbox"
                     checked={selectedEmployees.includes(employee.id)}
                     onChange={() => handleEmployeeToggle(employee.id)}
-                    className="w-4 h-4 text-[#96C2DB] border-gray-300 rounded focus:ring-[#96C2DB] focus:border-[#96C2DB]"
+                    className="w-4 h-4 text-brand border-gray-300 rounded focus:ring-brand focus:border-brand"
                   />
                   <div className="ml-3 flex-1">
                     <div className="flex items-center justify-between">
                       <div>
-                        <p className="text-sm font-medium text-gray-900">{employee.name}</p>
-                        <p className="text-xs text-gray-500">{employee.email}</p>
+                        <p className="text-sm font-medium text-gray-900 dark:text-white">{employee.name}</p>
+                        <p className="text-xs text-gray-500 dark:text-neutral-400">{employee.email}</p>
                       </div>
                       <span className="text-xs bg-gray-200 text-gray-700 px-2 py-1 rounded">
                         {employee.department}
@@ -239,13 +239,13 @@ const AssignMeeting: React.FC = () => {
       </div>
 
       {/* Recent Meetings */}
-      <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
-        <h2 className="text-xl font-semibold text-gray-900 mb-6">Recent Meetings</h2>
-        
+      <div className="bg-white dark:bg-neutral-900 rounded-xl border border-gray-200 dark:border-neutral-800 shadow-sm p-6">
+        <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-6">Recent Meetings</h2>
+
         {meetings.length === 0 ? (
           <div className="text-center py-8">
             <Calendar className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-            <p className="text-gray-500">No meetings assigned yet</p>
+            <p className="text-gray-500 dark:text-neutral-400">No meetings assigned yet</p>
           </div>
         ) : (
           <div className="space-y-4">
@@ -253,11 +253,11 @@ const AssignMeeting: React.FC = () => {
               <div key={meeting.id} className="border border-gray-200 rounded-lg p-4">
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
-                    <h3 className="font-medium text-gray-900">{meeting.title}</h3>
+                    <h3 className="font-medium text-gray-900 dark:text-white">{meeting.title}</h3>
                     {meeting.description && (
-                      <p className="text-sm text-gray-600 mt-1">{meeting.description}</p>
+                      <p className="text-sm text-gray-600 dark:text-neutral-400 mt-1">{meeting.description}</p>
                     )}
-                    <div className="flex items-center space-x-4 mt-2 text-sm text-gray-500">
+                    <div className="flex items-center space-x-4 mt-2 text-sm text-gray-500 dark:text-neutral-400">
                       <span className="flex items-center">
                         <Calendar className="w-4 h-4 mr-1" />
                         {format(new Date(meeting.date), 'MMM d, yyyy')}

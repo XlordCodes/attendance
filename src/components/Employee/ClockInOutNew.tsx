@@ -26,10 +26,10 @@ const LiveClockDisplay = memo(() => {
 
   return (
     <div className="text-right">
-      <div className="text-2xl font-mono font-bold text-gray-900 dark:text-slate-200">
+      <div className="text-2xl font-mono font-bold text-gray-900 dark:text-white">
         {format(now, 'HH:mm:ss')}
       </div>
-      <div className="text-sm text-gray-500">
+      <div className="text-sm text-gray-500 dark:text-neutral-400">
         {format(now, 'EEEE, MMMM d, yyyy')}
       </div>
     </div>
@@ -581,22 +581,22 @@ const ClockInOutNew: React.FC<ClockInOutNewProps> = ({ onAttendanceChange }) => 
 
   if (isInitializing) {
     return (
-      <div className="min-h-screen bg-[#E5EDF1] dark:bg-slate-900 flex items-center justify-center">
+      <div className="min-h-screen bg-canvas dark:bg-black flex items-center justify-center">
         <div className="text-center">
           <div className="w-12 h-12 bg-gray-900 rounded-lg flex items-center justify-center animate-pulse mx-auto mb-4">
-            <div className="w-6 h-6 bg-white dark:bg-slate-700 rounded opacity-80"></div>
+            <div className="w-6 h-6 bg-white dark:bg-neutral-800 rounded opacity-80"></div>
           </div>
-          <h3 className="font-semibold text-gray-900 dark:text-slate-200 mb-1">Loading Attendance</h3>
-          <p className="text-sm text-gray-500">Please wait...</p>
+          <h3 className="font-semibold text-gray-900 dark:text-white mb-1">Loading Attendance</h3>
+          <p className="text-sm text-gray-500 dark:text-neutral-400">Please wait...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-700 border-gray-200 p-6">
+    <div className="bg-white dark:bg-neutral-900 rounded-2xl shadow-sm border border-gray-100 dark:border-neutral-800 border-gray-200 p-6">
       <div className="flex items-center justify-between mb-6">
-        <h2 className="text-xl font-semibold text-gray-900 dark:text-slate-200 flex items-center">
+        <h2 className="text-xl font-semibold text-gray-900 dark:text-white flex items-center">
           <Clock className="mr-2 h-5 w-5" />
           Time Tracking
         </h2>
@@ -619,7 +619,7 @@ const ClockInOutNew: React.FC<ClockInOutNewProps> = ({ onAttendanceChange }) => 
       {todayRecord?.lunchStart && !todayRecord?.lunchEnd && (
         <div className="bg-orange-50 border border-orange-200 rounded-lg p-4 mb-4">
           <div className="flex items-center">
-            <Coffee className="h-5 w-5 text-[#96C2DB] mr-2" />
+            <Coffee className="h-5 w-5 text-brand mr-2" />
             <div>
               <p className="text-sm font-medium text-orange-900">Lunch Break Active</p>
               <p className="text-sm text-orange-700">
@@ -631,12 +631,12 @@ const ClockInOutNew: React.FC<ClockInOutNewProps> = ({ onAttendanceChange }) => 
       )}
 
       {/* Location Status */}
-      <div className="bg-white dark:bg-slate-800 border border-gray-100 dark:border-slate-700 rounded-2xl p-4 mb-4">
+      <div className="bg-white dark:bg-neutral-900 border border-gray-100 dark:border-neutral-800 rounded-2xl p-4 mb-4">
         <div className="flex items-center">
           <div className={`h-2 w-2 rounded-full mr-2 ${currentLocation ? 'bg-green-500' : 'bg-red-500'}`}></div>
           <div>
-            <p className="text-sm font-medium text-gray-900 dark:text-slate-200">Location Status</p>
-            <p className="text-sm text-gray-600">
+            <p className="text-sm font-medium text-gray-900 dark:text-white dark:text-white">Location Status</p>
+            <p className="text-sm text-gray-600 dark:text-neutral-400">
               {currentLocation
                 ? `📍 Location detected (${currentLocation.latitude.toFixed(6)}, ${currentLocation.longitude.toFixed(6)})`
                 : locationError || 'Location access required for attendance'}
@@ -653,7 +653,7 @@ const ClockInOutNew: React.FC<ClockInOutNewProps> = ({ onAttendanceChange }) => 
           <button
             onClick={handleClockIn}
             disabled={loading || isValidating}
-            className="w-full bg-[#1E2A3A] text-white hover:bg-[#162030] transition-colors shadow-sm disabled:bg-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed font-medium py-3 px-4 rounded-xl flex items-center justify-center"
+            className="w-full bg-slate-900 dark:bg-brand text-white dark:text-gray-900 dark:text-white hover:bg-slate-800 dark:hover:bg-accent-300 transition-colors shadow-sm disabled:bg-gray-200 dark:disabled:bg-neutral-800 disabled:text-gray-400 dark:disabled:text-neutral-500 disabled:cursor-not-allowed font-medium py-3 px-4 rounded-xl flex items-center justify-center"
           >
             <Play className="mr-2 h-5 w-5" />
             {isValidating ? 'Verifying Location & Network...' : loading ? 'Clocking In...' : 'Clock In'}
@@ -665,7 +665,7 @@ const ClockInOutNew: React.FC<ClockInOutNewProps> = ({ onAttendanceChange }) => 
               <button
                 onClick={handleLunchReturn}
                 disabled={loading}
-                className="w-full bg-[#6A9AB0] hover:bg-[#5a8a9f] disabled:bg-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed text-white font-medium py-3 px-4 rounded-xl transition-colors flex items-center justify-center"
+                className="w-full bg-accent-500 hover:bg-accent-600 disabled:bg-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed text-white font-medium py-3 px-4 rounded-xl transition-colors flex items-center justify-center"
               >
                 <Coffee className="mr-2 h-5 w-5" />
                 {loading ? 'Returning...' : 'Return from Lunch'}
@@ -677,7 +677,7 @@ const ClockInOutNew: React.FC<ClockInOutNewProps> = ({ onAttendanceChange }) => 
               <button
                 onClick={handleStartLunch}
                 disabled={loading}
-                className="w-full bg-[#96C2DB] hover:bg-[#7aafc9] disabled:bg-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed text-white font-medium py-3 px-4 rounded-xl transition-colors flex items-center justify-center"
+                className="w-full bg-brand hover:bg-accent-500 disabled:bg-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed text-white font-medium py-3 px-4 rounded-xl transition-colors flex items-center justify-center"
               >
                 <Coffee className="mr-2 h-5 w-5" />
                 {loading ? 'Starting...' : 'Start Lunch Break'}
@@ -691,7 +691,7 @@ const ClockInOutNew: React.FC<ClockInOutNewProps> = ({ onAttendanceChange }) => 
                   <button
                     onClick={handleStartBreak}
                     disabled={loading}
-                    className="flex-1 bg-[#96C2DB] hover:bg-[#7aafc9] disabled:bg-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed text-white font-medium py-3 px-4 rounded-xl transition-colors flex items-center justify-center"
+                    className="flex-1 bg-brand hover:bg-accent-500 disabled:bg-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed text-white font-medium py-3 px-4 rounded-xl transition-colors flex items-center justify-center"
 
                   >
                     <Coffee className="mr-2 h-4 w-4" />
@@ -701,7 +701,7 @@ const ClockInOutNew: React.FC<ClockInOutNewProps> = ({ onAttendanceChange }) => 
                   <button
                     onClick={handleEndBreak}
                     disabled={loading}
-                    className="flex-1 bg-[#6A9AB0] hover:bg-[#5a8a9f] disabled:bg-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed text-white font-medium py-3 px-4 rounded-xl transition-colors flex items-center justify-center"
+                    className="flex-1 bg-accent-500 hover:bg-accent-600 disabled:bg-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed text-white font-medium py-3 px-4 rounded-xl transition-colors flex items-center justify-center"
 
                   >
                     <Pause className="mr-2 h-4 w-4" />
@@ -715,7 +715,7 @@ const ClockInOutNew: React.FC<ClockInOutNewProps> = ({ onAttendanceChange }) => 
             <button
               onClick={handleClockOut}
               disabled={loading || isOnBreak || (todayRecord?.lunchStart && !todayRecord?.lunchEnd)}
-              className="w-full bg-[#E5EDF1] text-[#1E2A3A] border border-[#96C2DB]/40 hover:bg-[#d6e4ec] disabled:bg-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed font-medium py-3 px-4 rounded-xl transition-colors flex items-center justify-center"
+              className="w-full bg-canvas dark:bg-neutral-800 text-slate-900 dark:text-white border border-brand/40 dark:border-neutral-700 hover:bg-gray-200 dark:hover:bg-neutral-700 disabled:bg-gray-200 dark:disabled:bg-neutral-900 disabled:text-gray-400 dark:disabled:text-neutral-500 disabled:cursor-not-allowed font-medium py-3 px-4 rounded-xl transition-colors flex items-center justify-center"
 
             >
               <Pause className="mr-2 h-5 w-5" />
@@ -727,13 +727,13 @@ const ClockInOutNew: React.FC<ClockInOutNewProps> = ({ onAttendanceChange }) => 
         ) : (
           <div className="flex flex-col items-center gap-3 py-4">
             <span className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full 
-                   bg-[#E5EDF1] text-[#1E2A3A] 
+                   bg-canvas dark:bg-neutral-800 text-slate-900 dark:text-green-400 
                    shadow-[inset_0_1px_2px_rgba(255,255,255,0.6),0_4px_6px_-1px_rgba(150,194,219,0.2)]
                    border border-white/40 
                    text-sm font-medium tracking-wide transition-all duration-300 hover:scale-105 hover:shadow-[0_8px_15px_-3px_rgba(150,194,219,0.3)]">
               ✅ Work completed for today!
             </span>
-            <p className="text-sm text-gray-500">
+            <p className="text-sm text-gray-500 dark:text-neutral-400">
               Total worked: {formatDuration(todayRecord.hoursWorked || 0)}
             </p>
           </div>
@@ -743,15 +743,15 @@ const ClockInOutNew: React.FC<ClockInOutNewProps> = ({ onAttendanceChange }) => 
       {/* Today's Break Summary */}
       {todayRecord && todayRecord.breaks.length > 0 && (
         <div className="mt-6 border-t pt-4">
-          <h3 className="text-sm font-medium text-gray-900 mb-3">Today's Breaks</h3>
+          <h3 className="text-sm font-medium text-gray-900 dark:text-white dark:text-white mb-3">Today's Breaks</h3>
           <div className="space-y-2">
             {todayRecord.breaks.map((breakSession, index) => (
-              <div key={index} className="flex justify-between items-center text-sm bg-gray-50 rounded p-2">
+              <div key={index} className="flex justify-between items-center text-sm bg-gray-50 dark:bg-neutral-800/50 dark:text-white rounded p-2">
                 <span>Break {index + 1}</span>
                 <span className="font-mono">
                   {formatTime(breakSession.startTime || null)} - {formatTime(breakSession.endTime || null)}
                   {breakSession.endTime && breakSession.startTime && (
-                    <span className="ml-2 text-gray-500">
+                    <span className="ml-2 text-gray-500 dark:text-neutral-400">
                       ({Math.floor((breakSession.endTime.getTime() - breakSession.startTime.getTime()) / (1000 * 60))}m)
                     </span>
                   )}
@@ -765,14 +765,14 @@ const ClockInOutNew: React.FC<ClockInOutNewProps> = ({ onAttendanceChange }) => 
       {/* Daily Stats */}
       {todayRecord && (
         <div className="mt-6 border-t pt-4">
-          <h3 className="text-sm font-medium text-gray-900 mb-3">Today's Stats</h3>
+          <h3 className="text-sm font-medium text-gray-900 dark:text-white mb-3">Today's Stats</h3>
           <div className="grid grid-cols-2 gap-4 text-sm">
             <div>
-              <span className="text-gray-600">Breaks:</span>
+              <span className="text-gray-600 dark:text-neutral-400">Breaks:</span>
               <span className="ml-2 font-medium">{todayRecord.breaks.length}</span>
             </div>
             <div>
-              <span className="text-gray-600">Lunch Break:</span>
+              <span className="text-gray-600 dark:text-neutral-400">Lunch Break:</span>
               <span className="ml-2 font-medium">
                 {todayRecord.lunchStart ?
                   (todayRecord.lunchEnd ? 'Completed' : 'Active') :
@@ -782,12 +782,12 @@ const ClockInOutNew: React.FC<ClockInOutNewProps> = ({ onAttendanceChange }) => 
             {todayRecord.lunchStart && (
               <>
                 <div>
-                  <span className="text-gray-600">Lunch Start:</span>
+                  <span className="text-gray-600 dark:text-neutral-400">Lunch Start:</span>
                   <span className="ml-2 font-medium">{formatTime(todayRecord.lunchStart)}</span>
                 </div>
                 {todayRecord.lunchEnd && (
                   <div>
-                    <span className="text-gray-600">Lunch End:</span>
+                    <span className="text-gray-600 dark:text-neutral-400">Lunch End:</span>
                     <span className="ml-2 font-medium">{formatTime(todayRecord.lunchEnd)}</span>
                   </div>
                 )}
@@ -800,16 +800,16 @@ const ClockInOutNew: React.FC<ClockInOutNewProps> = ({ onAttendanceChange }) => 
       {/* Late Reason Modal */}
       {showLateReasonModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white dark:bg-slate-800 rounded-xl p-6 w-full max-w-md mx-4">
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-slate-200 mb-4">Late Arrival</h3>
-            <p className="text-gray-600 mb-4">
+          <div className="bg-white dark:bg-neutral-900 rounded-xl p-6 w-full max-w-md mx-4">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Late Arrival</h3>
+            <p className="text-gray-600 dark:text-neutral-400 mb-4">
               You're arriving after {formatScheduleStartTime(activeSchedule || DEFAULT_ROLE_SCHEDULE)}. Please provide a reason for your late arrival:
             </p>
             <textarea
               value={lateReason}
               onChange={(e) => setLateReason(e.target.value)}
               placeholder="Enter reason for late arrival..."
-              className="w-full p-3 border border-gray-200 rounded-xl bg-white dark:bg-slate-800 focus:ring-2 focus:ring-[#96C2DB] focus:border-[#96C2DB] focus:border-transparent resize-none"
+              className="w-full p-3 border border-gray-200 rounded-xl bg-white dark:bg-neutral-900 focus:ring-2 focus:ring-brand focus:border-brand focus:border-transparent resize-none"
               rows={3}
               autoFocus
             />
@@ -836,18 +836,18 @@ const ClockInOutNew: React.FC<ClockInOutNewProps> = ({ onAttendanceChange }) => 
       {/* Clock-Out Confirmation Modal */}
       {showClockOutModal && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center">
-          <div className="bg-white dark:bg-slate-800 rounded-xl w-full max-w-sm mx-4 p-6 shadow-medium">
+          <div className="bg-white dark:bg-neutral-900 rounded-xl w-full max-w-sm mx-4 p-6 shadow-medium">
             <div className="flex items-start">
               <div className="flex-shrink-0">
-                <div className="h-10 w-10 rounded-full bg-[#E5EDF1] flex items-center justify-center">
-                  <AlertCircle className="h-5 w-5 text-[#1E2A3A]" />
+                <div className="h-10 w-10 rounded-full bg-canvas flex items-center justify-center">
+                  <AlertCircle className="h-5 w-5 text-slate-900" />
                 </div>
               </div>
               <div className="ml-4 flex-1">
-                <h3 className="text-base font-semibold text-gray-900 dark:text-slate-200">
+                <h3 className="text-base font-semibold text-gray-900 dark:text-white">
                   Confirm Clock Out
                 </h3>
-                <p className="mt-2 text-sm text-gray-600">
+                <p className="mt-2 text-sm text-gray-600 dark:text-neutral-400">
                   Are you sure you want to clock out for the day? This action will end your shift and cannot be undone.
                 </p>
               </div>
@@ -857,14 +857,14 @@ const ClockInOutNew: React.FC<ClockInOutNewProps> = ({ onAttendanceChange }) => 
               <button
                 type="button"
                 onClick={() => setShowClockOutModal(false)}
-                className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-200 rounded-xl hover:bg-[#E5EDF1] transition-colors"
+                className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-200 rounded-xl hover:bg-canvas transition-colors"
               >
                 Cancel
               </button>
               <button
                 type="button"
                 onClick={confirmClockOut}
-                className="px-4 py-2 text-sm font-medium text-white bg-[#1E2A3A] rounded-xl hover:bg-[#162030] transition-colors"
+                className="px-4 py-2 text-sm font-medium text-white bg-slate-900 rounded-xl hover:bg-slate-800 transition-colors"
 
               >
                 Yes, Clock Out

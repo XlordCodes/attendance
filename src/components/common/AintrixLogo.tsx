@@ -8,7 +8,7 @@ interface AintrixLogoProps {
 
 const AintrixLogo: FC<AintrixLogoProps> = ({ variant, size = 64, className = '' }) => {
   const color = variant === 'white' ? '#FFFFFF' : '#000000';
-  
+
   return (
     <div className={`flex items-center ${className}`}>
       <svg
@@ -25,7 +25,7 @@ const AintrixLogo: FC<AintrixLogoProps> = ({ variant, size = 64, className = '' 
             <stop offset="100%" stopColor={variant === 'white' ? '#1D4ED8' : '#374151'} />
           </linearGradient>
         </defs>
-        
+
         <circle
           cx="100"
           cy="75"
@@ -34,7 +34,7 @@ const AintrixLogo: FC<AintrixLogoProps> = ({ variant, size = 64, className = '' 
           stroke={color}
           strokeWidth="2"
         />
-        
+
         {/* Modern "A" letterform */}
         <path
           d="M70 110 L85 50 L100 75 L115 50 L130 110 M80 85 L120 85"
@@ -44,22 +44,22 @@ const AintrixLogo: FC<AintrixLogoProps> = ({ variant, size = 64, className = '' 
           strokeLinejoin="round"
           fill="none"
         />
-        
+
         {/* Tech accent dots */}
         <circle cx="75" cy="40" r="3" fill={variant === 'white' ? '#FFFFFF' : '#FFFFFF'} opacity="0.8" />
         <circle cx="125" cy="40" r="3" fill={variant === 'white' ? '#FFFFFF' : '#FFFFFF'} opacity="0.8" />
         <circle cx="100" cy="30" r="2" fill={variant === 'white' ? '#FFFFFF' : '#FFFFFF'} opacity="0.6" />
       </svg>
-      
+
       <div className="ml-4">
-        <div 
-          className={`text-2xl font-bold tracking-tight ${variant === 'white' ? 'text-white' : 'text-gray-900 dark:text-slate-200'}`}
+        <div
+          className={`text-2xl font-bold tracking-tight ${variant === 'white' ? 'text-white' : 'text-gray-900 dark:text-white'}`}
           style={{ fontFamily: 'Inter, system-ui, sans-serif' }}
         >
           AINTRIX
         </div>
-        <div 
-          className={`text-xs font-medium tracking-[0.2em] ${variant === 'white' ? 'text-gray-300' : 'text-gray-500'} mt-0.5`}
+        <div
+          className={`text-xs font-medium tracking-[0.2em] ${variant === 'white' ? 'text-gray-300' : 'text-gray-500 dark:text-neutral-400'} mt-0.5`}
           style={{ fontFamily: 'Inter, system-ui, sans-serif' }}
         >
           ATTENDANCE

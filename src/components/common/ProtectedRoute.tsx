@@ -16,14 +16,14 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, requireAdmin 
   // the redirect-loop race condition (Defect 2).
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#E5EDF1] dark:bg-slate-900 flex items-center justify-center">
+      <div className="min-h-screen bg-canvas dark:bg-black flex items-center justify-center">
         <div className="flex flex-col items-center space-y-4">
           <div className="w-12 h-12 bg-gray-900 rounded-lg flex items-center justify-center animate-pulse">
-            <div className="w-6 h-6 bg-white dark:bg-slate-700 rounded opacity-80"></div>
+            <div className="w-6 h-6 bg-white dark:bg-neutral-800 rounded opacity-80"></div>
           </div>
           <div className="text-center">
-            <h3 className="font-semibold text-gray-900 dark:text-slate-200 mb-1">Authenticating User</h3>
-            <p className="text-sm text-gray-500 dark:text-gray-400">Verifying session...</p>
+            <h3 className="font-semibold text-gray-900 dark:text-white mb-1">Authenticating User</h3>
+            <p className="text-sm text-gray-500 dark:text-neutral-400 dark:text-gray-400">Verifying session...</p>
           </div>
         </div>
       </div>
@@ -46,19 +46,19 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, requireAdmin 
   // Now we show an inline error with a retry action.
   if (!employee) {
     return (
-      <div className="min-h-screen bg-[#E5EDF1] dark:bg-slate-900 flex items-center justify-center">
+      <div className="min-h-screen bg-canvas dark:bg-black flex items-center justify-center">
         <div className="flex flex-col items-center space-y-6 max-w-md text-center px-6">
-          <div className="w-16 h-16 bg-[#E5EDF1] rounded-full flex items-center justify-center">
+          <div className="w-16 h-16 bg-canvas dark:bg-neutral-900 rounded-full flex items-center justify-center">
             <svg className="w-8 h-8 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
           </div>
           <div>
-            <h2 className="text-xl font-semibold text-gray-900 dark:text-slate-200 mb-2">
+            <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
               Employee Profile Not Found
             </h2>
-            <p className="text-gray-600 dark:text-gray-400 text-sm leading-relaxed">
-              You are authenticated as <span className="font-medium text-gray-900 dark:text-slate-200">{user.email}</span>, 
+            <p className="text-gray-600 dark:text-neutral-400 dark:text-gray-400 text-sm leading-relaxed">
+              You are authenticated as <span className="font-medium text-gray-900 dark:text-white">{user.email}</span>,
               but your employee profile could not be loaded from the database.
               This usually means your profile hasn't been provisioned yet.
             </p>
@@ -76,14 +76,14 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, requireAdmin 
                 await supabase.auth.signOut();
                 window.location.href = '/login';
               }}
-              className="flex-1 px-4 py-2.5 bg-white dark:bg-slate-800 text-gray-700 dark:text-gray-300 text-sm font-medium rounded-xl border border-gray-300 dark:border-slate-600 hover:bg-gray-50 transition-colors"
+              className="flex-1 px-4 py-2.5 bg-white dark:bg-neutral-900 text-gray-700 dark:text-gray-300 text-sm font-medium rounded-xl border border-gray-300 dark:border-neutral-700 hover:bg-gray-50 transition-colors"
             >
               Sign Out
             </button>
           </div>
-            <p className="text-xs text-gray-400 dark:text-gray-500">
-              If this issue persists, please contact your system administrator.
-            </p>
+          <p className="text-xs text-gray-400 dark:text-gray-500 dark:text-neutral-400">
+            If this issue persists, please contact your system administrator.
+          </p>
         </div>
       </div>
     );

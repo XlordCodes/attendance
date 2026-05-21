@@ -1,3 +1,25 @@
+export interface UserSettings {
+  theme: 'light' | 'dark' | 'system';
+  notifications: {
+    clockInReminder: boolean;
+    clockOutReminder: boolean;
+    breakReminder: boolean;
+    weeklyReport: boolean;
+    sound: boolean;
+  };
+  workPreferences: {
+    defaultBreakDuration: number;
+    timezone: string;
+    dateFormat: 'DD/MM/YYYY' | 'MM/DD/YYYY' | 'YYYY-MM-DD';
+    timeFormat: '12h' | '24h';
+  };
+  privacy: {
+    shareLocation: boolean;
+    trackProductivity: boolean;
+  };
+  language: string;
+}
+
 export interface Employee {
   id: string;
   uid?: string; // Firebase Auth UID (same as id, but kept for clarity)
@@ -25,9 +47,8 @@ export interface Employee {
   // dateFormat. Matrix values (break_reminder_enabled, sound_enabled,
   // default_break_duration) have dedicated typed columns; they are written
   // separately via update_own_settings RPC and updateUserSettings admin path.
-  settings?: Record<string, unknown>;
+  settings?: Partial<UserSettings>;
 }
-
 export interface AttendanceRecord {
   id?: string;
   userId: string;
@@ -141,4 +162,5 @@ export interface RoleSchedule {
   lunch_end_hour: number;
   lunch_end_minute: number;
   overtime_threshold: number;
+  restDays?: number[];
 }

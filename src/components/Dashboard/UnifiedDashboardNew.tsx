@@ -4,7 +4,7 @@ import EmployeeDashboardNew from './EmployeeDashboardNew';
 
 const UnifiedDashboard: React.FC = () => {
   const { employee } = useAuth();
-  
+
   // Check admin role
   const isAdmin = employee?.role?.toLowerCase() === 'admin';
 
@@ -16,10 +16,10 @@ const UnifiedDashboard: React.FC = () => {
   }, [employee, isAdmin]);
 
   return (
-    <div className="min-h-screen bg-[#E5EDF1]">
+    <div className="min-h-screen bg-canvas dark:bg-black">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Admin Navigation Helper */}
-       
+
 
         {/* Always show Employee View */}
         <EmployeeDashboardNew />
