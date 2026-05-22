@@ -95,7 +95,7 @@ const AttendanceLogsNew: React.FC = () => {
         ? employees
         : employees.filter(emp => emp.id === selectedEmployee);
 
-      // Pre-fetch role schedules for all distinct roles present in the employee set
+      // Pre-fetch role schedules for all distinct roles across the employee set
       const uniqueRoles = Array.from(new Set(employeesToLoad.map(emp => emp.role).filter(Boolean)));
       const schedulePromises = uniqueRoles.map(role => getScheduleForRole(role));
       const scheduleResults = await Promise.all(schedulePromises);
@@ -106,32 +106,25 @@ const AttendanceLogsNew: React.FC = () => {
       });
       setRoleSchedules(prev => ({ ...prev, ...newRoleSchedules }));
 
-      const attendanceDataPromises = employeesToLoad.map(async (employee) => {
-        try {
-          const records = await globalAttendanceService.getAttendanceRange(
-            employee.id,
-            monthStart,
-            monthEnd
-          );
+      // ── SINGLE BULK FETCH ──────────────────────────────────────────────────
+      // Replaces the N+1 pattern of calling getAttendanceRange() once per employee.
+      // getAllAttendanceForMonth fetches the entire month for ALL users in one query
+      // and returns a map: userId → { DD-MM-YYYY → AttendanceRecord }.
+      const startIso = format(monthStart, 'yyyy-MM-dd');
+      const endIso = format(monthEnd, 'yyyy-MM-dd');
+      const allRecordsByUserDate = await globalAttendanceService.getAllAttendanceForMonth(startIso, endIso);
 
-          const stats = calculateAttendanceStats(records, monthStart, monthEnd);
+      // ── IN-MEMORY GROUPING ─────────────────────────────────────────────────
+      // Transform the flat map into the AttendanceLogsNew data structure:
+      //   { employee, stats, records }[] — one entry per employee that has data.
+      const results: EmployeeAttendanceData[] = employeesToLoad.map(emp => {
+        const empRecordsMap = allRecordsByUserDate[emp.id] || {};
+        const records: AttendanceRecord[] = Object.values(empRecordsMap);
+        const stats = calculateAttendanceStats(records, monthStart, monthEnd);
 
-          return {
-            employee,
-            stats,
-            records
-          };
-        } catch (error) {
-          console.error(`Error loading attendance for ${employee.name}:`, error);
-          return {
-            employee,
-            stats: getEmptyStats(),
-            records: []
-          };
-        }
+        return { employee: emp, stats, records };
       });
 
-      const results = await Promise.all(attendanceDataPromises);
       setAttendanceData(results);
     } catch (error) {
       console.error('Error loading attendance data:', error);
@@ -182,17 +175,6 @@ const AttendanceLogsNew: React.FC = () => {
       totalBreaks
     };
   };
-
-  const getEmptyStats = (): AttendanceStats => ({
-    totalDays: 0,
-    presentDays: 0,
-    lateDays: 0,
-    absentDays: 0,
-    attendancePercentage: 0,
-    averageHours: 0,
-    totalHours: 0,
-    totalBreaks: 0
-  });
 
   const filteredData = attendanceData.filter(data =>
     data.employee.name.toLowerCase().includes(searchTerm.toLowerCase()) ||

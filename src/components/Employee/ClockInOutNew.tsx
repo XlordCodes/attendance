@@ -653,7 +653,7 @@ const ClockInOutNew: React.FC<ClockInOutNewProps> = ({ onAttendanceChange }) => 
           <button
             onClick={handleClockIn}
             disabled={loading || isValidating}
-            className="w-full bg-slate-900 dark:bg-brand text-white dark:text-gray-900 dark:text-white hover:bg-slate-800 dark:hover:bg-accent-300 transition-colors shadow-sm disabled:bg-gray-200 dark:disabled:bg-neutral-800 disabled:text-gray-400 dark:disabled:text-neutral-500 disabled:cursor-not-allowed font-medium py-3 px-4 rounded-xl flex items-center justify-center"
+            className="w-full flex-1 bg-brand dark:bg-white/10 dark:border dark:border-white/20 dark:hover:bg-white/20 disabled:bg-gray-200 dark:disabled:bg-white/5 disabled:text-gray-400 dark:disabled:text-zinc-600 disabled:cursor-not-allowed text-white font-medium py-3 px-4 rounded-xl transition-all duration-200 flex items-center justify-center shadow-[0_4px_12px_rgba(0,0,0,0.5)]"
           >
             <Play className="mr-2 h-5 w-5" />
             {isValidating ? 'Verifying Location & Network...' : loading ? 'Clocking In...' : 'Clock In'}
@@ -665,10 +665,13 @@ const ClockInOutNew: React.FC<ClockInOutNewProps> = ({ onAttendanceChange }) => 
               <button
                 onClick={handleLunchReturn}
                 disabled={loading}
-                className="w-full bg-accent-500 hover:bg-accent-600 disabled:bg-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed text-white font-medium py-3 px-4 rounded-xl transition-colors flex items-center justify-center"
+                className="relative group overflow-hidden w-full rounded-xl bg-white/[0.1] hover:bg-white/[0.15] px-6 py-3 text-sm font-medium text-white transition-all duration-300 ease-out border border-white/[0.2] hover:border-white/[0.3] backdrop-blur-md shadow-[0_0_20px_rgba(0,0,0,0.5),inset_0_1px_0_rgba(255,255,255,0.2)] hover:shadow-[0_0_25px_rgba(255,255,255,0.1),inset_0_1px_0_rgba(255,255,255,0.3)] disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.98]"
               >
-                <Coffee className="mr-2 h-5 w-5" />
-                {loading ? 'Returning...' : 'Return from Lunch'}
+                <span className="absolute inset-0 z-0 bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.15)_0%,transparent_70%)] opacity-0 group-hover:opacity-100 transition-opacity duration-500"></span>
+                <span className="relative z-10 flex items-center justify-center tracking-wide">
+                  <Coffee className="mr-2 h-5 w-5" />
+                  {loading ? 'Returning...' : 'Return from Lunch'}
+                </span>
               </button>
             )}
 
@@ -677,10 +680,13 @@ const ClockInOutNew: React.FC<ClockInOutNewProps> = ({ onAttendanceChange }) => 
               <button
                 onClick={handleStartLunch}
                 disabled={loading}
-                className="w-full bg-brand hover:bg-accent-500 disabled:bg-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed text-white font-medium py-3 px-4 rounded-xl transition-colors flex items-center justify-center"
+                className="relative group overflow-hidden w-full rounded-xl bg-white/[0.03] hover:bg-white/[0.07] px-6 py-3 text-sm font-medium text-slate-200 transition-all duration-300 ease-out border border-white/[0.08] hover:border-white/[0.15] backdrop-blur-md shadow-[0_0_20px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.1)] hover:shadow-[0_0_25px_rgba(0,0,0,0.6),inset_0_1px_0_rgba(255,255,255,0.2)] disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.98]"
               >
-                <Coffee className="mr-2 h-5 w-5" />
-                {loading ? 'Starting...' : 'Start Lunch Break'}
+                <span className="absolute inset-0 z-0 bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.08)_0%,transparent_70%)] opacity-0 group-hover:opacity-100 transition-opacity duration-500"></span>
+                <span className="relative z-10 flex items-center justify-center tracking-wide">
+                  <Coffee className="mr-2 h-5 w-5 text-slate-400 group-hover:text-white transition-colors" />
+                  {loading ? 'Starting...' : 'Start Lunch Break'}
+                </span>
               </button>
             )}
 
@@ -691,21 +697,25 @@ const ClockInOutNew: React.FC<ClockInOutNewProps> = ({ onAttendanceChange }) => 
                   <button
                     onClick={handleStartBreak}
                     disabled={loading}
-                    className="flex-1 bg-brand hover:bg-accent-500 disabled:bg-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed text-white font-medium py-3 px-4 rounded-xl transition-colors flex items-center justify-center"
-
+                    className="relative group overflow-hidden flex-1 rounded-xl bg-white/[0.03] hover:bg-white/[0.07] px-6 py-3 text-sm font-medium text-slate-200 transition-all duration-300 ease-out border border-white/[0.08] hover:border-white/[0.15] backdrop-blur-md shadow-[0_0_20px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.1)] hover:shadow-[0_0_25px_rgba(0,0,0,0.6),inset_0_1px_0_rgba(255,255,255,0.2)] disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.98]"
                   >
-                    <Coffee className="mr-2 h-4 w-4" />
-                    {loading ? 'Starting...' : 'Start Break'}
+                    <span className="absolute inset-0 z-0 bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.08)_0%,transparent_70%)] opacity-0 group-hover:opacity-100 transition-opacity duration-500"></span>
+                    <span className="relative z-10 flex items-center justify-center tracking-wide">
+                      <Coffee className="mr-2 h-4 w-4 text-slate-400 group-hover:text-white transition-colors" />
+                      {loading ? 'Starting...' : 'Start Break'}
+                    </span>
                   </button>
                 ) : (
                   <button
                     onClick={handleEndBreak}
                     disabled={loading}
-                    className="flex-1 bg-accent-500 hover:bg-accent-600 disabled:bg-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed text-white font-medium py-3 px-4 rounded-xl transition-colors flex items-center justify-center"
-
+                    className="relative group overflow-hidden flex-1 rounded-xl bg-white/[0.1] hover:bg-white/[0.15] px-6 py-3 text-sm font-medium text-white transition-all duration-300 ease-out border border-white/[0.2] hover:border-white/[0.3] backdrop-blur-md shadow-[0_0_20px_rgba(0,0,0,0.5),inset_0_1px_0_rgba(255,255,255,0.2)] hover:shadow-[0_0_25px_rgba(255,255,255,0.1),inset_0_1px_0_rgba(255,255,255,0.3)] disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.98]"
                   >
-                    <Pause className="mr-2 h-4 w-4" />
-                    {loading ? 'Ending...' : <>End Break ({todayRecord?.breaks.find(b => !b.endTime)?.startTime ? <LiveBreakDuration breakStartTime={todayRecord!.breaks.find(b => !b.endTime)!.startTime!} /> : '0m'})</>}
+                    <span className="absolute inset-0 z-0 bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.15)_0%,transparent_70%)] opacity-0 group-hover:opacity-100 transition-opacity duration-500"></span>
+                    <span className="relative z-10 flex items-center justify-center tracking-wide">
+                      <Pause className="mr-2 h-4 w-4" />
+                      {loading ? 'Ending...' : <>End Break ({todayRecord?.breaks.find(b => !b.endTime)?.startTime ? <LiveBreakDuration breakStartTime={todayRecord!.breaks.find(b => !b.endTime)!.startTime!} /> : '0m'})</>}
+                    </span>
                   </button>
                 )}
               </div>
@@ -715,13 +725,15 @@ const ClockInOutNew: React.FC<ClockInOutNewProps> = ({ onAttendanceChange }) => 
             <button
               onClick={handleClockOut}
               disabled={loading || isOnBreak || (todayRecord?.lunchStart && !todayRecord?.lunchEnd)}
-              className="w-full bg-canvas dark:bg-neutral-800 text-slate-900 dark:text-white border border-brand/40 dark:border-neutral-700 hover:bg-gray-200 dark:hover:bg-neutral-700 disabled:bg-gray-200 dark:disabled:bg-neutral-900 disabled:text-gray-400 dark:disabled:text-neutral-500 disabled:cursor-not-allowed font-medium py-3 px-4 rounded-xl transition-colors flex items-center justify-center"
-
+              className="relative group overflow-hidden w-full rounded-xl bg-white/[0.02] hover:bg-red-500/[0.1] px-6 py-3 text-sm font-medium text-slate-300 hover:text-red-200 transition-all duration-300 ease-out border border-white/[0.05] hover:border-red-500/[0.3] backdrop-blur-md shadow-[0_0_20px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.05)] hover:shadow-[0_0_25px_rgba(239,68,68,0.2),inset_0_1px_0_rgba(239,68,68,0.2)] disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.98]"
             >
-              <Pause className="mr-2 h-5 w-5" />
-              {loading ? 'Clocking Out...' :
-                isOnBreak ? 'End Break First' :
-                  (todayRecord?.lunchStart && !todayRecord?.lunchEnd) ? 'Return from Lunch First' : 'Clock Out'}
+              <span className="absolute inset-0 z-0 bg-[radial-gradient(circle_at_center,rgba(239,68,68,0.15)_0%,transparent_70%)] opacity-0 group-hover:opacity-100 transition-opacity duration-500"></span>
+              <span className="relative z-10 flex items-center justify-center tracking-wide">
+                <Pause className="mr-2 h-5 w-5" />
+                {loading ? 'Clocking Out...' :
+                  isOnBreak ? 'End Break First' :
+                    (todayRecord?.lunchStart && !todayRecord?.lunchEnd) ? 'Return from Lunch First' : 'Clock Out'}
+              </span>
             </button>
           </div>
         ) : (
@@ -809,21 +821,21 @@ const ClockInOutNew: React.FC<ClockInOutNewProps> = ({ onAttendanceChange }) => 
               value={lateReason}
               onChange={(e) => setLateReason(e.target.value)}
               placeholder="Enter reason for late arrival..."
-              className="w-full p-3 border border-gray-200 rounded-xl bg-white dark:bg-neutral-900 focus:ring-2 focus:ring-brand focus:border-brand focus:border-transparent resize-none"
+              className="w-full p-3 border border-gray-200 dark:border-neutral-800 rounded-xl bg-white dark:bg-black text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-neutral-600 focus:ring-2 focus:ring-brand focus:border-brand focus:border-transparent resize-none"
               rows={3}
               autoFocus
             />
             <div className="flex justify-end space-x-3 mt-4">
               <button
                 onClick={handleCancelLateReason}
-                className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+                className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-neutral-300 bg-gray-100 dark:bg-neutral-800 hover:bg-gray-200 dark:hover:bg-neutral-700 rounded-xl transition-colors"
                 disabled={loading}
               >
                 Cancel
               </button>
               <button
                 onClick={handleLateReasonSubmit}
-                className="px-4 py-2 text-sm font-medium text-white bg-black hover:bg-gray-800 transition-colors shadow-sm   rounded-xl transition-colors"
+                className="px-4 py-2 text-sm font-medium text-white dark:text-black bg-black dark:bg-zinc-100 hover:bg-gray-800 dark:hover:bg-white shadow-sm rounded-xl transition-all duration-200"
                 disabled={loading || !lateReason.trim()}
               >
                 {loading ? 'Clocking In...' : 'Clock In'}

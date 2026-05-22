@@ -437,19 +437,19 @@ const EmployeeDashboardNew: React.FC = () => {
                   const timeDisplay = format(meetingDateTime, 'h:mm a');
 
                   return (
-                    <div key={meeting.id} className="border-l-4 border-blue-500 pl-4 py-3 bg-blue-50">
+                    <div key={meeting.id} className="border-l-4 border-blue-500 dark:border-blue-400 pl-4 py-3 bg-blue-50 dark:bg-blue-900/20 rounded-r-lg">
                       <h4 className="font-semibold text-gray-900 dark:text-white mb-1">{meeting.title}</h4>
                       <div className="flex items-center justify-between text-sm">
-                        <div className="flex items-center text-gray-700">
+                        <div className="flex items-center text-gray-700 dark:text-gray-300">
                           <Calendar className="h-4 w-4 mr-2 text-brand" />
                           <span className="font-medium">{dateDisplay}</span>
                           <span className="mx-2">•</span>
                           <Clock className="h-4 w-4 mr-1 text-brand" />
                           <span>{timeDisplay}</span>
                         </div>
-                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${meeting.status === 'scheduled' ? 'bg-emerald-50 text-emerald-700 dark:text-emerald-400 border border-emerald-100 rounded-full' :
-                          meeting.status === 'completed' ? 'bg-brand/10 text-gray-700 dark:text-white border border-brand/30 rounded-full' :
-                            'bg-gray-100 text-gray-800'
+                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${meeting.status === 'scheduled' ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-100 dark:border-emerald-500/20' :
+                            meeting.status === 'completed' ? 'bg-brand/10 text-gray-700 dark:text-white border border-brand/30' :
+                              'bg-gray-100 dark:bg-neutral-800 text-gray-800 dark:text-neutral-300 border border-transparent dark:border-neutral-700'
                           }`}>
                           {meeting.status}
                         </span>

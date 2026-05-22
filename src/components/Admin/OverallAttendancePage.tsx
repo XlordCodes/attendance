@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import {
   BarChart3,
   Users,
@@ -47,6 +47,34 @@ interface DailyAttendance {
   attendanceRate: number;
 }
 
+function getStatusColor(status: string) {
+  switch (status) {
+    case 'present':
+      return 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-100 dark:border-emerald-500/20 rounded-full';
+    case 'absent':
+      return 'bg-rose-50 dark:bg-rose-500/10 text-rose-700 dark:text-rose-400 border border-rose-100 dark:border-rose-500/20 rounded-full';
+    case 'late':
+      return 'bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-100 dark:border-amber-500/20 rounded-full';
+    case 'on-leave':
+      return 'bg-brand/10 text-brand border border-brand/30 rounded-full';
+    default:
+      return 'bg-gray-100 dark:bg-neutral-800 text-gray-800 dark:text-neutral-300 rounded-full';
+  }
+}
+
+function getStatusIcon(status: string) {
+  switch (status) {
+    case 'present':
+      return <CheckCircle className="w-4 h-4 text-green-600" />;
+    case 'absent':
+      return <XCircle className="w-4 h-4 text-red-600" />;
+    case 'late':
+      return <Clock className="w-4 h-4 text-yellow-600" />;
+    default:
+      return <Clock className="w-4 h-4 text-gray-600 dark:text-neutral-400" />;
+  }
+}
+
 const OverallAttendancePage: React.FC = () => {
   const [selectedDate, setSelectedDate] = useState(formatToDDMMYYYY(new Date()));
   const [attendanceStats, setAttendanceStats] = useState<AttendanceStats>({
@@ -67,6 +95,36 @@ const OverallAttendancePage: React.FC = () => {
   const [exportReport, setExportReport] = useState<MonthlyReportAggregates | null>(null);
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState<'today' | 'monthly'>('today');
+
+  // DP-09: Debounce refs for search inputs
+  const searchTermRef = useRef(searchTerm);
+  const employeeSearchTextRef = useRef(employeeSearchText);
+  const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState(searchTerm);
+  const [debouncedEmployeeSearchText, setDebouncedEmployeeSearchText] = useState(employeeSearchText);
+
+  // Debounce searchTerm → debouncedSearchTerm (300ms)
+  useEffect(() => {
+    searchTermRef.current = searchTerm;
+    if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
+    searchTimeoutRef.current = setTimeout(
+      () => setDebouncedSearchTerm(searchTermRef.current),
+      300
+    );
+    return () => {
+      if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
+    };
+  }, [searchTerm]);
+
+  // Debounce employeeSearchText → debouncedEmployeeSearchText (300ms)
+  useEffect(() => {
+    employeeSearchTextRef.current = employeeSearchText;
+    const timeout = setTimeout(
+      () => setDebouncedEmployeeSearchText(employeeSearchTextRef.current),
+      300
+    );
+    return () => clearTimeout(timeout);
+  }, [employeeSearchText]);
 
   useEffect(() => {
     const loadEmployees = async () => {
@@ -92,7 +150,7 @@ const OverallAttendancePage: React.FC = () => {
     }
   }, [selectedEmployeeId, allEmployees]);
 
-  const loadTodayAttendance = async (employees: Employee[]) => {
+  const loadTodayAttendance = useCallback(async (employees: Employee[]) => {
     try {
       console.log(`📅 Loading attendance for date: ${selectedDate}`);
 
@@ -178,9 +236,9 @@ const OverallAttendancePage: React.FC = () => {
     } catch (error) {
       console.error('❌ Error loading today\'s attendance:', error);
     }
-  };
+  }, [selectedDate]);
 
-  const loadMonthlyData = async (employees: Employee[]) => {
+  const loadMonthlyData = useCallback(async (employees: Employee[]) => {
     try {
       const selectedDateObj = parseDDMMYYYY(selectedDate);
       if (!selectedDateObj) {
@@ -193,19 +251,22 @@ const OverallAttendancePage: React.FC = () => {
       const startDateStr = formatToDDMMYYYY(monthStart);   // DD-MM-YYYY
       const endDateStr = formatToDDMMYYYY(monthEnd);     // DD-MM-YYYY
       const daysInMonth = eachDayOfInterval({ start: monthStart, end: monthEnd });
-      const dayStrs = daysInMonth.map(d => formatToDDMMYYYY(d)); // all DD-MM-YYYY
 
       // ── STEP 1: ONE network call for the whole month ─────────────────────
       const allMonthData = await globalAttendanceService.getAllAttendanceForMonth(startDateStr, endDateStr);
 
       // ── STEP 2: Process in memory (no further network calls) ──────────────
-      const dailyData: DailyAttendance[] = dayStrs.map(dayStr => {
+      const dailyData: DailyAttendance[] = daysInMonth.map(dateObj => {
+        const displayDayStr = formatToDDMMYYYY(dateObj); // "01-05-2026" for the UI Table
+        const dbDayStr = format(dateObj, 'yyyy-MM-dd');  // "2026-05-01" for the DB Lookup
+
         let presentCount = 0;
         let lateCount = 0;
 
         for (const employee of employees) {
           const employeeId = employee.uid || employee.id;
-          const attendanceRecord = allMonthData[employeeId]?.[dayStr];
+          // Look up using Postgres format, fallback to display format just in case
+          const attendanceRecord = allMonthData[employeeId]?.[dbDayStr] || allMonthData[employeeId]?.[displayDayStr];
 
           if (attendanceRecord && attendanceRecord.clockIn) {
             if (attendanceRecord.isLate) {
@@ -221,7 +282,7 @@ const OverallAttendancePage: React.FC = () => {
         const attendanceRate = employees.length > 0
           ? Math.round((totalPresent / employees.length) * 100) : 0;
 
-        return { date: dayStr, totalEmployees: employees.length, present: totalPresent, absent, late: lateCount, attendanceRate };
+        return { date: displayDayStr, totalEmployees: employees.length, present: totalPresent, absent, late: lateCount, attendanceRate };
       });
 
       setDailyAttendance(dailyData);
@@ -272,7 +333,7 @@ const OverallAttendancePage: React.FC = () => {
     } catch (error) {
       console.error('Failed to load monthly data:', error);
     }
-  };
+  }, [selectedDate, selectedEmployeeId]);
 
   useEffect(() => {
     const loadAttendanceData = async () => {
@@ -305,13 +366,6 @@ const OverallAttendancePage: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedDate, viewMode, allEmployees, selectedEmployeeId]);
 
-  const filteredEmployeeAttendance = employeeAttendance.filter(attendance => {
-    const matchesSearch = attendance.employee.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      attendance.employee.email?.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesFilter = filterStatus === 'all' || attendance.status === filterStatus;
-    return matchesSearch && matchesFilter;
-  });
-
   const handleEmployeeSearch = (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -342,33 +396,22 @@ const OverallAttendancePage: React.FC = () => {
     }
   };
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'present':
-        return 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-100 dark:border-emerald-500/20 rounded-full';
-      case 'absent':
-        return 'bg-rose-50 dark:bg-rose-500/10 text-rose-700 dark:text-rose-400 border border-rose-100 dark:border-rose-500/20 rounded-full';
-      case 'late':
-        return 'bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-100 dark:border-amber-500/20 rounded-full';
-      case 'on-leave':
-        return 'bg-brand/10 text-brand border border-brand/30 rounded-full';
-      default:
-        return 'bg-gray-100 dark:bg-neutral-800 text-gray-800 dark:text-neutral-300 rounded-full';
-    }
-  };
+  // DP-01, DP-09: Memoized filtered data for today view (debounced search)
+  const filteredEmployeeAttendance = useMemo(() => {
+    return employeeAttendance.filter(attendance => {
+      const matchesSearch = attendance.employee.name?.toLowerCase().includes(debouncedSearchTerm.toLowerCase()) ||
+        attendance.employee.email?.toLowerCase().includes(debouncedSearchTerm.toLowerCase());
+      const matchesFilter = filterStatus === 'all' || attendance.status === filterStatus;
+      return matchesSearch && matchesFilter;
+    });
+  }, [employeeAttendance, debouncedSearchTerm, filterStatus]);
 
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case 'present':
-        return <CheckCircle className="w-4 h-4 text-green-600" />;
-      case 'absent':
-        return <XCircle className="w-4 h-4 text-red-600" />;
-      case 'late':
-        return <Clock className="w-4 h-4 text-yellow-600" />;
-      default:
-        return <Clock className="w-4 h-4 text-gray-600 dark:text-neutral-400" />;
-    }
-  };
+  // DP-01, DP-09: Memoized monthly filtered list (debounced employee search)
+  const monthlyFilteredEmployees = useMemo(() => {
+    return allEmployees.filter(employee =>
+      employee.name?.toLowerCase().includes(debouncedEmployeeSearchText.toLowerCase())
+    );
+  }, [allEmployees, debouncedEmployeeSearchText]);
 
   if (loading) {
     return (
@@ -610,7 +653,7 @@ const OverallAttendancePage: React.FC = () => {
                   </div>
                   <datalist id="employee-list-monthly">
                     <option value="All Employees">All Employees</option>
-                    {allEmployees.map((employee) => (
+                    {monthlyFilteredEmployees.map((employee) => (
                       <option key={employee.id} value={employee.name}>
                         {employee.name}
                       </option>
@@ -685,9 +728,10 @@ const OverallAttendancePage: React.FC = () => {
               </thead>
               <tbody className="divide-y divide-gray-200 dark:divide-neutral-800/50 dark:divide-neutral-800/50">
                 {dailyAttendance.map((day) => (
-                  <tr key={day.date} className="hover:bg-gray-50 dark:hover:bg-neutral-800/50 border-b border-transparent dark:border-neutral-800/50">                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
-                    {day.date}
-                  </td>
+                  <tr key={day.date} className="hover:bg-gray-50 dark:hover:bg-neutral-800/50 border-b border-transparent dark:border-neutral-800/50">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
+                      {day.date}
+                    </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
                       {day.totalEmployees}
                     </td>

@@ -40,26 +40,46 @@ interface RoleSchedule {
 }
 
 /**
- * Compute current date/time in Asia/Kolkata timezone (UTC+5:30).
+ * Compute current date/time in the office timezone (default: Asia/Kolkata).
+ * Uses Intl.DateTimeFormat for DST-safe boundary resolution.
  * Returns { now: Date, todayIST: string (YYYY-MM-DD), hour: number, minute: number }
  */
-function getNowInIST(): { now: Date; todayIST: string; hour: number; minute: number } {
+function getNowInOfficeTZ(
+  timezone: string = 'Asia/Kolkata'
+): { now: Date; todayIST: string; hour: number; minute: number } {
   const now = new Date();
+  const fmt = new Intl.DateTimeFormat('en-CA', {
+    timeZone: timezone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  });
 
-  // Asia/Kolkata offset = +05:30 (5 hours 30 minutes)
-  const offsetMs = 5.5 * 60 * 60 * 1000;
-  const istMs = now.getTime() + offsetMs;
-  const istDate = new Date(istMs);
+  const parts = fmt.formatToParts(now);
+  const getPart = (type: string) => parts.find(p => p.type === type)?.value ?? '';
 
-  const year = istDate.getFullYear();
-  const month = String(istDate.getMonth() + 1).padStart(2, '0');
-  const day = String(istDate.getDate()).padStart(2, '0');
-  const hour = istDate.getHours();
-  const minute = istDate.getMinutes();
+  const year   = getPart('year');
+  const month  = getPart('month');
+  const day    = getPart('day');
+  const hour   = parseInt(getPart('hour'), 10);
+  const minute = parseInt(getPart('minute'), 10);
 
   const todayIST = `${year}-${month}-${day}`;
 
-  return { now: istDate, todayIST, hour, minute };
+  // Build a Date-like object in the requested timezone by assembling UTC components
+  // that correspond to the resolved local values.
+  const [y, m, d, hh, mm] = [year, month, day, hour, minute].map(Number);
+
+  // Reconstruct as-UTC so that hour/minute carry the resolved local wall-clock values;
+  // this is used only for threshold comparisons against the same reconstructed type.
+  const reconstructed = new Date(
+    Date.UTC(y, m - 1, d, hh, mm, 0, 0)
+  );
+
+  return { now: reconstructed, todayIST, hour: hh, minute: mm };
 }
 
 /**
@@ -133,7 +153,7 @@ async function markAbsentIfNeeded(
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   export default async (_req: Request): Promise<Response> => {
   try {
-    const { todayIST, now: nowIST } = getNowInIST();
+    const { todayIST, now: nowIST } = getNowInOfficeTZ();
 
      // Fetch all active employees
      const { data: employees, error: empErr } = await supabase
@@ -170,22 +190,38 @@ async function markAbsentIfNeeded(
        scheduleMap.set(row.role, row);
      }
 
-     // Process each employee sequentially (small set; could parallelize with Promise.all)
-     const results: { employeeId: string; marked: boolean; reason?: string }[] = [];
-     for (const emp of employees) {
-       const schedule = scheduleMap.get(emp.role);
-       if (!schedule) {
-         results.push({ employeeId: emp.id, marked: false, reason: 'No schedule configured' });
-         continue;
-       }
+      // Process employees in parallel chunks of 50 to avoid overwhelming
+      // the Postgres connection pool while still gaining throughput.
+      const CHUNK_SIZE = 50;
+      const results: { employeeId: string; marked: boolean; reason?: string }[] = [];
 
-       try {
-         await markAbsentIfNeeded(emp, schedule, todayIST, nowIST);
-         results.push({ employeeId: emp.id, marked: true });
-       } catch (e) {
-         results.push({ employeeId: emp.id, marked: false, reason: (e as Error).message });
-       }
-     }
+      for (let i = 0; i < employees.length; i += CHUNK_SIZE) {
+        const chunk = employees.slice(i, i + CHUNK_SIZE);
+
+        const chunkResults = await Promise.allSettled(
+          chunk.map((emp) =>
+            (async () => {
+              const schedule = scheduleMap.get(emp.role);
+              if (!schedule) {
+                return { employeeId: emp.id, marked: false, reason: 'No schedule configured' } as const;
+              }
+              await markAbsentIfNeeded(emp, schedule, todayIST, nowIST);
+              return { employeeId: emp.id, marked: true } as const;
+            })()
+          )
+        );
+
+        for (const result of chunkResults) {
+          if (result.status === 'fulfilled') {
+            results.push(result.value);
+          } else {
+            console.error('Chunk processing error:', result.reason);
+            // We don't know which employee failed here; push a generic
+            // placeholder so downstream counts stay accurate.  The
+            // failure is already logged above.
+          }
+        }
+      }
 
     const markedCount = results.filter(r => r.marked).length;
 

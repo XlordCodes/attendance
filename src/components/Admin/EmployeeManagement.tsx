@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { Plus, Search, Edit, UserCheck, UserX, RefreshCw, Mail, Key, Trash2 } from 'lucide-react';
 import { userService } from '../../services/userService';
 import { deleteEmployee } from '../../services/userService';
@@ -11,6 +11,7 @@ const EmployeeManagement: React.FC = () => {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
@@ -19,6 +20,32 @@ const EmployeeManagement: React.FC = () => {
   const [newPassword, setNewPassword] = useState('');
   const [resetting, setResetting] = useState(false);
   const [deletingEmployeeId, setDeletingEmployeeId] = useState<string | null>(null);
+  const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const loadEmployees = useCallback(async () => {
+    try {
+      console.log('🔄 Starting to load employees...');
+      setLoading(true);
+      const userList = await userService.getAllEmployees();
+      console.log('✅ Employees loaded in component:', userList);
+      setEmployees(userList);
+    } catch (error) {
+      console.error('❌ Failed to load employees in component:', error);
+      toast.error(`Failed to load employees: ${(error as Error).message}`);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+    searchDebounceRef.current = setTimeout(() => {
+      setDebouncedSearchTerm(searchTerm);
+    }, 300);
+    return () => {
+      if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+    };
+  }, [searchTerm]);
 
   useEffect(() => {
     const initializeAndLoadEmployees = async () => {
@@ -35,30 +62,9 @@ const EmployeeManagement: React.FC = () => {
     };
 
     initializeAndLoadEmployees();
-  }, []);
+  }, [loadEmployees]);
 
-  const loadEmployees = async () => {
-    try {
-      console.log('🔄 Starting to load employees...');
-      setLoading(true);
-      const userList = await userService.getAllEmployees();
-      console.log('✅ Employees loaded in component:', userList);
-      setEmployees(userList);
-    } catch (error) {
-      console.error('❌ Failed to load employees in component:', error);
-      toast.error(`Failed to load employees: ${(error as Error).message}`);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const filteredEmployees = employees.filter(employee =>
-    employee.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (employee.employeeId && employee.employeeId.toLowerCase().includes(searchTerm.toLowerCase())) ||
-    employee.department.toLowerCase().includes(searchTerm.toLowerCase())
-  );
-
-  const toggleEmployeeStatus = async (employee: Employee) => {
+  const toggleEmployeeStatus = useCallback(async (employee: Employee) => {
     try {
       await userService.updateUser(employee.id, {
         isActive: !employee.isActive
@@ -69,34 +75,40 @@ const EmployeeManagement: React.FC = () => {
       console.error('Failed to update employee status:', error);
       toast.error('Failed to update employee status');
     }
-  };
+  }, [loadEmployees]);
 
-  const manualRefresh = async () => {
+  const manualRefresh = useCallback(async () => {
     try {
       setLoading(true);
       console.log('🔄 Manual refresh triggered...');
-
-      // Reload employees
       await loadEmployees();
-
       toast.success('Employee data refreshed successfully!');
     } catch (error) {
       console.error('❌ Manual refresh failed:', error);
       toast.error(`Refresh failed: ${(error as Error).message}`);
     }
-  };
+  }, [loadEmployees]);
 
-  const handleOpenResetModal = (employee: Employee) => {
+  const filteredEmployees = useMemo(() => {
+    const term = debouncedSearchTerm.toLowerCase();
+    return employees.filter((employee) =>
+      employee.name.toLowerCase().includes(term) ||
+      (employee.employeeId && employee.employeeId.toLowerCase().includes(term)) ||
+      employee.department.toLowerCase().includes(term)
+    );
+  }, [employees, debouncedSearchTerm]);
+
+  const handleOpenResetModal = useCallback((employee: Employee) => {
     setResettingEmployee(employee);
     setNewPassword('');
-  };
+  }, []);
 
-  const handleCloseResetModal = () => {
+  const handleCloseResetModal = useCallback(() => {
     setResettingEmployee(null);
     setNewPassword('');
-  };
+  }, []);
 
-  const handleSubmitReset = async (e: React.FormEvent) => {
+  const handleSubmitReset = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
     if (!resettingEmployee) return;
     if (newPassword.length < 8) {
@@ -114,9 +126,9 @@ const EmployeeManagement: React.FC = () => {
     } finally {
       setResetting(false);
     }
-  };
+  }, [resettingEmployee, newPassword, handleCloseResetModal]);
 
-  const handleDeleteEmployee = async (employee: Employee, e: React.MouseEvent) => {
+  const handleDeleteEmployee = useCallback(async (employee: Employee, e: React.MouseEvent) => {
     e.stopPropagation();
 
     const confirmed = window.confirm(
@@ -134,7 +146,7 @@ const EmployeeManagement: React.FC = () => {
     } finally {
       setDeletingEmployeeId(null);
     }
-  };
+  }, []);
 
   return (
     <div className="p-6">
