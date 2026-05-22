@@ -1,0 +1,19 @@
+/* CalSans and Power Grotesk font-face template. Place font files in /public/fonts/ and uncomment below. */
+/*
+@font-face {
+  font-family: 'CalSans';
+  src: url('/fonts/CalSans-SemiBold.woff2') format('woff2'),
+       url('/fonts/CalSans-SemiBold.woff') format('woff');
+  font-weight: 400 700;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Power Grotesk';
+  src: url('/fonts/PowerGrotesk-Regular.woff2') format('woff2'),
+       url('/fonts/PowerGrotesk-Regular.woff') format('woff');
+  font-weight: 400 700;
+  font-style: normal;
+  font-display: swap;
+}
+*/
