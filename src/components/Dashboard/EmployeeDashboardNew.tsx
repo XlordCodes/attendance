@@ -235,29 +235,29 @@ const EmployeeDashboardNew: React.FC = () => {
       {/* Request Leave Button */}
       <button
         onClick={() => setIsLeaveModalOpen(true)}
-        className="w-full flex items-center px-4 py-3 text-sm text-blue-700 dark:text-neutral-300 hover:bg-blue-50 dark:hover:bg-neutral-800 rounded-lg border border-blue-200 dark:border-neutral-700 font-medium transition-colors"
+        className="w-full flex items-center px-4 py-3 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-white/[0.04] rounded-xl border border-slate-200 dark:border-white/[0.08] font-medium transition-all duration-200"
       >
-        <CalendarPlus className="h-4 w-4 mr-3" />
+        <CalendarPlus className="h-4 w-4 mr-3 text-slate-500 dark:text-slate-400" />
         Request Leave
       </button>
 
       {/* Welcome Header */}
-      <div className="bg-[#1C2B3A] text-white rounded-2xl p-6 shadow-sm">
+      <div className="bg-[#1C2B3A] dark:bg-white/[0.02] dark:backdrop-blur-xl text-white rounded-2xl p-6 shadow-sm border border-transparent dark:border-white/[0.05]">
         <div className="flex justify-between items-start">
           <div>
-            <h1 className="text-white font-semibold text-xl mb-2">
+            <h1 className="text-white font-semibold text-xl mb-2 tracking-tight">
               Welcome back, {getEmployeeName()}!
             </h1>
-            <div className="flex flex-wrap items-center gap-2 mt-2 text-gray-400 text-sm">
+            <div className="flex flex-wrap items-center gap-2 mt-2 text-slate-300 dark:text-slate-400 text-sm">
               <span className="text-white"><LiveClock /></span>
-              <span>•</span>
-              <span className="bg-white/10 text-white rounded-xl px-3 py-1 text-sm">{employee?.role || 'Employee'}</span>
-              <span>•</span>
-              <span className="bg-white/10 text-white rounded-xl px-3 py-1 text-sm">{getEmployeeDesignation()}</span>
+              <span className="opacity-40">•</span>
+              <span className="bg-white/10 dark:bg-white/[0.05] text-white rounded-xl px-3 py-1 text-sm border border-transparent dark:border-white/[0.05]">{employee?.role || 'Employee'}</span>
+              <span className="opacity-40">•</span>
+              <span className="bg-white/10 dark:bg-white/[0.05] text-white rounded-xl px-3 py-1 text-sm border border-transparent dark:border-white/[0.05]">{getEmployeeDesignation()}</span>
               {employee?.department && (
                 <>
-                  <span>•</span>
-                  <span className="bg-white/10 text-white rounded-xl px-3 py-1 text-sm">{employee.department}</span>
+                  <span className="opacity-40">•</span>
+                  <span className="bg-white/10 dark:bg-white/[0.05] text-white rounded-xl px-3 py-1 text-sm border border-transparent dark:border-white/[0.05]">{employee.department}</span>
                 </>
               )}
             </div>
@@ -448,8 +448,8 @@ const EmployeeDashboardNew: React.FC = () => {
                           <span>{timeDisplay}</span>
                         </div>
                         <span className={`px-2 py-1 rounded-full text-xs font-medium ${meeting.status === 'scheduled' ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-100 dark:border-emerald-500/20' :
-                            meeting.status === 'completed' ? 'bg-brand/10 text-gray-700 dark:text-white border border-brand/30' :
-                              'bg-gray-100 dark:bg-neutral-800 text-gray-800 dark:text-neutral-300 border border-transparent dark:border-neutral-700'
+                          meeting.status === 'completed' ? 'bg-brand/10 text-gray-700 dark:text-white border border-brand/30' :
+                            'bg-gray-100 dark:bg-neutral-800 text-gray-800 dark:text-neutral-300 border border-transparent dark:border-neutral-700'
                           }`}>
                           {meeting.status}
                         </span>

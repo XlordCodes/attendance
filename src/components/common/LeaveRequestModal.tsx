@@ -105,7 +105,7 @@ const LeaveRequestModal: React.FC<LeaveRequestModalProps> = ({ isOpen, onClose }
             <select
               value={formData.leaveType}
               onChange={(e) => handleInputChange('leaveType', e.target.value)}
-              className="w-full border border-gray-200 dark:border-neutral-700 rounded-xl bg-white dark:bg-neutral-900 px-3 py-2 focus:ring-2 focus:ring-brand focus:border-brand focus:border-transparent"
+              className="w-full border border-gray-200 dark:border-neutral-800 rounded-xl bg-white dark:bg-black text-gray-900 dark:text-white px-3 py-2 focus:ring-2 focus:ring-brand focus:border-brand focus:border-transparent [color-scheme:light] dark:[color-scheme:dark]"
               required
             >
               <option value="vacation">Vacation</option>
@@ -127,7 +127,7 @@ const LeaveRequestModal: React.FC<LeaveRequestModalProps> = ({ isOpen, onClose }
                 value={formData.startDate}
                 onChange={(e) => handleInputChange('startDate', e.target.value)}
                 min={todayLocal}
-                className="w-full border border-gray-200 dark:border-neutral-700 rounded-xl bg-white dark:bg-neutral-900 px-3 py-2 focus:ring-2 focus:ring-brand focus:border-brand focus:border-transparent"
+                className="w-full border border-gray-200 dark:border-neutral-800 rounded-xl bg-white dark:bg-black text-gray-900 dark:text-white px-3 py-2 focus:ring-2 focus:ring-brand focus:border-brand focus:border-transparent [color-scheme:light] dark:[color-scheme:dark]"
                 required
               />
             </div>
@@ -142,7 +142,7 @@ const LeaveRequestModal: React.FC<LeaveRequestModalProps> = ({ isOpen, onClose }
                 value={formData.endDate}
                 onChange={(e) => handleInputChange('endDate', e.target.value)}
                 min={formData.startDate || todayLocal}
-                className="w-full border border-gray-200 dark:border-neutral-700 rounded-xl bg-white dark:bg-neutral-900 px-3 py-2 focus:ring-2 focus:ring-brand focus:border-brand focus:border-transparent"
+                className="w-full border border-gray-200 dark:border-neutral-800 rounded-xl bg-white dark:bg-black text-gray-900 dark:text-white px-3 py-2 focus:ring-2 focus:ring-brand focus:border-brand focus:border-transparent [color-scheme:light] dark:[color-scheme:dark]"
                 required
               />
             </div>
@@ -158,7 +158,7 @@ const LeaveRequestModal: React.FC<LeaveRequestModalProps> = ({ isOpen, onClose }
               onChange={(e) => handleInputChange('reason', e.target.value)}
               placeholder="Please provide a reason for your leave request..."
               rows={4}
-              className="w-full border border-gray-200 dark:border-neutral-700 rounded-xl bg-white dark:bg-neutral-900 px-3 py-2 focus:ring-2 focus:ring-brand focus:border-brand focus:border-transparent resize-none"
+              className="w-full border border-gray-200 dark:border-neutral-800 rounded-xl bg-white dark:bg-black text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-neutral-600 px-3 py-2 focus:ring-2 focus:ring-brand focus:border-brand focus:border-transparent resize-none"
               required
             />
           </div>
@@ -174,9 +174,9 @@ const LeaveRequestModal: React.FC<LeaveRequestModalProps> = ({ isOpen, onClose }
             <button
               type="submit"
               disabled={isSubmitting}
-              className={`flex-1 px-4 py-2 rounded-lg text-white ${isSubmitting
-                ? 'bg-gray-400 cursor-not-allowed'
-                : 'bg-black text-white hover:bg-gray-800 transition-colors rounded-xl'
+              className={`flex-1 px-4 py-2 font-medium transition-all duration-200 ${isSubmitting
+                ? 'bg-gray-200 dark:bg-neutral-800 text-gray-400 dark:text-neutral-500 cursor-not-allowed rounded-xl'
+                : 'bg-black dark:bg-white text-white dark:text-black hover:bg-gray-800 dark:hover:bg-gray-200 shadow-sm rounded-xl'
                 }`}
             >
               {isSubmitting ? 'Submitting...' : 'Submit Request'}
