@@ -747,13 +747,11 @@ const ClockInOutNew: React.FC<ClockInOutNewProps> = ({ onAttendanceChange }) => 
           </div>
         ) : (
           <div className="flex flex-col items-center gap-3 py-4">
-            <span className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full 
-                   bg-canvas dark:bg-neutral-800 text-slate-900 dark:text-green-400 
-                   shadow-[inset_0_1px_2px_rgba(255,255,255,0.6),0_4px_6px_-1px_rgba(150,194,219,0.2)]
-                   border border-white/40 
-                   text-sm font-medium tracking-wide transition-all duration-300 hover:scale-105 hover:shadow-[0_8px_15px_-3px_rgba(150,194,219,0.3)]">
+            <div 
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-canvas dark:bg-neutral-800 text-slate-900 dark:text-green-400 shadow-[inset_0_1px_2px_rgba(255,255,255,0.6),0_4px_6px_-1px_rgba(150,194,219,0.2)] border border-white/40 text-sm font-medium tracking-wide transition-all duration-300 hover:scale-105 hover:shadow-[0_8px_15px_-3px_rgba(150,194,219,0.3)]"
+            >
               ✅ Work completed for today!
-            </span>
+            </div>
             <p className="text-sm text-gray-500 dark:text-neutral-400">
               Total worked: {formatDuration(todayRecord.hoursWorked || 0)}
             </p>
