@@ -647,16 +647,20 @@ const ClockInOutNew: React.FC<ClockInOutNewProps> = ({ onAttendanceChange }) => 
 
 
 
-      {/* Action Buttons */}
+{/* Action Buttons */}
       <div className="space-y-4">
         {!todayRecord?.clockIn ? (
           <button
             onClick={handleClockIn}
             disabled={loading || isValidating}
-            className="w-full flex-1 bg-brand dark:bg-white/10 dark:border dark:border-white/20 dark:hover:bg-white/20 disabled:bg-gray-200 dark:disabled:bg-white/5 disabled:text-gray-400 dark:disabled:text-zinc-600 disabled:cursor-not-allowed text-white font-medium py-3 px-4 rounded-xl transition-all duration-200 flex items-center justify-center shadow-[0_4px_12px_rgba(0,0,0,0.5)]"
+            className="relative group overflow-hidden w-full rounded-2xl bg-brand hover:bg-brand/90 text-white shadow-md dark:bg-white/[0.05] dark:hover:bg-white/[0.1] px-6 py-4 text-sm font-medium transition-all duration-500 ease-out border border-transparent dark:border-white/[0.1] dark:backdrop-blur-xl dark:shadow-[0_8px_32px_rgba(0,0,0,0.5),inset_0_4px_16px_rgba(255,255,255,0.15),inset_0_-4px_16px_rgba(0,0,0,0.4)] dark:hover:shadow-[0_8px_32px_rgba(0,0,0,0.6),inset_0_6px_20px_rgba(255,255,255,0.25),inset_0_-4px_16px_rgba(0,0,0,0.5)] disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.97]"
           >
-            <Play className="mr-2 h-5 w-5" />
-            {isValidating ? 'Verifying Location & Network...' : loading ? 'Clocking In...' : 'Clock In'}
+            <span className="absolute inset-x-0 top-0 h-px hidden dark:block bg-gradient-to-r from-transparent via-white/50 to-transparent opacity-50 group-hover:opacity-100 transition-opacity duration-500"></span>
+            <span className="absolute inset-0 z-0 hidden dark:block bg-[radial-gradient(ellipse_at_top,rgba(255,255,255,0.15)_0%,transparent_70%)] opacity-0 group-hover:opacity-100 transition-opacity duration-700"></span>
+            <span className="relative z-10 flex items-center justify-center tracking-wide dark:drop-shadow-[0_2px_4px_rgba(0,0,0,0.5)]">
+              <Play className="mr-2 h-5 w-5" />
+              <span>{isValidating ? 'Verifying Location & Network...' : loading ? 'Clocking In...' : 'Clock In'}</span>
+            </span>
           </button>
         ) : !todayRecord?.clockOut ? (
           <div className="space-y-3">
@@ -665,12 +669,13 @@ const ClockInOutNew: React.FC<ClockInOutNewProps> = ({ onAttendanceChange }) => 
               <button
                 onClick={handleLunchReturn}
                 disabled={loading}
-                className="relative group overflow-hidden w-full rounded-xl bg-gray-900 hover:bg-black text-white shadow-md dark:bg-white/[0.1] dark:hover:bg-white/[0.15] px-6 py-3 text-sm font-medium transition-all duration-300 ease-out border border-transparent dark:border-white/[0.2] dark:hover:border-white/[0.3] dark:backdrop-blur-md dark:shadow-[0_0_20px_rgba(0,0,0,0.5),inset_0_1px_0_rgba(255,255,255,0.2)] dark:hover:shadow-[0_0_25px_rgba(255,255,255,0.1),inset_0_1px_0_rgba(255,255,255,0.3)] disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.98]"
+                className="relative group overflow-hidden w-full rounded-2xl bg-gray-900 hover:bg-black text-white shadow-md dark:bg-white/[0.1] dark:hover:bg-white/[0.15] px-6 py-4 text-sm font-medium transition-all duration-500 ease-out border border-transparent dark:border-white/[0.15] dark:backdrop-blur-xl dark:shadow-[0_8px_32px_rgba(0,0,0,0.5),inset_0_4px_16px_rgba(255,255,255,0.2),inset_0_-4px_16px_rgba(0,0,0,0.4)] dark:hover:shadow-[0_8px_32px_rgba(0,0,0,0.6),inset_0_6px_20px_rgba(255,255,255,0.3),inset_0_-4px_16px_rgba(0,0,0,0.5)] disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.97]"
               >
-                <span className="absolute inset-0 z-0 hidden dark:block bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.15)_0%,transparent_70%)] opacity-0 group-hover:opacity-100 transition-opacity duration-500"></span>
-                <span className="relative z-10 flex items-center justify-center tracking-wide">
+                <span className="absolute inset-x-0 top-0 h-px hidden dark:block bg-gradient-to-r from-transparent via-white/60 to-transparent opacity-60 group-hover:opacity-100 transition-opacity duration-500"></span>
+                <span className="absolute inset-0 z-0 hidden dark:block bg-[radial-gradient(ellipse_at_top,rgba(255,255,255,0.2)_0%,transparent_70%)] opacity-0 group-hover:opacity-100 transition-opacity duration-700"></span>
+                <span className="relative z-10 flex items-center justify-center tracking-wide dark:drop-shadow-[0_2px_4px_rgba(0,0,0,0.5)]">
                   <Coffee className="mr-2 h-5 w-5" />
-                  {loading ? 'Returning...' : 'Return from Lunch'}
+                  <span>{loading ? 'Returning...' : 'Return from Lunch'}</span>
                 </span>
               </button>
             )}
@@ -680,12 +685,13 @@ const ClockInOutNew: React.FC<ClockInOutNewProps> = ({ onAttendanceChange }) => 
               <button
                 onClick={handleStartLunch}
                 disabled={loading}
-                className="relative group overflow-hidden w-full rounded-xl bg-white hover:bg-gray-50 text-gray-700 border border-gray-200 shadow-sm dark:bg-white/[0.03] dark:hover:bg-white/[0.07] px-6 py-3 text-sm font-medium dark:text-slate-200 transition-all duration-300 ease-out dark:border-white/[0.08] dark:hover:border-white/[0.15] dark:backdrop-blur-md dark:shadow-[0_0_20px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.1)] dark:hover:shadow-[0_0_25px_rgba(0,0,0,0.6),inset_0_1px_0_rgba(255,255,255,0.2)] disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.98]"
+                className="relative group overflow-hidden w-full rounded-2xl bg-white hover:bg-gray-50 text-gray-700 border border-gray-200 shadow-sm dark:bg-white/[0.05] dark:hover:bg-white/[0.1] px-6 py-4 text-sm font-medium dark:text-slate-200 transition-all duration-500 ease-out dark:border-white/[0.1] dark:backdrop-blur-xl dark:shadow-[0_8px_32px_rgba(0,0,0,0.5),inset_0_4px_16px_rgba(255,255,255,0.15),inset_0_-4px_16px_rgba(0,0,0,0.4)] dark:hover:shadow-[0_8px_32px_rgba(0,0,0,0.6),inset_0_6px_20px_rgba(255,255,255,0.25),inset_0_-4px_16px_rgba(0,0,0,0.5)] disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.97]"
               >
-                <span className="absolute inset-0 z-0 hidden dark:block bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.08)_0%,transparent_70%)] opacity-0 group-hover:opacity-100 transition-opacity duration-500"></span>
-                <span className="relative z-10 flex items-center justify-center tracking-wide">
-                  <Coffee className="mr-2 h-5 w-5 text-gray-400 group-hover:text-gray-700 dark:text-slate-400 dark:group-hover:text-white transition-colors" />
-                  {loading ? 'Starting...' : 'Start Lunch Break'}
+                <span className="absolute inset-x-0 top-0 h-px hidden dark:block bg-gradient-to-r from-transparent via-white/50 to-transparent opacity-50 group-hover:opacity-100 transition-opacity duration-500"></span>
+                <span className="absolute inset-0 z-0 hidden dark:block bg-[radial-gradient(ellipse_at_top,rgba(255,255,255,0.15)_0%,transparent_70%)] opacity-0 group-hover:opacity-100 transition-opacity duration-700"></span>
+                <span className="relative z-10 flex items-center justify-center tracking-wide dark:drop-shadow-[0_2px_4px_rgba(0,0,0,0.5)]">
+                  <Coffee className="mr-2 h-5 w-5 text-gray-400 group-hover:text-gray-700 dark:text-slate-300 dark:group-hover:text-white transition-colors duration-300" />
+                  <span>{loading ? 'Starting...' : 'Start Lunch Break'}</span>
                 </span>
               </button>
             )}
@@ -697,24 +703,26 @@ const ClockInOutNew: React.FC<ClockInOutNewProps> = ({ onAttendanceChange }) => 
                   <button
                     onClick={handleStartBreak}
                     disabled={loading}
-                    className="relative group overflow-hidden flex-1 rounded-xl bg-white hover:bg-gray-50 text-gray-700 border border-gray-200 shadow-sm dark:bg-white/[0.03] dark:hover:bg-white/[0.07] px-6 py-3 text-sm font-medium dark:text-slate-200 transition-all duration-300 ease-out dark:border-white/[0.08] dark:hover:border-white/[0.15] dark:backdrop-blur-md dark:shadow-[0_0_20px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.1)] dark:hover:shadow-[0_0_25px_rgba(0,0,0,0.6),inset_0_1px_0_rgba(255,255,255,0.2)] disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.98]"
+                    className="relative group overflow-hidden flex-1 rounded-2xl bg-white hover:bg-gray-50 text-gray-700 border border-gray-200 shadow-sm dark:bg-white/[0.05] dark:hover:bg-white/[0.1] px-6 py-4 text-sm font-medium dark:text-slate-200 transition-all duration-500 ease-out dark:border-white/[0.1] dark:backdrop-blur-xl dark:shadow-[0_8px_32px_rgba(0,0,0,0.5),inset_0_4px_16px_rgba(255,255,255,0.15),inset_0_-4px_16px_rgba(0,0,0,0.4)] dark:hover:shadow-[0_8px_32px_rgba(0,0,0,0.6),inset_0_6px_20px_rgba(255,255,255,0.25),inset_0_-4px_16px_rgba(0,0,0,0.5)] disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.97]"
                   >
-                    <span className="absolute inset-0 z-0 hidden dark:block bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.08)_0%,transparent_70%)] opacity-0 group-hover:opacity-100 transition-opacity duration-500"></span>
-                    <span className="relative z-10 flex items-center justify-center tracking-wide">
-                      <Coffee className="mr-2 h-4 w-4 text-gray-400 group-hover:text-gray-700 dark:text-slate-400 dark:group-hover:text-white transition-colors" />
-                      {loading ? 'Starting...' : 'Start Break'}
+                    <span className="absolute inset-x-0 top-0 h-px hidden dark:block bg-gradient-to-r from-transparent via-white/50 to-transparent opacity-50 group-hover:opacity-100 transition-opacity duration-500"></span>
+                    <span className="absolute inset-0 z-0 hidden dark:block bg-[radial-gradient(ellipse_at_top,rgba(255,255,255,0.15)_0%,transparent_70%)] opacity-0 group-hover:opacity-100 transition-opacity duration-700"></span>
+                    <span className="relative z-10 flex items-center justify-center tracking-wide dark:drop-shadow-[0_2px_4px_rgba(0,0,0,0.5)]">
+                      <Coffee className="mr-2 h-4 w-4 text-gray-400 group-hover:text-gray-700 dark:text-slate-300 dark:group-hover:text-white transition-colors duration-300" />
+                      <span>{loading ? 'Starting...' : 'Start Break'}</span>
                     </span>
                   </button>
                 ) : (
                   <button
                     onClick={handleEndBreak}
                     disabled={loading}
-                    className="relative group overflow-hidden flex-1 rounded-xl bg-gray-900 hover:bg-black text-white shadow-md dark:bg-white/[0.1] dark:hover:bg-white/[0.15] px-6 py-3 text-sm font-medium transition-all duration-300 ease-out border border-transparent dark:border-white/[0.2] dark:hover:border-white/[0.3] dark:backdrop-blur-md dark:shadow-[0_0_20px_rgba(0,0,0,0.5),inset_0_1px_0_rgba(255,255,255,0.2)] dark:hover:shadow-[0_0_25px_rgba(255,255,255,0.1),inset_0_1px_0_rgba(255,255,255,0.3)] disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.98]"
+                    className="relative group overflow-hidden flex-1 rounded-2xl bg-gray-900 hover:bg-black text-white shadow-md dark:bg-white/[0.1] dark:hover:bg-white/[0.15] px-6 py-4 text-sm font-medium transition-all duration-500 ease-out border border-transparent dark:border-white/[0.15] dark:backdrop-blur-xl dark:shadow-[0_8px_32px_rgba(0,0,0,0.5),inset_0_4px_16px_rgba(255,255,255,0.2),inset_0_-4px_16px_rgba(0,0,0,0.4)] dark:hover:shadow-[0_8px_32px_rgba(0,0,0,0.6),inset_0_6px_20px_rgba(255,255,255,0.3),inset_0_-4px_16px_rgba(0,0,0,0.5)] disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.97]"
                   >
-                    <span className="absolute inset-0 z-0 hidden dark:block bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.15)_0%,transparent_70%)] opacity-0 group-hover:opacity-100 transition-opacity duration-500"></span>
-                    <span className="relative z-10 flex items-center justify-center tracking-wide">
+                    <span className="absolute inset-x-0 top-0 h-px hidden dark:block bg-gradient-to-r from-transparent via-white/60 to-transparent opacity-60 group-hover:opacity-100 transition-opacity duration-500"></span>
+                    <span className="absolute inset-0 z-0 hidden dark:block bg-[radial-gradient(ellipse_at_top,rgba(255,255,255,0.2)_0%,transparent_70%)] opacity-0 group-hover:opacity-100 transition-opacity duration-700"></span>
+                    <span className="relative z-10 flex items-center justify-center tracking-wide dark:drop-shadow-[0_2px_4px_rgba(0,0,0,0.5)]">
                       <Pause className="mr-2 h-4 w-4" />
-                      {loading ? 'Ending...' : <>End Break ({todayRecord?.breaks.find(b => !b.endTime)?.startTime ? <LiveBreakDuration breakStartTime={todayRecord!.breaks.find(b => !b.endTime)!.startTime!} /> : '0m'})</>}
+                      <span>{loading ? 'Ending...' : <>End Break ({todayRecord?.breaks.find(b => !b.endTime)?.startTime ? <LiveBreakDuration breakStartTime={todayRecord!.breaks.find(b => !b.endTime)!.startTime!} /> : '0m'})</>}</span>
                     </span>
                   </button>
                 )}
@@ -725,14 +733,15 @@ const ClockInOutNew: React.FC<ClockInOutNewProps> = ({ onAttendanceChange }) => 
             <button
               onClick={handleClockOut}
               disabled={loading || isOnBreak || (todayRecord?.lunchStart && !todayRecord?.lunchEnd)}
-              className="relative group overflow-hidden w-full rounded-xl bg-white hover:bg-red-50 text-gray-700 hover:text-red-600 border border-gray-200 shadow-sm dark:bg-white/[0.02] dark:hover:bg-red-500/[0.1] px-6 py-3 text-sm font-medium dark:text-slate-300 dark:hover:text-red-200 transition-all duration-300 ease-out dark:border-white/[0.05] dark:hover:border-red-500/[0.3] dark:backdrop-blur-md dark:shadow-[0_0_20px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.05)] dark:hover:shadow-[0_0_25px_rgba(239,68,68,0.2),inset_0_1px_0_rgba(239,68,68,0.2)] disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.98]"
+              className="relative group overflow-hidden w-full rounded-2xl bg-white hover:bg-red-50 text-gray-700 hover:text-red-600 border border-gray-200 shadow-sm dark:bg-white/[0.02] dark:hover:bg-red-500/[0.15] px-6 py-4 text-sm font-medium dark:text-slate-300 dark:hover:text-red-200 transition-all duration-500 ease-out dark:border-white/[0.05] dark:hover:border-red-500/[0.3] dark:backdrop-blur-xl dark:shadow-[0_8px_32px_rgba(0,0,0,0.4),inset_0_4px_16px_rgba(255,255,255,0.05),inset_0_-4px_16px_rgba(0,0,0,0.4)] dark:hover:shadow-[0_8px_32px_rgba(239,68,68,0.2),inset_0_6px_20px_rgba(239,68,68,0.15),inset_0_-4px_16px_rgba(239,68,68,0.3)] disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.97]"
             >
-              <span className="absolute inset-0 z-0 hidden dark:block bg-[radial-gradient(circle_at_center,rgba(239,68,68,0.15)_0%,transparent_70%)] opacity-0 group-hover:opacity-100 transition-opacity duration-500"></span>
-              <span className="relative z-10 flex items-center justify-center tracking-wide">
+              <span className="absolute inset-x-0 top-0 h-px hidden dark:block bg-gradient-to-r from-transparent via-red-500/30 to-transparent opacity-50 group-hover:opacity-100 transition-opacity duration-500"></span>
+              <span className="absolute inset-0 z-0 hidden dark:block bg-[radial-gradient(ellipse_at_top,rgba(239,68,68,0.15)_0%,transparent_70%)] opacity-0 group-hover:opacity-100 transition-opacity duration-700"></span>
+              <span className="relative z-10 flex items-center justify-center tracking-wide dark:drop-shadow-[0_2px_4px_rgba(0,0,0,0.5)]">
                 <Pause className="mr-2 h-5 w-5" />
-                {loading ? 'Clocking Out...' :
+                <span>{loading ? 'Clocking Out...' :
                   isOnBreak ? 'End Break First' :
-                    (todayRecord?.lunchStart && !todayRecord?.lunchEnd) ? 'Return from Lunch First' : 'Clock Out'}
+                    (todayRecord?.lunchStart && !todayRecord?.lunchEnd) ? 'Return from Lunch First' : 'Clock Out'}</span>
               </span>
             </button>
           </div>
@@ -751,7 +760,6 @@ const ClockInOutNew: React.FC<ClockInOutNewProps> = ({ onAttendanceChange }) => 
           </div>
         )}
       </div>
-
       {/* Today's Break Summary */}
       {todayRecord && todayRecord.breaks.length > 0 && (
         <div className="mt-6 border-t pt-4">

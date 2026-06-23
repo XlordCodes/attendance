@@ -217,6 +217,8 @@ class UserService {
       default_break_duration: Number(data.default_break_duration) || 15,
       break_reminder_enabled: Boolean(data.break_reminder_enabled),
       sound_enabled: Boolean(data.sound_enabled),
+      phone_number: data.phone_number as string | undefined,
+      personal_email: data.personal_email as string | undefined,
       // Optional settings blob — kept for transition flows that still
       // read theme / language / dateFormat from JSON; null = column absent
       settings:
@@ -237,7 +239,7 @@ class UserService {
       console.log('📋 Fetching all users from database...');
       const { data, error } = await supabase
         .from(this.TABLE_NAME)
-        .select('id, employee_id, name, email, role, department, position, designation, is_active, join_date, default_break_duration, break_reminder_enabled, sound_enabled, created_at, last_login')
+        .select('id, employee_id, name, email, role, department, position, designation, is_active, join_date, default_break_duration, break_reminder_enabled, sound_enabled, created_at, last_login, phone_number, personal_email')
         .order('employee_id', { ascending: true });
 
       if (error) throw error;
